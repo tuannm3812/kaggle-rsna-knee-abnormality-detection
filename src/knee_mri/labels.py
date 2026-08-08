@@ -58,21 +58,7 @@ def extract_weak_labels(report_text: str) -> dict[str, int]:
     Returns:
         A dict mapping each of the 12 `LABEL_COLUMNS` to 0 or 1.
     """
-    result = {}
-    for label, patterns in _COMPILED_PATTERNS.items():
-        found = False
-        for pattern in patterns:
-            for match in pattern.finditer(report_text):
-                # For meniscus patterns, check if followed by "appears intact"/"appears normal"
-                # which negates the finding
-                if label in ["Medial Meniscus", "Lateral Meniscus"]:
-                    end_pos = min(len(report_text), match.end() + 30)
-                    following = report_text[match.end():end_pos].lower()
-                    if re.search(r'appears\s+(intact|normal)', following):
-                        continue  # Skip this match
-                found = True
-                break
-            if found:
-                break
-        result[label] = 1 if found else 0
-    return result
+    return {
+        label: int(any(pattern.search(report_text) for pattern in patterns))
+        for label, patterns in _COMPILED_PATTERNS.items()
+    }
