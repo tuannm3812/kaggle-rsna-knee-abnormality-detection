@@ -14,6 +14,7 @@ import math
 import re
 from collections.abc import Callable, Mapping
 
+import numpy as np
 import pandas as pd
 
 from knee_mri.labels import LABEL_COLUMNS
@@ -62,17 +63,22 @@ def _validate_true_df(true_df: pd.DataFrame) -> None:
         raise ValueError("true_df has duplicate StudyInstanceUID values")
     for label in LABEL_COLUMNS:
         column = true_df[label]
-        # Reject bool dtype explicitly -- True/False are isin([0, 1])-equal
-        # to 1/0 via `==`, so a boolean mask passed by mistake would
-        # otherwise silently score as valid labels. Deliberately NOT
-        # requiring integer dtype: pandas.read_csv upcasts a column to
-        # float64 whenever it contains NaN anywhere in the full column
+        # Reject any bool value at the element level (Python bool or
+        # numpy.bool_), not just bool dtype -- a mixed-type column (e.g.
+        # pd.Series([True, 0]), dtype "object") is *not* bool dtype, so
+        # a dtype-only check misses a True value smuggled in there.
+        # True/False are isin([0, 1])-equal to 1/0 via `==`, so without
+        # this a boolean value passed by mistake would otherwise
+        # silently score as a valid label. Deliberately NOT requiring
+        # integer dtype: pandas.read_csv upcasts a column to float64
+        # whenever it contains NaN anywhere in the full column
         # (train.csv's label columns are NaN for the 4349 unlabeled
         # studies), and that float64 dtype survives filtering down to
         # only the labeled, non-NaN subset -- rejecting float dtype here
         # would reject the actual normal shape of this dataset's
         # ground truth, not just malformed input.
-        if pd.api.types.is_bool_dtype(column) or not column.isin([0, 1]).all():
+        has_bool_value = column.apply(lambda value: isinstance(value, (bool, np.bool_))).any()
+        if has_bool_value or not column.isin([0, 1]).all():
             raise ValueError(f"true_df column '{label}' has values outside {{0, 1}}")
     is_string = true_df["Report"].apply(lambda value: isinstance(value, str))
     if true_df["Report"].isna().any() or not is_string.all():

@@ -189,9 +189,22 @@ def test_weak_label_metrics_raises_on_non_binary_label_value():
 
 def test_weak_label_metrics_raises_on_bool_label_column():
     # bool is isin([0, 1])-equal to 0/1 (True == 1, False == 0), so this
-    # must be checked via dtype, not just isin.
+    # must be checked via a per-element type check, not just isin.
     true_df = _true_df([_row("s1", "report")])
     true_df["ACL"] = true_df["ACL"].astype(bool)
+
+    with pytest.raises(ValueError, match="outside"):
+        weak_label_metrics(true_df, _constant_extractor(None))
+
+
+def test_weak_label_metrics_raises_on_mixed_object_column_with_bool_value():
+    # A column with a smuggled True mixed among plain ints has dtype
+    # "object", not "bool" -- Codex round 14 found a dtype-only check
+    # (pd.api.types.is_bool_dtype) misses this, since is_bool_dtype is
+    # False for an object-dtype column even when one of its values is a
+    # real bool. Must be caught at the element level instead.
+    true_df = _true_df([_row("s1", "report"), _row("s2", "report2")])
+    true_df["ACL"] = pd.Series([True, 0], dtype=object)
 
     with pytest.raises(ValueError, match="outside"):
         weak_label_metrics(true_df, _constant_extractor(None))

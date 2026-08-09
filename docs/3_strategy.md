@@ -63,6 +63,17 @@ indefinitely.
   not that the extractor is wrong. If more human-labeled studies become
   available before Phase 3 starts, re-run this evaluation rather than
   assume the verdict is stable at a different sample size.
+- **Next candidate approach, if weak labels are revisited** (per the
+  design spec section 7 — named now as a future strategy fork, not
+  implemented in this pass): either a multilingual assertion-extraction
+  model (the taxonomy in `docs/4_experiments.md` shows most false
+  negatives are `no_mention` — no keyword matched at all — concentrated
+  in non-`ascii_only` buckets, consistent with, though not proven by,
+  the cue lists' known English-only scope), or probabilistic weak
+  supervision combining multiple labeling functions (à la Snorkel,
+  per round 1's original suggestion) rather than a single regex-based
+  extractor. Neither is scoped or estimated here; this is a named
+  option, not a plan.
 
 ## Phase 3 — Baseline Modeling — target ~2026-09-06, shape depends on Phase 2
 

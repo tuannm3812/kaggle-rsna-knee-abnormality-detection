@@ -18,36 +18,61 @@ keyword match only) vs. `extract_weak_labels` (clause-scoped,
 assertion-aware). Aggregate counts/rates only — no report text or study
 identifiers left Kaggle.
 
-### Precision, per label (naive → fixed; Wilson 95% lower bound in parens)
+### Baseline (`extract_weak_labels_naive`)
 
-| Label | naive precision (ci_low) | fixed precision (ci_low) | fixed support | fixed coverage |
-|---|---|---|---|---|
-| ACL | 0.414 (0.255) | 0.750 (0.468) | 12 | 0.483 |
-| MCL | 0.200 (0.089) | 0.500 (0.237) | 10 | 0.431 |
-| Medial Meniscus | 0.545 (0.347) | 0.750 (0.505) | 16 | 0.379 |
-| Lateral Meniscus | 0.524 (0.324) | 0.769 (0.497) | 13 | 0.362 |
-| Medial OA | 1.000 (0.207) | 1.000 (0.207) | 1 | 0.017 |
-| Lateral OA | 0.000 (0.000) | 0.000 (0.000) | 0 | 0.000 |
-| PF OA | 0.000 (0.000) | 0.000 (0.000) | 0 | 0.000 |
-| Effusion | 0.536 (0.358) | 0.682 (0.473) | 22 | 0.483 |
-| Synovitis | 0.667 (0.354) | 0.667 (0.354) | 9 | 0.155 |
-| Baker's | 0.364 (0.152) | 0.667 (0.300) | 6 | 0.190 |
-| Contusion | 0.529 (0.310) | 0.667 (0.391) | 12 | 0.293 |
-| Fracture | 0.500 (0.268) | 1.000 (0.510) | 4 | 0.224 |
+All 58 studies are non-abstained (the naive extractor never abstains),
+so `support = predicted_positive_support`, `actual_positive_support`,
+`coverage = 1.0` for every label.
 
-("support" = `predicted_positive_support`, the Wilson interval's `n`.
-"coverage" = fraction of the 58 studies where the fixed extractor gave a
-confident 1 or 0 rather than abstaining.)
+| Label | tp | fp | tn | fn | precision (ci) | recall (ci) | support | passes_gate |
+|---|---|---|---|---|---|---|---|---|
+| ACL | 12 | 17 | 17 | 12 | 0.414 (0.255–0.593) | 0.500 (0.314–0.686) | 29 | False |
+| MCL | 5 | 20 | 29 | 4 | 0.200 (0.089–0.391) | 0.556 (0.267–0.811) | 25 | False |
+| Medial Meniscus | 12 | 10 | 22 | 14 | 0.545 (0.347–0.731) | 0.462 (0.288–0.645) | 22 | False |
+| Lateral Meniscus | 11 | 10 | 25 | 12 | 0.524 (0.324–0.717) | 0.478 (0.292–0.670) | 21 | False |
+| Medial OA | 1 | 0 | 43 | 14 | 1.000 (0.207–1.000) | 0.067 (0.012–0.298) | 1 | False |
+| Lateral OA | 0 | 0 | 47 | 11 | 0.000 (0.000–0.000) | 0.000 (0.000–0.259) | 0 | False |
+| PF OA | 0 | 0 | 37 | 21 | 0.000 (0.000–0.000) | 0.000 (0.000–0.155) | 0 | False |
+| Effusion | 15 | 13 | 10 | 20 | 0.536 (0.358–0.705) | 0.429 (0.280–0.591) | 28 | False |
+| Synovitis | 6 | 3 | 28 | 21 | 0.667 (0.354–0.879) | 0.222 (0.106–0.408) | 9 | False |
+| Baker's | 4 | 7 | 39 | 8 | 0.364 (0.152–0.646) | 0.333 (0.138–0.609) | 11 | False |
+| Contusion | 9 | 8 | 31 | 10 | 0.529 (0.310–0.738) | 0.474 (0.273–0.683) | 17 | False |
+| Fracture | 7 | 7 | 33 | 11 | 0.500 (0.268–0.732) | 0.389 (0.203–0.614) | 14 | False |
 
-### Allowlist: 0/12 (`MIN_SUPPORT=5`, `MIN_PRECISION_LOWER_BOUND=0.55`)
+### Fixed (`extract_weak_labels`, assertion-aware)
 
-No label clears the gate. Point-estimate precision improved substantially
-for most labels (assertion-awareness is doing real work — e.g. Medial
-Meniscus 0.545→0.750, Fracture 0.500→1.000), but the Wilson lower bounds
-stay under 0.55 for every label given only 58 labeled studies. Closest
-misses: **Medial Meniscus** (ci_low 0.505, support 16) and **Fracture**
-(ci_low 0.510, but support 4 — fails the support gate outright regardless
-of precision). No label has both `support >= 5` and `ci_low >= 0.55`.
+`abstained_on_positive` / `abstained_on_negative` counts (not shown as
+separate columns — full raw counts are in the kernel log, not
+reproduced here since they add no information beyond `coverage`) push
+`support` and `coverage` below the baseline's for every label with any
+abstentions.
+
+| Label | tp | fp | tn | fn | precision (ci) | recall (ci) | support | coverage | passes_gate |
+|---|---|---|---|---|---|---|---|---|---|
+| ACL | 9 | 3 | 14 | 2 | 0.750 (0.468–0.911) | 0.375 (0.212–0.573) | 12 | 0.483 | False |
+| MCL | 5 | 5 | 15 | 0 | 0.500 (0.237–0.763) | 0.556 (0.267–0.811) | 10 | 0.431 | False |
+| Medial Meniscus | 12 | 4 | 6 | 0 | 0.750 (0.505–0.898) | 0.462 (0.288–0.645) | 16 | 0.379 | False |
+| Lateral Meniscus | 10 | 3 | 7 | 1 | 0.769 (0.497–0.918) | 0.435 (0.256–0.632) | 13 | 0.362 | False |
+| Medial OA | 1 | 0 | 0 | 0 | 1.000 (0.207–1.000) | 0.067 (0.012–0.298) | 1 | 0.017 | False |
+| Lateral OA | 0 | 0 | 0 | 0 | 0.000 (0.000–0.000) | 0.000 (0.000–0.259) | 0 | 0.000 | False |
+| PF OA | 0 | 0 | 0 | 0 | 0.000 (0.000–0.000) | 0.000 (0.000–0.155) | 0 | 0.000 | False |
+| Effusion | 15 | 7 | 6 | 0 | 0.682 (0.473–0.836) | 0.429 (0.280–0.591) | 22 | 0.483 | False |
+| Synovitis | 6 | 3 | 0 | 0 | 0.667 (0.354–0.879) | 0.222 (0.106–0.408) | 9 | 0.155 | False |
+| Baker's | 4 | 2 | 5 | 0 | 0.667 (0.300–0.903) | 0.333 (0.138–0.609) | 6 | 0.190 | False |
+| Contusion | 8 | 4 | 4 | 1 | 0.667 (0.391–0.862) | 0.421 (0.231–0.637) | 12 | 0.293 | False |
+| Fracture | 4 | 0 | 7 | 2 | 1.000 (0.510–1.000) | 0.222 (0.090–0.452) | 4 | 0.224 | False |
+
+### Allowlist (`MIN_SUPPORT=5`, `MIN_PRECISION_LOWER_BOUND=0.55`): **`[]` — 0/12**
+
+Explicit: no label is on the allowlist. Point-estimate precision improved
+substantially for most labels under the fixed extractor (assertion-
+awareness is doing real work — e.g. Medial Meniscus 0.545→0.750, Fracture
+0.500→1.000), but the Wilson lower bound stays under 0.55 for every
+label given only 58 labeled studies. Closest misses: **Medial Meniscus**
+(ci_low 0.505, support 16 — clears `MIN_SUPPORT` but not the precision
+bound) and **Fracture** (ci_low 0.510, but support 4 — fails
+`MIN_SUPPORT` outright regardless of precision). No label clears both
+gates simultaneously.
 
 **Interpretation, explicitly hedged:** this reads as small-sample
 uncertainty rather than a precision ceiling — several labels are already
@@ -56,29 +81,129 @@ above the 0.55 point estimate (Medial Meniscus 0.750, Lateral Meniscus
 is too wide at n≈10-20 to clear a 95% lower-bound gate. Not confirmed:
 whether more labeled data would actually narrow the interval past the
 gate, or whether the point estimates themselves would regress toward
-something lower with more studies. `resolution_signature` counts (error
-taxonomy, `docs/collaboration/active_task.md`) show `no_mention`
+something lower with more studies. The taxonomy below shows `no_mention`
 (abstain, correctly not scored) dominates false negatives across almost
 every label — coverage, not precision, looks like the more informative
 next lever.
 
-### Orthographic-bucket comparison (labeled vs. all 4407 studies)
+### Error taxonomy — `(label, orthographic_bucket, resolution_signature, prediction_error)` counts
 
-| Bucket | labeled | unlabeled |
-|---|---|---|
-| ascii_only | 0.483 | 0.406 |
-| other_latin_undetermined | 0.259 | 0.242 |
-| mixed_latin_diacritics | 0.103 | 0.124 |
-| latin_with_south_slavic_diacritics | 0.069 | 0.092 |
-| greek_script | 0.052 | 0.073 |
-| latin_with_german_turkish_umlaut | 0.034 | 0.062 |
+Purely observational per the design spec section 5: `resolution_signature`
+and `prediction_error` are directly-observed mechanical facts, not a
+claimed cause for any mismatch.
 
-The labeled set's character-set mix is close to the unlabeled set's (all
-buckets within ~2 points), so this result plausibly generalizes rather
-than being an artifact of a skewed labeled sample — though "close
-orthographic mix" is not proof of "close extraction accuracy" for
-non-English text, since these buckets are honestly named as character
-sets, not language identification.
+| Label | Orthographic bucket | Resolution signature | Prediction error | Count |
+|---|---|---|---|---|
+| ACL | ascii_only | mixed_qualification | false_negative | 3 |
+| ACL | ascii_only | unqualified_only | false_positive | 3 |
+| ACL | greek_script | no_mention | false_negative | 1 |
+| ACL | latin_with_german_turkish_umlaut | no_mention | false_negative | 1 |
+| ACL | latin_with_south_slavic_diacritics | no_mention | false_negative | 1 |
+| ACL | mixed_latin_diacritics | no_mention | false_negative | 3 |
+| ACL | other_latin_undetermined | no_mention | false_negative | 6 |
+| Baker's | ascii_only | no_mention | false_negative | 1 |
+| Baker's | ascii_only | unqualified_only | false_positive | 2 |
+| Baker's | greek_script | no_mention | false_negative | 1 |
+| Baker's | latin_with_german_turkish_umlaut | no_mention | false_negative | 1 |
+| Baker's | latin_with_south_slavic_diacritics | no_mention | false_negative | 2 |
+| Baker's | mixed_latin_diacritics | no_mention | false_negative | 1 |
+| Baker's | other_latin_undetermined | no_mention | false_negative | 2 |
+| Contusion | ascii_only | mixed_qualification | false_negative | 1 |
+| Contusion | ascii_only | no_mention | false_negative | 2 |
+| Contusion | ascii_only | unqualified_only | false_positive | 3 |
+| Contusion | greek_script | no_mention | false_negative | 2 |
+| Contusion | latin_with_south_slavic_diacritics | no_mention | false_negative | 1 |
+| Contusion | mixed_latin_diacritics | no_mention | false_negative | 2 |
+| Contusion | other_latin_undetermined | no_mention | false_negative | 3 |
+| Contusion | other_latin_undetermined | unqualified_only | false_positive | 1 |
+| Effusion | ascii_only | unqualified_only | false_positive | 7 |
+| Effusion | greek_script | no_mention | false_negative | 3 |
+| Effusion | latin_with_german_turkish_umlaut | no_mention | false_negative | 1 |
+| Effusion | latin_with_south_slavic_diacritics | no_mention | false_negative | 2 |
+| Effusion | mixed_latin_diacritics | no_mention | false_negative | 5 |
+| Effusion | other_latin_undetermined | no_mention | false_negative | 9 |
+| Fracture | ascii_only | mixed_qualification | false_negative | 3 |
+| Fracture | ascii_only | no_mention | false_negative | 1 |
+| Fracture | greek_script | no_mention | false_negative | 1 |
+| Fracture | latin_with_german_turkish_umlaut | no_mention | false_negative | 1 |
+| Fracture | latin_with_south_slavic_diacritics | no_mention | false_negative | 1 |
+| Fracture | mixed_latin_diacritics | no_mention | false_negative | 4 |
+| Fracture | other_latin_undetermined | no_mention | false_negative | 3 |
+| Lateral Meniscus | ascii_only | mixed_qualification | false_negative | 1 |
+| Lateral Meniscus | ascii_only | unqualified_only | false_positive | 3 |
+| Lateral Meniscus | greek_script | no_mention | false_negative | 2 |
+| Lateral Meniscus | latin_with_south_slavic_diacritics | no_mention | false_negative | 1 |
+| Lateral Meniscus | mixed_latin_diacritics | no_mention | false_negative | 2 |
+| Lateral Meniscus | other_latin_undetermined | no_mention | false_negative | 7 |
+| Lateral OA | ascii_only | no_mention | false_negative | 6 |
+| Lateral OA | latin_with_south_slavic_diacritics | no_mention | false_negative | 1 |
+| Lateral OA | other_latin_undetermined | no_mention | false_negative | 4 |
+| MCL | ascii_only | unqualified_only | false_positive | 4 |
+| MCL | greek_script | no_mention | false_negative | 1 |
+| MCL | latin_with_german_turkish_umlaut | unqualified_only | false_positive | 1 |
+| MCL | other_latin_undetermined | no_mention | false_negative | 3 |
+| Medial Meniscus | ascii_only | unqualified_only | false_positive | 4 |
+| Medial Meniscus | greek_script | no_mention | false_negative | 2 |
+| Medial Meniscus | latin_with_german_turkish_umlaut | no_mention | false_negative | 2 |
+| Medial Meniscus | latin_with_south_slavic_diacritics | no_mention | false_negative | 3 |
+| Medial Meniscus | mixed_latin_diacritics | no_mention | false_negative | 5 |
+| Medial Meniscus | other_latin_undetermined | no_mention | false_negative | 2 |
+| Medial OA | ascii_only | no_mention | false_negative | 6 |
+| Medial OA | greek_script | no_mention | false_negative | 2 |
+| Medial OA | latin_with_south_slavic_diacritics | no_mention | false_negative | 3 |
+| Medial OA | mixed_latin_diacritics | no_mention | false_negative | 1 |
+| Medial OA | other_latin_undetermined | no_mention | false_negative | 2 |
+| PF OA | ascii_only | no_mention | false_negative | 8 |
+| PF OA | greek_script | no_mention | false_negative | 1 |
+| PF OA | latin_with_german_turkish_umlaut | no_mention | false_negative | 1 |
+| PF OA | latin_with_south_slavic_diacritics | no_mention | false_negative | 2 |
+| PF OA | mixed_latin_diacritics | no_mention | false_negative | 1 |
+| PF OA | other_latin_undetermined | no_mention | false_negative | 8 |
+| Synovitis | ascii_only | no_mention | false_negative | 5 |
+| Synovitis | ascii_only | unqualified_only | false_positive | 3 |
+| Synovitis | greek_script | no_mention | false_negative | 3 |
+| Synovitis | latin_with_german_turkish_umlaut | no_mention | false_negative | 2 |
+| Synovitis | latin_with_south_slavic_diacritics | no_mention | false_negative | 2 |
+| Synovitis | mixed_latin_diacritics | no_mention | false_negative | 3 |
+| Synovitis | other_latin_undetermined | no_mention | false_negative | 6 |
+
+Observed pattern (mechanical fact, not a claimed cause): `no_mention`
+(the extractor found no keyword match at all, so it correctly abstained
+rather than guessing) accounts for the large majority of
+`false_negative` rows across almost every label and every non-ASCII
+bucket. `unqualified_only` (a keyword matched with no qualifying cue
+nearby, correctly resolved to 1) accounts for most `false_positive`
+rows and is concentrated in `ascii_only`. Any causal read of this
+pattern — e.g. "the English-only cue lists under-cover non-English
+reports" — is a plausible hypothesis consistent with the design's known
+scope limits, not something this table establishes on its own.
+
+### Orthographic-bucket comparison — labeled (58) vs. unlabeled (4349) studies
+
+Note: this compares the 58 labeled studies against the 4349 *unlabeled*
+(report-only) studies produced by `split_labeled_studies` — not against
+all 4407 `train.csv` rows (the 58 labeled studies are not double-counted
+in the "unlabeled" column).
+
+| Bucket | labeled | unlabeled | gap (pp) |
+|---|---|---|---|
+| ascii_only | 0.483 | 0.406 | 7.7 |
+| other_latin_undetermined | 0.259 | 0.242 | 1.7 |
+| mixed_latin_diacritics | 0.103 | 0.124 | 2.1 |
+| latin_with_south_slavic_diacritics | 0.069 | 0.092 | 2.3 |
+| greek_script | 0.052 | 0.073 | 2.1 |
+| latin_with_german_turkish_umlaut | 0.034 | 0.062 | 2.8 |
+
+The `ascii_only` bucket has a real 7.7-point gap (labeled studies skew
+more English than the unlabeled population); the other five buckets are
+within 1.7–2.8 points. Not close enough across the board to call the
+labeled sample's character-set mix representative of the full unlabeled
+population — the `ascii_only` overrepresentation is the one gap worth
+naming explicitly, not glossing over. As before: even a close
+orthographic mix would only bound *how much text looks alike*, not
+*how well extraction accuracy transfers* to non-English text — these
+buckets are honestly named character-set groups, not a language-ID or
+accuracy signal.
 
 ### Verdict: **No-go** for an automatic weak-label allowlist from this
 pass, per `docs/3_strategy.md` Phase 2's predefined decision rule. See

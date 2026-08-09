@@ -1,6 +1,6 @@
 {
   "id": "tuannm3812/rsna-knee-weak-label-evaluation",
-  "title": "rsna-knee-weak-label-evaluation",
+  "title": "RSNA Knee Weak-Label Evaluation",
   "code_file": "02_weak_label_evaluation.ipynb",
   "language": "python",
   "kernel_type": "notebook",
