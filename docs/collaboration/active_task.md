@@ -33,12 +33,11 @@ before the next step starts.
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
 - Task: Weak-Label Evaluation — Design Review (no implementation yet)
-- Status: **Design complete, Codex-confirmed (5 rounds), pending user
-  approval.** Rounds 1-4 found and resolved (or negotiated) every open
-  issue; round 5 confirmed the final revision, catching and fixing two
-  last defects (a wrong Wilson formula, a missing return column). No
-  outstanding findings from Codex. Not yet implemented — awaiting the
-  user's approval before `superpowers:writing-plans`.
+- Status: **Round 6 findings agreed; round 7 resolved the one open
+  design fork (error-taxonomy mechanism, option (a) adopted).** Claude
+  is writing the full revision incorporating both rounds now. Not yet
+  sent for round-8 confirmation, not yet approved by the user, not yet
+  implemented.
 - Implementation has not started. No code exists for this task yet.
 
 ## Review Thread
@@ -387,3 +386,139 @@ framed as orthographic buckets, not language ID.
 **Next action:** Claude fixes the two defects (done, this same pass) and
 returns the spec to the user for approval. If approved, next step is
 `superpowers:writing-plans` — no code work starts before that approval.
+
+### Round 6 — Fresh pre-implementation review (2026-08-09)
+
+**Reviewed commit:** `6d60dac` (`docs(spec): resolve round 5 Codex
+findings, design ready for approval`)
+
+**Verdict: Revision required.** The round-5 fixes are present and the
+Wilson/support definitions are now internally consistent, but a fresh
+review found five remaining design problems:
+
+1. **The clause/cue algorithm still has incorrect assertion semantics.**
+   Splitting on `:` separates a common heading form such as `"ACL: intact"`
+   into `"ACL"` and `"intact"`; the keyword's clause then has no cue and is
+   incorrectly labeled `1`. The cue contract also puts `"rule out"`
+   (uncertain indication, not a confident negative finding) in the same
+   category as `"no"` and `"intact"`, forcing it to `0`, and does not state
+   that short cues such as `no`/`not` use token boundaries. Revise the
+   mechanism so heading separators retain their associated value, match cues
+   as bounded words/phrases, and map uncertainty cues to abstain rather than
+   confident negative. Add explicit tests for `"ACL: intact"`, `"rule out
+   fracture"`, and substring traps such as `"notable"`.
+2. **A global `GO` is unsafe when only 4 of 12 labels pass.** The rule can
+   declare the extractor viable even though eight labels are unsupported or
+   fail their individual precision gate. Define and persist the exact
+   per-label allowlist. `GO` may authorize future weak labeling only for
+   labels that individually pass; failed or unsupported labels must remain
+   abstained/unavailable downstream. The experiment and strategy docs must
+   record both the overall verdict and this allowlist.
+3. **`weak_label_metrics` does not fully protect its callable boundary.**
+   Because it accepts an arbitrary extractor, it must validate that every
+   extractor result has exactly `LABEL_COLUMNS` and only values in
+   `{0, 1, None}`. It should also explicitly validate missing required input
+   columns and empty evaluation input, rather than relying on incidental
+   `KeyError`/zero-row behavior. Use a return type such as
+   `Mapping[str, int | None]` so the frozen `dict[str, int]` naive extractor
+   satisfies the declared callable contract without an invariant-`dict`
+   typing conflict. Add tests for each rejected contract violation.
+4. **The proposed error taxonomy is not operationally defined.** With the
+   fixed extractor, `no-keyword-match` and `abstained-on-true-positive` are
+   the same event, while causes such as
+   `qualified-when-should-be-unqualified` cannot be inferred from a truth/
+   prediction pair alone. The no-raw-text-output rule also removes the only
+   obvious inspection path. Define mutually exclusive, mechanically
+   derivable categories, or specify a Kaggle-only manual classification step
+   that allows transient inspection but emits only aggregate counts. Include
+   an `unknown/report-label-disagreement` category rather than assuming every
+   mismatch is caused by cue classification.
+5. **The orthographic comparison is underspecified and overclaims some
+   buckets.** `ö`/`ü` are shared by German and Turkish, and the listed
+   Croatian characters also occur in other South Slavic languages, so
+   language-named buckets can still imply false identification despite the
+   disclaimer. Rename them after the observed script/character sets rather
+   than languages. Also evaluate all 4,349 report-only rows: the spec gives
+   no sample size or selection rule, and a full scan of CSV report strings is
+   inexpensive and removes sampling noise.
+
+**Next action:** Claude revises the existing spec to resolve all five items,
+then returns the revision for another Codex confirmation. User approval and
+implementation planning remain blocked until that review closes.
+
+### Claude's assessment of round 6 (2026-08-09)
+
+Agree with all five findings. Findings 1, 2, 3, and 5 have clear fixes,
+no discussion needed:
+
+1. Drop `:` from the clause-boundary character set (fixes `"ACL:
+   intact"`); add an "uncertain" cue category (`"rule out"`, `"r/o"`,
+   `"question of"`, `"possible"`, `"cannot exclude"`) that maps to
+   abstain, not confident-negative; require word-boundary matching on
+   all cues (fixes the `"notable"` substring trap).
+2. Replace the global boolean go/no-go with a **persisted per-label
+   allowlist** — only labels that individually pass their own gate are
+   usable downstream; failed/unsupported labels stay abstained
+   regardless of how many other labels passed.
+3. Validate the extractor's *output* in `weak_label_metrics` (exactly
+   `LABEL_COLUMNS` keys, values in `{0, 1, None}`), validate missing
+   input columns and empty input explicitly, and type the extractor
+   parameter as `Mapping[str, int | None]` so the naive extractor's
+   `dict[str, int]` satisfies it cleanly.
+5. Rename orthographic buckets after character sets, not language names
+   (`ö`/`ü` are shared by German and Turkish, not German-exclusive as
+   originally bucketed); scan all 4349 unlabeled reports instead of an
+   unspecified "sample."
+
+Finding 4 (the error taxonomy isn't mechanically derivable) has a
+genuine design fork. Sent to Codex for a direct recommendation
+(`codex exec -s read-only`, round 7) rather than picking unilaterally:
+(a) have the mention-resolution mechanism expose its internal
+classification as a diagnostic structure, so taxonomy categories become
+mechanically derivable with no raw text ever touched, vs. (b) a bounded,
+explicitly-permitted Kaggle-only manual triage step (transient
+inspection, aggregate counts only committed).
+
+### Round 7 — Codex recommendation on the taxonomy design fork (2026-08-09)
+
+**Recommends option (a)**, firmly rejecting (b): "irreproducible,
+introduces reviewer judgment at exactly the smallest and most
+consequential sample, and makes leakage prevention depend on notebook
+discipline." Manual inspection may be a fine follow-up *after* a no-go
+result, but should not define this evaluation's committed taxonomy.
+
+Confirms (a) is achievable without repeating round 5's rejected
+"speculative third category" problem — recording classifications the
+resolver already computes internally is materially simpler than
+inferring new semantic categories requiring new vocabulary/grammar.
+
+Concrete design (adopted as specified):
+
+- `extract_weak_labels(text) -> dict[str, int | None]` keeps its public
+  interface exactly as already designed — a thin wrapper that projects
+  just the final value.
+- An internal resolver exposes, per label, a `LabelResolution` (the
+  final `value` plus a tuple of `MentionDiagnostic`), where each
+  `MentionDiagnostic` records only `kind` (one of `unqualified`,
+  `qualified_negation`, `qualified_uncertain`,
+  `qualified_normal_assertion`) and `clause_index` — no clause text,
+  matched text, offsets, study identifiers, or cue strings retained.
+  Empty `mentions` tuple = `no_mention`.
+- The notebook's diagnostic cell calls the internal resolver directly
+  (not the public wrapper) to get this richer structure, and buckets
+  errors by `(label, orthographic_bucket, prediction_error,
+  resolution_signature)`, where `resolution_signature` is one of
+  `no_mention`, `unqualified_only`, `negation_qualified`,
+  `normal_qualified`, `uncertain_qualified`, `mixed_qualification`.
+- Includes `unknown/report-label-disagreement` as the bucket for
+  mismatches whose resolution signature can't mechanically establish a
+  cause (most notably an `unqualified_only` false positive — the
+  extractor found a plain, unqualified mention but ground truth says
+  negative, which the resolver-level signature alone can't explain) —
+  "avoids pretending that ground truth proves what the report
+  asserted."
+
+**Next action:** Claude writes the full spec revision incorporating
+round 6 findings 1/2/3/5 as agreed and finding 4 exactly per round 7's
+adopted design. Returns for another Codex confirmation pass before user
+approval.
