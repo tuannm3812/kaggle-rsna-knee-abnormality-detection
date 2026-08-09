@@ -33,10 +33,12 @@ before the next step starts.
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
 - Task: Weak-Label Evaluation — Design Review (no implementation yet)
-- Status: **Design confirmed ready after 8 review rounds (Codex round
-  8: "READY for user approval and implementation planning... No further
-  revision round warranted").** Awaiting user approval. Once approved,
-  next step is `superpowers:writing-plans`.
+- Status: **Design confirmed ready (9 review rounds, no blocking
+  findings); round 9's 2 non-blocking gaps resolved in commit `fbd33a0`.**
+  Awaiting the user's own review/approval (or a further Codex round the
+  user runs themselves — Claude will not invoke `codex` on this spec
+  proactively going forward). Once approved, next step is
+  `superpowers:writing-plans`.
 - Implementation has not started. No code exists for this task yet.
 
 ## Review Thread
@@ -561,3 +563,77 @@ all survived this revision intact.
 **Next action:** Present the design to the user for approval. If
 approved, proceed to `superpowers:writing-plans` — this task moves out
 of pure design/review after 8 rounds with no outstanding findings.
+
+### Round 9 — Independent progress check and active-log discussion (2026-08-09)
+
+**Reviewed commits:** `37210c0` (round-6/7 discussion), `ed476bb` (spec
+revision), and `c7c31ce` (round-8 confirmation).
+
+**Progress verified:** Claude incorporated every blocking round-6 finding
+into the actual spec:
+
+1. `:` is no longer a clause boundary; uncertainty has a distinct abstain
+   path; cue matching is word/phrase bounded; the required regression cases
+   are listed for testing.
+2. The global boolean gate is replaced by a persisted per-label allowlist;
+   failed and unsupported labels remain unavailable downstream.
+3. `weak_label_metrics` validates required columns, non-empty input,
+   duplicates, reports, labels, and every extractor result; its callable
+   uses `Mapping[str, int | None]`.
+4. The error taxonomy is mechanically derived from text-free
+   `LabelResolution`/`MentionDiagnostic` structures and includes an unknown/
+   report-label-disagreement outcome rather than inventing a cause.
+5. Orthographic buckets describe character sets rather than claiming
+   language identity, and the comparison covers all 4,349 report-only rows.
+
+**Verdict: Ready for user approval and implementation planning.** No
+blocking design revision is required. Two non-blocking interface details
+must be made explicit in the implementation plan:
+
+- Give the internal resolver a concrete name and signature (for example,
+  `_resolve_weak_labels(report_text: str) -> dict[str, LabelResolution]`),
+  because the notebook diagnostic cell calls it directly even though the
+  current spec defines only its returned dataclasses.
+- Define where `unknown/report-label-disagreement` lives in the taxonomy
+  schema. The stated tuple currently has only `(label, orthographic_bucket,
+  prediction_error, resolution_signature)`, while that unknown outcome is
+  neither one of the listed `resolution_signature` values nor a separate
+  field. The plan should add an explicit `failure_cause` field or make it a
+  named signature value, with mutually exclusive assignment rules.
+
+**Next action:** User reviews and approves or rejects the design. If
+approved, invoke `superpowers:writing-plans`; carry the two clarifications
+above into the plan before any implementation task begins.
+
+### Claude's incorporation of round 9 (2026-08-09, commit `fbd33a0`)
+
+Resolved both non-blocking gaps directly in the spec rather than
+deferring them to the implementation plan, since both had unambiguous,
+mechanically-derivable resolutions:
+
+- **Named the resolver**: `_resolve_weak_labels(report_text: str) ->
+  dict[str, LabelResolution]`, documented in section 2 alongside the
+  `LabelResolution`/`MentionDiagnostic` dataclasses it returns.
+  `extract_weak_labels` is now spelled out as a thin projection over it.
+- **Taxonomy schema**: worked out that, given the resolution order
+  already specified in section 2 step 6, every `resolution_signature`
+  except `unqualified_only` can only ever produce a false negative (the
+  resolver never resolves to `0` or `None` from a state that could also
+  reach `1`), and `unqualified_only` can only ever produce a false
+  positive. `prediction_error` and `failure_cause` are therefore a fixed
+  lookup from `resolution_signature` alone, not independent fields — the
+  redundancy round 9 flagged. `unknown/report-label-disagreement` falls
+  out of this table as exactly `unqualified_only`'s failure cause, which
+  resolves the placement ambiguity by construction rather than as a
+  bolted-on special case. Added a test requirement pinning this
+  invariant so a future change to the resolution order can't silently
+  invalidate the table.
+
+Per the user's explicit preference (2026-08-09), Claude will not invoke
+`codex` on this spec further — the user runs subsequent Codex reviews
+themselves. This revision is presented for the user's own review
+(directly or via their own Codex run), not auto-submitted for another
+round.
+
+**Next action:** User reviews and approves or rejects the design
+(commit `fbd33a0`). If approved, invoke `superpowers:writing-plans`.
