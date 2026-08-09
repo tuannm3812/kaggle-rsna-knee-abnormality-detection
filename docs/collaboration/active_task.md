@@ -1203,7 +1203,7 @@ previous entry had a single merged table (naive/fixed precision only, no
 recall, no CI on most cells, no `passes_gate` column) and referenced the
 taxonomy without transcribing it. Rewrote the entry: separate baseline
 and fixed tables with every required column, an explicit `[]` allowlist
-statement, and the full 71-row taxonomy table transcribed from the
+statement, and the full 72-row taxonomy table transcribed from the
 trusted kernel log (aggregate counts only, as before — no report text or
 identifiers).
 
@@ -1360,3 +1360,72 @@ this strategy sketch directly into implementation.
 and records technical agreement/pushback here. User chooses A, B, or C for
 Phase 3. Phase 2 is archived only after the documentation fix is confirmed;
 Phase 3 starts with a separate approved design.
+
+### Claude's response to round 15 (2026-08-09)
+
+**Context:** this response is being written from a consolidated `main`
+after discovering, mid-session, that a separate parallel session had been
+working this exact task inside the `worktree-weak-label-evaluation`
+worktree (rounds 13-15 above) while another session worked the same
+problem directly on `main` (which independently hit the identical
+`train.csv` NaN→float64 bug and fixed it with a different, less complete
+approach — no value-level bool check, so it still had round 14 finding
+1's mixed-object hole). Per the user's explicit instruction ("only 1 to
+work with this project, there is no need to work with worktrees"), `main`
+was hard-reset to this worktree's tip (`dda5001`, the more correct,
+more-reviewed history) and the worktree/branch were removed. No content
+from the superseded `main`-only commits was carried forward — the
+worktree's version is strictly more correct on every overlapping point.
+
+All three remaining round-15 items accepted and fixed, each independently
+re-verified against the actual doc content before editing (not applied on
+Codex's description alone):
+
+1. **Terminology correction.** Confirmed `docs/3_strategy.md` line 72 and
+   `docs/4_experiments.md`'s taxonomy interpretation paragraph both said
+   "English-only cue lists." Fixed both to "English-only keyword
+   vocabulary" — `no_mention` is produced when no `_LABEL_PATTERNS`
+   keyword matches, before assertion cues are ever examined, so "cue
+   lists" was the wrong noun.
+2. **`docs/4_experiments.md` metric-schema completeness.** Confirmed the
+   gap directly: the baseline section's intro claimed
+   `predicted_positive_support = actual_positive_support`, which is false
+   (ACL: 29 vs. 24); the fixed table's `fn` column was `fn_confident`
+   without `abstained_on_positive`/`abstained_on_negative` shown
+   separately, and the note dismissing them as redundant with `coverage`
+   was wrong (Codex's point stands: coverage gives total abstentions, not
+   the positive/negative split). Rebuilt both tables with the full column
+   set (`fn_confident`, `abstained_on_positive`, `abstained_on_negative`,
+   `actual_positive_support`, `predicted_positive_support`) using the raw
+   per-label counts from the trusted kernel run, and verified every row
+   sums to `total_rows = 58` before transcribing (aggregate counts only,
+   no raw text). The 72-row taxonomy table itself was already complete
+   (independently counted: 72 data rows) — only the prose describing it
+   said "71," fixed in place above.
+3. **`docs/2_eda_insights.md` sync.** Confirmed it still called
+   `extract_weak_labels` "a naive keyword extractor" and told readers to
+   calibrate it before baseline modeling — stale by a full phase. Updated
+   both the labeled-studies section and the report-language section to
+   state Phase 2's actual No-go verdict and point to
+   `docs/4_experiments.md`/`docs/3_strategy.md`, replacing the
+   "prioritize calibrating" instruction (already done) and the "gap to
+   address" framing (now a named future fork, not an open todo).
+
+**Phase 3 strategy sketch also corrected** (not just left flawed pending
+the user's A/B/C choice): rewrote `docs/3_strategy.md`'s Phase 3 section
+to state the two real problems round 15 found (no disjoint labeled
+holdout exists; `Report, or its weak/human labels` as a feature would be
+target leakage) instead of the original impossible-as-written sketch, and
+recorded all three options (A/B/C) with Codex's recommendation (A) for
+the user's decision — not decided here.
+
+Verification: `59 passed`, `ruff check .` clean (docs-only changes, run
+as a sanity check).
+
+**Status:** Phase 2 documentation now matches what round 15 required.
+Per this file's own workflow rule 7 and round 15's own gating language,
+this active task is ready to archive once **(a)** the user confirms these
+documentation fixes (no further Claude-initiated Codex round, per the
+user's standing preference) and **(b)** the user chooses Phase 3's
+strategy (A, B, or C) so a dedicated Phase 3 design can start. Both are
+open, presented to the user directly rather than assumed.

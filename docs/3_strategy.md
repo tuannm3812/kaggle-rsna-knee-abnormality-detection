@@ -69,31 +69,58 @@ indefinitely.
   model (the taxonomy in `docs/4_experiments.md` shows most false
   negatives are `no_mention` — no keyword matched at all — concentrated
   in non-`ascii_only` buckets, consistent with, though not proven by,
-  the cue lists' known English-only scope), or probabilistic weak
+  the keyword vocabulary's known English-only scope), or probabilistic weak
   supervision combining multiple labeling functions (à la Snorkel,
   per round 1's original suggestion) rather than a single regex-based
   extractor. Neither is scoped or estimated here; this is a named
   option, not a plan.
 
-## Phase 3 — Baseline Modeling — target ~2026-09-06, shape depends on Phase 2
+## Phase 3 — Baseline Modeling — target ~2026-09-06, design decision pending
 
 First trainable multi-label model producing a real macro-AUC number and
-a first `submission.csv`. Concrete design deferred until Phase 2's
-verdict is known (see fork above) — sketching the shape now, not a full
-spec:
+a first `submission.csv`. The original sketch here (an unconstrained
+multimodal network validated on a disjoint 58-study holdout) turned out
+to be unimplementable once actually checked against Phase 2's result —
+Codex's round-15 review of the active task caught two real problems:
 
-- Multimodal: an imaging branch (DICOM series → per-study features or
-  embeddings, series selected via `knee_mri.dataset.select_primary_series`)
-  and a text branch (`Report`, or its weak/human labels) — both are real
-  signal sources per the competition's own framing, and combining them is
-  the point of this being a multimodal competition rather than
-  image-only or text-only.
-- Trains and evaluates via `knee_mri.metrics.macro_auc` — the actual
-  competition metric — with a grouped/held-out validation split
-  (never validate on the same 58 studies used to justify Phase 2's
-  weak-label fix, to avoid the exact small-sample overfitting trap
-  Codex's review warned about there).
-- First real Kaggle GPU training run, first real submission.
+1. There is no disjoint labeled holdout — the 58 human-labeled studies
+   *are* the entire labeled set. "Never validate on the same 58 studies"
+   was an impossible protocol, not a real constraint to design around.
+2. `Report, or its weak/human labels` as a text-branch input would be
+   target leakage (human labels are the prediction target, unavailable
+   at test time) and weak labels are unusable anyway per Phase 2's 0/12
+   gate. Only inference-time-available inputs (report text itself,
+   MRI-derived features) may enter the model.
+
+**Three strategy options, awaiting the user's decision:**
+
+- **A — Honest baseline-first (Codex's recommendation).** Deterministic
+  5-fold iterative multilabel-stratified CV over the 58 studies (every
+  series for a study kept in one fold; preflight both classes present
+  per label per fold, falling back to fewer folds if not). Two
+  low-capacity, separately-measured baselines first — report-only
+  character n-gram TF-IDF + regularized one-vs-rest logistic regression,
+  and image-only frozen pretrained study embeddings + regularized linear
+  heads — late fusion only after both out-of-fold baselines exist.
+  Explicitly disclosed as internal CV on the only 58 labels, not an
+  independent confirmation set. Freeze the small model list; no repeated
+  tuning against these folds or the public leaderboard.
+- **B — Representation-first.** Self-supervised/contrastive image-report
+  representation learning on the 4349 unlabeled studies, then a small
+  supervised head on the 58 labels. Better use of available data,
+  materially more compute/implementation/leakage-control complexity
+  before a first submission exists.
+- **C — Reopen weak supervision first.** Multilingual keyword/assertion
+  models or several probabilistic labeling functions, then rerun the
+  frozen 58-label gate. Targets Phase 2's coverage failure directly, but
+  delays the first model and reuses the same small audit set (adaptive
+  overfitting risk).
+
+Recommendation: **A** for Phase 3, **B** as the next improvement path,
+**C** deferred unless explicitly preferred. Once chosen, write a
+dedicated Phase 3 baseline-modeling design — this sketch does not turn
+directly into implementation. First real Kaggle GPU training run and
+first real submission follow once that design is approved.
 
 ## Phase 4 — Model Improvement & Ensemble — target ~2026-10-08
 

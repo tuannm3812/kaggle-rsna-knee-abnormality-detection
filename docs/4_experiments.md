@@ -20,47 +20,59 @@ identifiers left Kaggle.
 
 ### Baseline (`extract_weak_labels_naive`)
 
-All 58 studies are non-abstained (the naive extractor never abstains),
-so `support = predicted_positive_support`, `actual_positive_support`,
-`coverage = 1.0` for every label.
+All 58 studies are non-abstained (the naive extractor never abstains):
+`abstained_on_positive = abstained_on_negative = 0` for every label, and
+`non_abstained_count = total_rows = 58` throughout, so `coverage = 1.0`
+for every label. **`predicted_positive_support` and
+`actual_positive_support` are not the same quantity even here** — e.g.
+ACL has 29 predicted positives (`tp+fp`) but only 24 actual positives
+(`tp+fn_confident`); they only coincide when precision happens to equal
+recall's positive count, which they don't in general.
 
-| Label | tp | fp | tn | fn | precision (ci) | recall (ci) | support | passes_gate |
-|---|---|---|---|---|---|---|---|---|
-| ACL | 12 | 17 | 17 | 12 | 0.414 (0.255–0.593) | 0.500 (0.314–0.686) | 29 | False |
-| MCL | 5 | 20 | 29 | 4 | 0.200 (0.089–0.391) | 0.556 (0.267–0.811) | 25 | False |
-| Medial Meniscus | 12 | 10 | 22 | 14 | 0.545 (0.347–0.731) | 0.462 (0.288–0.645) | 22 | False |
-| Lateral Meniscus | 11 | 10 | 25 | 12 | 0.524 (0.324–0.717) | 0.478 (0.292–0.670) | 21 | False |
-| Medial OA | 1 | 0 | 43 | 14 | 1.000 (0.207–1.000) | 0.067 (0.012–0.298) | 1 | False |
-| Lateral OA | 0 | 0 | 47 | 11 | 0.000 (0.000–0.000) | 0.000 (0.000–0.259) | 0 | False |
-| PF OA | 0 | 0 | 37 | 21 | 0.000 (0.000–0.000) | 0.000 (0.000–0.155) | 0 | False |
-| Effusion | 15 | 13 | 10 | 20 | 0.536 (0.358–0.705) | 0.429 (0.280–0.591) | 28 | False |
-| Synovitis | 6 | 3 | 28 | 21 | 0.667 (0.354–0.879) | 0.222 (0.106–0.408) | 9 | False |
-| Baker's | 4 | 7 | 39 | 8 | 0.364 (0.152–0.646) | 0.333 (0.138–0.609) | 11 | False |
-| Contusion | 9 | 8 | 31 | 10 | 0.529 (0.310–0.738) | 0.474 (0.273–0.683) | 17 | False |
-| Fracture | 7 | 7 | 33 | 11 | 0.500 (0.268–0.732) | 0.389 (0.203–0.614) | 14 | False |
+| Label | tp | fp | tn | fn_confident | abstained_on_positive | abstained_on_negative | actual_positive_support | predicted_positive_support | precision (ci) | recall (ci) | coverage | passes_gate |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ACL | 12 | 17 | 17 | 12 | 0 | 0 | 24 | 29 | 0.414 (0.255–0.593) | 0.500 (0.314–0.686) | 1.000 | False |
+| MCL | 5 | 20 | 29 | 4 | 0 | 0 | 9 | 25 | 0.200 (0.089–0.391) | 0.556 (0.267–0.811) | 1.000 | False |
+| Medial Meniscus | 12 | 10 | 22 | 14 | 0 | 0 | 26 | 22 | 0.545 (0.347–0.731) | 0.462 (0.288–0.645) | 1.000 | False |
+| Lateral Meniscus | 11 | 10 | 25 | 12 | 0 | 0 | 23 | 21 | 0.524 (0.324–0.717) | 0.478 (0.292–0.670) | 1.000 | False |
+| Medial OA | 1 | 0 | 43 | 14 | 0 | 0 | 15 | 1 | 1.000 (0.207–1.000) | 0.067 (0.012–0.298) | 1.000 | False |
+| Lateral OA | 0 | 0 | 47 | 11 | 0 | 0 | 11 | 0 | 0.000 (0.000–0.000) | 0.000 (0.000–0.259) | 1.000 | False |
+| PF OA | 0 | 0 | 37 | 21 | 0 | 0 | 21 | 0 | 0.000 (0.000–0.000) | 0.000 (0.000–0.155) | 1.000 | False |
+| Effusion | 15 | 13 | 10 | 20 | 0 | 0 | 35 | 28 | 0.536 (0.358–0.705) | 0.429 (0.280–0.591) | 1.000 | False |
+| Synovitis | 6 | 3 | 28 | 21 | 0 | 0 | 27 | 9 | 0.667 (0.354–0.879) | 0.222 (0.106–0.408) | 1.000 | False |
+| Baker's | 4 | 7 | 39 | 8 | 0 | 0 | 12 | 11 | 0.364 (0.152–0.646) | 0.333 (0.138–0.609) | 1.000 | False |
+| Contusion | 9 | 8 | 31 | 10 | 0 | 0 | 19 | 17 | 0.529 (0.310–0.738) | 0.474 (0.273–0.683) | 1.000 | False |
+| Fracture | 7 | 7 | 33 | 11 | 0 | 0 | 18 | 14 | 0.500 (0.268–0.732) | 0.389 (0.203–0.614) | 1.000 | False |
 
 ### Fixed (`extract_weak_labels`, assertion-aware)
 
-`abstained_on_positive` / `abstained_on_negative` counts (not shown as
-separate columns — full raw counts are in the kernel log, not
-reproduced here since they add no information beyond `coverage`) push
-`support` and `coverage` below the baseline's for every label with any
-abstentions.
+`total_rows = 58` for every label; `non_abstained_count = tp+fp+tn+
+fn_confident` (so `coverage = non_abstained_count / 58`) is now shown
+implicitly via `coverage` since it varies per label. Per Codex round 15:
+the `abstained_on_positive`/`abstained_on_negative` split is real
+information `coverage` alone can't recover (it gives total abstentions,
+not their positive/negative split) — e.g. ACL abstains on 13 true
+positives and 17 true negatives, a 30-way split `coverage=0.483` alone
+doesn't reveal.
 
-| Label | tp | fp | tn | fn | precision (ci) | recall (ci) | support | coverage | passes_gate |
-|---|---|---|---|---|---|---|---|---|---|
-| ACL | 9 | 3 | 14 | 2 | 0.750 (0.468–0.911) | 0.375 (0.212–0.573) | 12 | 0.483 | False |
-| MCL | 5 | 5 | 15 | 0 | 0.500 (0.237–0.763) | 0.556 (0.267–0.811) | 10 | 0.431 | False |
-| Medial Meniscus | 12 | 4 | 6 | 0 | 0.750 (0.505–0.898) | 0.462 (0.288–0.645) | 16 | 0.379 | False |
-| Lateral Meniscus | 10 | 3 | 7 | 1 | 0.769 (0.497–0.918) | 0.435 (0.256–0.632) | 13 | 0.362 | False |
-| Medial OA | 1 | 0 | 0 | 0 | 1.000 (0.207–1.000) | 0.067 (0.012–0.298) | 1 | 0.017 | False |
-| Lateral OA | 0 | 0 | 0 | 0 | 0.000 (0.000–0.000) | 0.000 (0.000–0.259) | 0 | 0.000 | False |
-| PF OA | 0 | 0 | 0 | 0 | 0.000 (0.000–0.000) | 0.000 (0.000–0.155) | 0 | 0.000 | False |
-| Effusion | 15 | 7 | 6 | 0 | 0.682 (0.473–0.836) | 0.429 (0.280–0.591) | 22 | 0.483 | False |
-| Synovitis | 6 | 3 | 0 | 0 | 0.667 (0.354–0.879) | 0.222 (0.106–0.408) | 9 | 0.155 | False |
-| Baker's | 4 | 2 | 5 | 0 | 0.667 (0.300–0.903) | 0.333 (0.138–0.609) | 6 | 0.190 | False |
-| Contusion | 8 | 4 | 4 | 1 | 0.667 (0.391–0.862) | 0.421 (0.231–0.637) | 12 | 0.293 | False |
-| Fracture | 4 | 0 | 7 | 2 | 1.000 (0.510–1.000) | 0.222 (0.090–0.452) | 4 | 0.224 | False |
+| Label | tp | fp | tn | fn_confident | abstained_on_positive | abstained_on_negative | actual_positive_support | predicted_positive_support | precision (ci) | recall (ci) | coverage | passes_gate |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ACL | 9 | 3 | 14 | 2 | 13 | 17 | 24 | 12 | 0.750 (0.468–0.911) | 0.375 (0.212–0.573) | 0.483 | False |
+| MCL | 5 | 5 | 15 | 0 | 4 | 29 | 9 | 10 | 0.500 (0.237–0.763) | 0.556 (0.267–0.811) | 0.431 | False |
+| Medial Meniscus | 12 | 4 | 6 | 0 | 14 | 22 | 26 | 16 | 0.750 (0.505–0.898) | 0.462 (0.288–0.645) | 0.379 | False |
+| Lateral Meniscus | 10 | 3 | 7 | 1 | 12 | 25 | 23 | 13 | 0.769 (0.497–0.918) | 0.435 (0.256–0.632) | 0.362 | False |
+| Medial OA | 1 | 0 | 0 | 0 | 14 | 43 | 15 | 1 | 1.000 (0.207–1.000) | 0.067 (0.012–0.298) | 0.017 | False |
+| Lateral OA | 0 | 0 | 0 | 0 | 11 | 47 | 11 | 0 | 0.000 (0.000–0.000) | 0.000 (0.000–0.259) | 0.000 | False |
+| PF OA | 0 | 0 | 0 | 0 | 21 | 37 | 21 | 0 | 0.000 (0.000–0.000) | 0.000 (0.000–0.155) | 0.000 | False |
+| Effusion | 15 | 7 | 6 | 0 | 20 | 10 | 35 | 22 | 0.682 (0.473–0.836) | 0.429 (0.280–0.591) | 0.483 | False |
+| Synovitis | 6 | 3 | 0 | 0 | 21 | 28 | 27 | 9 | 0.667 (0.354–0.879) | 0.222 (0.106–0.408) | 0.155 | False |
+| Baker's | 4 | 2 | 5 | 0 | 8 | 39 | 12 | 6 | 0.667 (0.300–0.903) | 0.333 (0.138–0.609) | 0.190 | False |
+| Contusion | 8 | 4 | 4 | 1 | 10 | 31 | 19 | 12 | 0.667 (0.391–0.862) | 0.421 (0.231–0.637) | 0.293 | False |
+| Fracture | 4 | 0 | 7 | 2 | 12 | 33 | 18 | 4 | 1.000 (0.510–1.000) | 0.222 (0.090–0.452) | 0.224 | False |
+
+Every row above satisfies `tp+fp+tn+fn_confident+abstained_on_positive+
+abstained_on_negative = 58` (verified against each row before
+transcribing).
 
 ### Allowlist (`MIN_SUPPORT=5`, `MIN_PRECISION_LOWER_BOUND=0.55`): **`[]` — 0/12**
 
@@ -174,7 +186,7 @@ rather than guessing) accounts for the large majority of
 bucket. `unqualified_only` (a keyword matched with no qualifying cue
 nearby, correctly resolved to 1) accounts for most `false_positive`
 rows and is concentrated in `ascii_only`. Any causal read of this
-pattern — e.g. "the English-only cue lists under-cover non-English
+pattern — e.g. "the English-only keyword vocabulary under-covers non-English
 reports" — is a plausible hypothesis consistent with the design's known
 scope limits, not something this table establishes on its own.
 

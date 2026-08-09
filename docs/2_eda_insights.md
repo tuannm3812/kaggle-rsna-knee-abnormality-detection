@@ -10,12 +10,13 @@ history that preceded this run.
 `train.csv` has **4407 studies total, but only 58 (1.3%) carry the 12
 human-annotated labels**; the remaining 4349 are report-only. This is a
 far more extreme labeled/unlabeled ratio than "a small subset carries
-labels" suggested on its own — weak-label mining from `Report` (via
-`knee_mri.labels.extract_weak_labels`, currently a naive keyword
-extractor) is not optional polish here, it's close to necessary for
-having enough training signal at all. Prioritize calibrating it against
-real report text before baseline modeling starts (see "Report language"
-below for real samples to calibrate against).
+labels" suggested on its own. Weak-label mining from `Report` (via
+`knee_mri.labels.extract_weak_labels`, the assertion-aware extractor)
+was evaluated against the 58 human labels in Phase 2 — **verdict:
+No-go, 0/12 labels clear the allowlist gate** (small-sample confidence
+intervals, not a precision ceiling — see `docs/4_experiments.md` and
+`docs/3_strategy.md` Phase 2). Phase 3 trains on the 58 human labels
+alone rather than an expanded weak-labeled set for now.
 
 ## `train.csv` has no `PatientSex` column
 
@@ -44,11 +45,14 @@ would carry identical information.
 
 Real samples (first 200 studies scanned) included German, Turkish,
 Croatian, Greek, and English reports — confirms the data description's
-"may be in any of several languages" is not a rare edge case. Any
-downstream NLP/weak-labeling approach needs to either be language-aware
-or robust across languages, not English-only regex (current
-`extract_weak_labels` patterns are English-only keywords — a real gap to
-address before trusting weak labels from non-English reports).
+"may be in any of several languages" is not a rare edge case.
+`extract_weak_labels`'s keyword vocabulary is English-only; Phase 2's
+error taxonomy shows this is a real, if unproven, contributor to its
+No-go result — most false negatives are `no_mention` (no keyword matched
+at all), concentrated in non-`ascii_only` orthographic buckets. A
+multilingual keyword/assertion extractor is recorded as a future
+strategy fork in `docs/3_strategy.md` Phase 2, not scoped or implemented
+yet.
 
 ## Slice count per series roughly matches the documented distribution
 
