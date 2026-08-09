@@ -1,8 +1,9 @@
 # Weak-Label Evaluation — Design
 
 Date: 2026-08-09
-Status: Final revision after 4 rounds of Codex review — pending user
-approval (see `docs/collaboration/active_task.md` for the full
+Status: Revised after 5 rounds of Codex review (2 remaining defects
+fixed: Wilson formula error, missing `total_rows` column) — pending
+user approval (see `docs/collaboration/active_task.md` for the full
 review/discussion history)
 
 ## Problem
@@ -94,7 +95,7 @@ Returns `dict[str, int | None]`:
 - `0` — a negated or normal-asserting mention (the label's keyword
   matched, with a negation/normal-assertion cue nearby — see below;
   these two cue types are not distinguished in the output, only in the
-  error-taxonomy diagnostic in section 4).
+  error-taxonomy diagnostic in section 5).
 
 This is a genuine interface change, made now rather than later because
 `extract_weak_labels` has **no consumers yet** — `split_labeled_studies`
@@ -121,7 +122,7 @@ on the old contract.
    (asserted-positive).
    - **Intentionally English-only for this pass.** Multilingual cue
      lists are out of scope here (see "Out of scope" below) — the error
-     taxonomy (section 4) will show whether non-English reports have a
+     taxonomy (section 5) will show whether non-English reports have a
      materially different assertion-detection failure pattern, which
      would justify a follow-up pass with real evidence behind it, rather
      than speculative translated cue lists now.
@@ -134,21 +135,24 @@ on the old contract.
      both mentions the anatomy plainly and separately negates/normalizes
      it is read as negative).
 
-   **Open question, flagged for Codex confirmation before implementation
-   (not yet resolved):** round 4's hierarchy included a fourth case —
-   "explicit abnormal assertion AND negated/normal-asserting mention for
-   the same label → `None`, ambiguous" — distinct from "qualified +
-   unqualified mixed → `0`". This design collapses that distinction:
-   with only two mention categories (qualified/unqualified) as defined
-   above, "qualified + unqualified mixed" and "explicit abnormal +
-   qualified" would be the same case, and resolving it to `0` (qualified
-   dominates) rather than `None` (ambiguous) is a simplification, not
-   something derived from round 4's stated hierarchy. Whether this
-   simplification is acceptable, or whether a real third mention
-   category (a stronger "explicit abnormal assertion" distinct from a
-   bare "unqualified mention") is needed to preserve the intended
-   ambiguous/abstain case, needs Codex's confirmation before this is
-   implemented as written.
+   **Accepted simplification (confirmed with Codex, round 5):** round 4's
+   hierarchy included a fourth case — "explicit abnormal assertion AND
+   negated/normal-asserting mention for the same label → `None`,
+   ambiguous" — distinct from "qualified + unqualified mixed → `0`".
+   This design deliberately collapses that distinction to the two-
+   category (qualified/unqualified) system above, with no separate
+   ambiguous case, because a real third category would need its own
+   positive-assertion vocabulary (e.g. `tear`, `rupture`, `sprain`,
+   `identified`, `present`) distinct from the existing anatomy-name/
+   finding-word `_LABEL_PATTERNS`, plus label-specific grammatical
+   proximity rules to use it correctly — a materially broader,
+   speculative extractor design not justified for this bounded pass.
+   Treating an inherently-abnormal keyword like `fracture` as
+   automatically "explicit" would also misclassify `"no fracture"`
+   unless qualification were evaluated first, so the distinction isn't
+   even a clean addition on top of the existing mechanism. Not a
+   candidate for this pass; revisit only if real data specifically
+   motivates it.
 
 `LABEL_COLUMNS` (the 12-name schema) is unaffected by this change — only
 the *value type* per label changes.
@@ -229,9 +233,9 @@ def weak_label_metrics(
         A DataFrame indexed by label, one row per LABEL_COLUMNS entry,
         with columns tp, fp, tn, fn_confident, abstained_on_positive,
         abstained_on_negative, actual_positive_support,
-        predicted_positive_support, non_abstained_count, precision,
-        recall, coverage, precision_ci_low, precision_ci_high,
-        recall_ci_low, recall_ci_high.
+        predicted_positive_support, non_abstained_count, total_rows,
+        precision, recall, coverage, precision_ci_low,
+        precision_ci_high, recall_ci_low, recall_ci_high.
 
     Raises:
         ValueError: On any of the three schema violations above.
@@ -269,10 +273,18 @@ and each of the three `ValueError` schema-violation cases (duplicate
 
   ```
   z = 1.959963985  # 95% two-tailed
-  center = (k + z**2 / 2) / (n + z**2)
-  margin = z * sqrt((k * (n - k) / n + z**2 / 4) / n) / (1 + z**2 / n)
+  p_hat = k / n
+  denom = 1 + z**2 / n
+  center = (p_hat + z**2 / (2 * n)) / denom
+  margin = (z / denom) * sqrt(p_hat * (1 - p_hat) / n + z**2 / (4 * n**2))
   lower, upper = center - margin, center + margin
   ```
+
+  (Verified against Codex's round-5 reference value: `n=5, k=5` →
+  `lower ≈ 0.5655`, matching the `≈0.566` figure cited below. An earlier
+  draft of this formula had the variance term's `1/n` factor wrong,
+  caught in round 5 review — write the unit test for this formula
+  against this exact reference value first.)
 
   where `n` is the metric's own denominator (`predicted_positive_support`
   for precision, `actual_positive_support` for recall) and `k` is `tp`.

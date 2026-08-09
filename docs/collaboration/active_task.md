@@ -33,11 +33,12 @@ before the next step starts.
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
 - Task: Weak-Label Evaluation — Design Review (no implementation yet)
-- Status: **Design agreed, spec revision in progress.** Rounds 1-3 found
-  and resolved (or escalated) issues; round 4 (below) negotiated final
-  resolutions for the three open judgment calls in round 3. Codex:
-  "ready for Claude's final revision." Claude is now writing that
-  revision; not yet approved by the user, not yet implemented.
+- Status: **Design complete, Codex-confirmed (5 rounds), pending user
+  approval.** Rounds 1-4 found and resolved (or negotiated) every open
+  issue; round 5 confirmed the final revision, catching and fixing two
+  last defects (a wrong Wilson formula, a missing return column). No
+  outstanding findings from Codex. Not yet implemented — awaiting the
+  user's approval before `superpowers:writing-plans`.
 - Implementation has not started. No code exists for this task yet.
 
 ## Review Thread
@@ -337,3 +338,52 @@ open questions from Codex's side.
 round 3 findings 1 and 3 as originally specified, and findings 2, 4, and
 5 exactly as refined above. Returns for a final confirmation pass before
 user approval and before `writing-plans`.
+
+### Round 5 — Final confirmation (2026-08-09)
+
+Claude wrote the full revision (commit `efa6422`), incorporating rounds
+3 and 4 completely, but flagged one open question inline in the spec
+rather than resolving it unilaterally: round 4's 4-way resolution
+hierarchy included a distinct "explicit abnormal assertion + negated/
+normal-asserting mention → `None`, ambiguous" case, but Claude's
+implementation only has two mention categories (qualified/unqualified),
+collapsing that case into "qualified dominates → `0`". Sent to Codex for
+direct resolution via `codex exec -s read-only`.
+
+**Codex's resolution: accept the two-category simplification (option
+a).** The existing `_LABEL_PATTERNS` provide no defensible way to
+distinguish a "bare mention" from an "explicit abnormal assertion." A
+real third category would need its own positive-assertion vocabulary
+(`tear`, `rupture`, `sprain`, `identified`, `present`) plus label-
+specific grammatical proximity rules — a materially broader, speculative
+extractor design not justified for this bounded pass. Treating an
+inherently-abnormal keyword like `fracture` as automatically "explicit"
+would also misclassify `"no fracture"` unless qualification were
+evaluated first, so the distinction isn't even a clean addition on top
+of the existing mechanism. Spec updated to state this as an accepted
+simplification, not an open question.
+
+**Two real defects found in the broader final check:**
+
+1. **The Wilson formula's variance term was missing a factor of `1/n`.**
+   As written it did not reproduce the claimed `5/5 ≈ 0.566` lower
+   bound. Corrected to the standard `p_hat`-based closed form; verified
+   by hand that `n=5, k=5` now gives `lower ≈ 0.5655`, matching the
+   figure already cited in the decision-rule section. The unit test for
+   this formula should check this exact reference value first.
+2. **`total_rows` was defined as a required support quantity but
+   omitted from the documented returned DataFrame columns.** Added.
+
+Minor: a stale "section 4" cross-reference (should have been "section
+5", the error-taxonomy section) fixed in two places.
+
+**Codex's verdict on the rest of the revision:** confirmed correct —
+the two-named-extractors design resolves finding 1; the four support
+quantities are self-consistent (finding 3); the go/no-go gate matches
+round 4 exactly (per-label Wilson lower bound `>= 0.55`, support `>= 5`,
+`>= 4/12` labels, no macro-average); the language check is honestly
+framed as orthographic buckets, not language ID.
+
+**Next action:** Claude fixes the two defects (done, this same pass) and
+returns the spec to the user for approval. If approved, next step is
+`superpowers:writing-plans` — no code work starts before that approval.
