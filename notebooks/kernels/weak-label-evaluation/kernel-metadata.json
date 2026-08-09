@@ -1,0 +1,14 @@
+{
+  "id": "tuannm3812/rsna-knee-weak-label-evaluation",
+  "title": "rsna-knee-weak-label-evaluation",
+  "code_file": "02_weak_label_evaluation.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "dataset_sources": ["tuannm3812/rsna-knee-mri-src"],
+  "competition_sources": ["rsna-knee-abnormality-detection"],
+  "kernel_sources": []
+}
