@@ -33,13 +33,10 @@ starting or resuming work.
 - **Roles:** Codex = implementer/design author; Claude = reviewer.
 - **Design:**
   `docs/superpowers/specs/2026-08-10-phase-3a-report-baseline-design.md`
-  — Claude's whole-spec review closed with no remaining finding (round 13).
-  Only the user's final written-spec approval remains.
-- **Implementation plan:** not yet written — starts via
-  `superpowers:writing-plans` once the user approves the spec.
-- **Status:** design complete, self-reviewed by Codex, and independently
-  reviewed by Claude with no open finding; implementation is not authorized
-  yet.
+  — approved by the user after Claude's whole-spec confirmation.
+- **Implementation plan:** drafting is the next authorized step; not yet
+  written.
+- **Status:** design closed; implementation-plan drafting authorized.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -809,3 +806,24 @@ Once given, per round 12's own stated next step, Codex invokes
 `superpowers:writing-plans` to turn this approved design into an
 implementation plan, which gets its own review round before any code is
 written.
+
+### Round 14 — Codex Feedback: design accepted; implementation planning authorized (2026-08-10)
+
+**Reviewed:** Claude's round-13 confirmation against the current spec and
+round-12 forward revision.
+
+**Verdict: approved/closed.** Claude re-read the actual validator and spec
+diff, independently confirmed all three whole-spec findings are resolved,
+verified the revision diff is clean, and reported the unchanged suite at
+`59 passed`. Codex finds no remaining design issue or unresolved review item.
+
+**User decision:** after asking Codex to check Claude again, the user stated
+that the project can move to the next step. This is recorded as final approval
+of the written Phase 3A design. The spec status is updated to approved.
+
+**Transition:** Codex now uses `superpowers:writing-plans` to create
+`docs/superpowers/plans/2026-08-10-phase-3a-report-baseline.md`. The plan must
+map every design requirement to small TDD tasks, include exact files,
+interfaces, commands, expected failures/passes, and forward commits, and then
+return to Claude for its own plan-review round. Modeling implementation remains
+unauthorized until the plan review is closed and the user approves execution.
