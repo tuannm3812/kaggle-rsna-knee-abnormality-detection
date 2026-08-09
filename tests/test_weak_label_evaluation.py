@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from knee_mri.labels import LABEL_COLUMNS
+from knee_mri.labels import LABEL_COLUMNS, extract_weak_labels, extract_weak_labels_naive
 from knee_mri.weak_label_evaluation import (
     MIN_PRECISION_LOWER_BOUND,
     MIN_SUPPORT,
@@ -218,6 +218,67 @@ def test_weak_label_metrics_raises_on_extractor_invalid_value():
 
     with pytest.raises(ValueError, match="invalid value"):
         weak_label_metrics(true_df, bad_extractor)
+
+
+def test_weak_label_metrics_raises_on_extractor_bool_value():
+    # bool is an int subclass (`True in (0, 1, None)` is True), so this
+    # must be checked explicitly rather than relying on `in`.
+    true_df = _true_df([_row("s1", "report")])
+
+    def bad_extractor(report_text: str) -> dict[str, int | None]:
+        predictions = dict.fromkeys(LABEL_COLUMNS, None)
+        predictions["ACL"] = True
+        return predictions
+
+    with pytest.raises(ValueError, match="invalid value"):
+        weak_label_metrics(true_df, bad_extractor)
+
+
+def test_weak_label_metrics_raises_on_extractor_float_value():
+    # `1.0 in (0, 1, None)` is also True via `==`, so this must be
+    # checked explicitly too.
+    true_df = _true_df([_row("s1", "report")])
+
+    def bad_extractor(report_text: str) -> dict[str, int | None]:
+        predictions = dict.fromkeys(LABEL_COLUMNS, None)
+        predictions["ACL"] = 1.0
+        return predictions
+
+    with pytest.raises(ValueError, match="invalid value"):
+        weak_label_metrics(true_df, bad_extractor)
+
+
+# -- weak_label_metrics composed with the real extractors from
+# knee_mri.labels (the notebook's actual usage, not a synthetic
+# extractor) --
+
+
+def test_weak_label_metrics_accepts_extract_weak_labels_naive():
+    true_df = _true_df(
+        [
+            _row("s1", "There is a complete tear of the ACL.", ACL=1),
+            _row("s2", "Normal knee MRI, no significant findings.", ACL=0),
+        ]
+    )
+
+    metrics = weak_label_metrics(true_df, extract_weak_labels_naive)
+
+    assert metrics.loc["ACL", "tp"] == 1
+    assert metrics.loc["ACL", "tn"] == 1
+
+
+def test_weak_label_metrics_accepts_extract_weak_labels():
+    true_df = _true_df(
+        [
+            _row("s1", "There is a complete tear of the ACL.", ACL=1),
+            _row("s2", "No fracture is seen.", ACL=0, Fracture=0),
+        ]
+    )
+
+    metrics = weak_label_metrics(true_df, extract_weak_labels)
+
+    assert metrics.loc["ACL", "tp"] == 1
+    assert metrics.loc["Fracture", "tn"] == 1
 
 
 # -- orthographic_bucket --

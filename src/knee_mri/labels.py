@@ -136,6 +136,24 @@ def extract_weak_labels_naive(report_text: str) -> dict[str, int]:
     }
 
 
+def _has_cue_in_window(
+    clause: str, lo: int, hi: int, patterns: list[re.Pattern[str]]
+) -> bool:
+    """True if any pattern matches fully inside [lo, hi) of clause.
+
+    Searches the whole clause (not a slice) so a cue's own word-bounded
+    regex sees real word boundaries -- slicing the clause at lo/hi would
+    manufacture a boundary at the cut point itself, letting e.g. "no" or
+    "normal" match inside "notable" or "abnormal" whenever the window
+    edge happened to fall mid-word.
+    """
+    return any(
+        match.start() >= lo and match.end() <= hi
+        for pattern in patterns
+        for match in pattern.finditer(clause)
+    )
+
+
 def _classify_mention(clause: str, start: int, end: int) -> MentionKind:
     """Classify one keyword match by searching a bounded window around it
     for a negation, normal-assertion, or uncertainty cue. Negation and
@@ -143,12 +161,13 @@ def _classify_mention(clause: str, start: int, end: int) -> MentionKind:
     confident-qualification-dominates philosophy of the overall
     resolution order in _resolve_value.
     """
-    window = clause[max(0, start - _WINDOW_RADIUS) : min(len(clause), end + _WINDOW_RADIUS)]
-    if any(pattern.search(window) for pattern in _NEGATION_PATTERNS):
+    lo = max(0, start - _WINDOW_RADIUS)
+    hi = min(len(clause), end + _WINDOW_RADIUS)
+    if _has_cue_in_window(clause, lo, hi, _NEGATION_PATTERNS):
         return "qualified_negation"
-    if any(pattern.search(window) for pattern in _NORMAL_ASSERTION_PATTERNS):
+    if _has_cue_in_window(clause, lo, hi, _NORMAL_ASSERTION_PATTERNS):
         return "qualified_normal_assertion"
-    if any(pattern.search(window) for pattern in _UNCERTAIN_PATTERNS):
+    if _has_cue_in_window(clause, lo, hi, _UNCERTAIN_PATTERNS):
         return "qualified_uncertain"
     return "unqualified"
 

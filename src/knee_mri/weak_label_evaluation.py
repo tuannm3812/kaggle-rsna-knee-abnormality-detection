@@ -74,7 +74,11 @@ def _validate_extractor_output(prediction_map: Mapping[str, int | None]) -> None
             f"extractor output keys {sorted(prediction_map.keys())} do not match LABEL_COLUMNS"
         )
     for value in prediction_map.values():
-        if value not in (0, 1, None):
+        # `type(value) is int` (not `isinstance`/`in`) so bool (a subclass
+        # of int, `True in (0, 1, None)` == True) and float (`1.0 in (0,
+        # 1, None)` == True too, via `==`) are rejected, not silently
+        # accepted.
+        if value is not None and (type(value) is not int or value not in (0, 1)):
             raise ValueError(
                 f"extractor output contains invalid value: {value!r} (expected 0, 1, or None)"
             )

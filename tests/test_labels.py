@@ -90,6 +90,32 @@ def test_extract_weak_labels_substring_trap_does_not_trigger_negation():
     assert labels["Effusion"] == 1
 
 
+def test_extract_weak_labels_cue_beyond_window_radius_is_ignored():
+    # A cue more than 40 characters away in the same (unsplit) clause
+    # must not qualify the mention -- the window is bounded, not
+    # clause-wide.
+    report = "no " + "x" * 60 + " effusion is seen"
+
+    labels = extract_weak_labels(report)
+
+    assert labels["Effusion"] == 1
+
+
+def test_extract_weak_labels_window_edge_does_not_cut_a_word_in_half():
+    # Regression for a bug where searching a *sliced* window let the
+    # slice boundary itself act as a fake word boundary: "abnormal"
+    # cut at the window edge left a bare "normal" that matched the
+    # \bnormal\b cue, and "cannot"/"nodular"/"notable" similarly
+    # leaked "not"/"no" cues when the far edge fell mid-word. None of
+    # these words are real cues and must never qualify the mention.
+    for trap_word in ("abnormal", "cannot", "nodular", "notable"):
+        report = f"{trap_word} " + "x" * 33 + "effusion is present"
+
+        labels = extract_weak_labels(report)
+
+        assert labels["Effusion"] == 1, f"trap word {trap_word!r} incorrectly qualified the mention"
+
+
 def test_extract_weak_labels_cue_does_not_leak_across_clause_boundary():
     labels = extract_weak_labels("No fracture is seen. ACL is torn.")
 
