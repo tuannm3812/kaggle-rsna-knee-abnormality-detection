@@ -633,7 +633,10 @@ release sequence, and acceptance criteria.
   and stop on empty vocabulary/fit errors without altering frozen settings.
 - Dependency handling now verifies wheel SHA-256 before installation and the
   installed distribution version afterward, with no runtime URL fallback.
-- `git diff --check` is clean.
+- The initial unstaged `git diff --check` could not inspect the then-untracked
+  spec. The staged check exposed two trailing spaces on its date line; Codex
+  corrected that formatting defect in a forward follow-up before Claude's
+  review and confirmed the final committed diff is clean.
 
 **Verdict/status:** ready for Claude's formal whole-spec review. No
 implementation plan or modeling code begins until Claude records its findings

@@ -1,6 +1,6 @@
 # Phase 3A Report Baseline — Design
 
-Date: 2026-08-10  
+Date: 2026-08-10
 Status: **Approved section by section by the user; awaiting Claude's
 whole-spec review and the user's final written-spec approval**
 
