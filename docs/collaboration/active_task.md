@@ -378,3 +378,91 @@ fold-fallback/preflight behavior is implementable without adaptive tuning,
 the exact fixed model settings, and the attached-wheel offline strategy.
 Record technical objections now or during the full-spec review; do not edit
 implementation or design files from the reviewer role.
+
+### Round 6 — Claude's review of the validation/model contract (2026-08-10)
+
+**Verified empirically, not accepted on description:**
+
+- `sklearn.metrics.roc_auc_score` on an 8-sample array with all-constant
+  `0.5` predictions returns exactly `0.5` — confirmed by direct execution,
+  not assumed. The "constant 0.5 sanity baseline" claim holds.
+- `knee_mri.metrics.macro_auc`/`per_label_auc` (existing, already tested)
+  can be **reused as-is** for pooled-OOF scoring: `per_label_auc` raises
+  only when a label has zero variance in the passed `y_true`, and every
+  one of the 12 labels has both classes present across the full 58
+  studies (Phase 2's confusion matrices confirm — e.g. even the rarest,
+  Lateral OA, has 11 positives / 47 negatives). Since the preflight step
+  guarantees both classes in every *individual* validation fold too, this
+  never hits the degenerate single-class case at either the pooled or
+  per-fold level. **Recommend the design spec say explicitly "reuse
+  `knee_mri.metrics.macro_auc`," not reimplement AUC scoring** — smaller
+  diff, and it's already covered by existing tests.
+- `iterative-stratification` is not yet in `pyproject.toml`/`uv.lock`
+  (correctly — no implementation is authorized yet), and no existing
+  project doc (`docs/6_kaggle_troubleshooting.md`,
+  `docs/0_coding_standards.md`'s "Pushing Notebooks To Kaggle") has any
+  prior offline-wheel-attachment procedure to fall back on. This is
+  genuinely new operational territory for this project, not a
+  well-trodden path — the full design spec needs to be concrete here, not
+  gesture at "an attached offline wheel."
+
+**Fold-fallback/preflight vs. adaptive tuning — reasoned conclusion: not
+adaptive tuning, but the spec must pin down one ambiguity.** The
+distinction that matters: adaptive tuning means choosing a
+configuration *based on model performance/OOF scores*; the fold-count
+fallback is chosen from *label class-presence*, a fixed, fully-known
+property of the 58 studies computed before any model is fit or any score
+is seen. That's a feasibility constraint, not a performance search, so
+it doesn't violate "freeze config before seeing OOF results." One thing
+the spec must still make explicit: at a given candidate fold count (say
+5), is there ever more than one candidate split tried (e.g. a few seeds
+retried until one satisfies the preflight), or exactly one deterministic
+split per fold count? If multiple splits are tried at the same fold
+count, the search must be over *feasibility* (does this split satisfy
+both-classes-per-fold) and never over *which feasible split scores
+best* — otherwise it would quietly become the same kind of adaptive
+tuning the design is trying to rule out. State the exact deterministic
+procedure (seed(s), attempt order, termination rule) in the spec, not
+just "preflight and retry."
+
+**Fixed model settings — no objection to the choices, two things the
+full spec must still pin down:**
+
+- `analyzer="char_wb"` with Unicode preserved (no accent stripping) is a
+  well-reasoned choice directly grounded in Phase 2's own finding
+  (multilingual reports; word-level or accent-stripped English tokens
+  were part of why weak-labeling went No-go). Character n-grams are
+  language-agnostic in a way word-level TF-IDF isn't. Good use of a real
+  project finding, not a generic default.
+- **State `penalty` explicitly** (presumably `"l2"`, sklearn's default,
+  but say so in the spec rather than leaving it implicit) — with
+  `max_features=50_000` possible features against ~46 training rows per
+  fold, the model is entirely dependent on regularization to avoid a
+  degenerate fit, so this shouldn't be left to an unstated default.
+- **Confirm `max_features=50_000` is a safety ceiling, not a binding
+  constraint** — with ~46 short-to-medium documents per training fold,
+  the actual char 3-5-gram vocabulary is very unlikely to approach 50k.
+  Not an objection, just something worth one sentence in the spec so a
+  future reader doesn't wonder whether the cap is actually truncating
+  the vocabulary.
+
+**Offline wheel dependency — needs concrete detail before the spec can be
+called complete:** name the exact package and pinned version (e.g.
+`iterative-stratification==X.Y.Z`), how it gets published as a Kaggle
+dataset (new dataset, reusing `publish_code_dataset.sh`'s pattern or a
+new script), and its license — Claude cannot verify license terms without
+network access in this environment, so this needs the user's or Codex's
+own confirmation before attaching it, not an assumption that any PyPI
+package is fine to redistribute via a Kaggle dataset.
+
+**No objection to:** report-only Phase 3A scope (weak labels/human
+labels/image features/leaderboard feedback excluded), pooled OOF
+macro-AUC as the primary score with per-label/per-fold numbers as
+diagnostics only, or fitting TF-IDF/classifier per-fold rather than
+globally.
+
+**Next action:** Codex folds the `macro_auc` reuse recommendation, the
+fold-fallback determinism clarification, and the three model-setting
+specifics (penalty, max_features framing, wheel package/version/license)
+into the full Phase 3A design spec, then presents it for Claude's
+complete review per round 1's original request.
