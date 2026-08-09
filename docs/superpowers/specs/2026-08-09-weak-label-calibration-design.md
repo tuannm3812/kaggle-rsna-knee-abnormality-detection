@@ -1,10 +1,12 @@
 # Weak-Label Evaluation — Design
 
 Date: 2026-08-09
-Status: Codex-confirmed ready (rounds 1-9, no blocking findings); round
-9's two non-blocking interface gaps (naming the internal resolver,
-placing the `unknown/report-label-disagreement` bucket) resolved in this
-revision — pending user approval (see `docs/collaboration/active_task.md`
+Status: Revised after round 10 — the error taxonomy no longer attaches
+causal labels (e.g. `negation_cue_misfire`) to purely mechanical
+resolver facts; bucketing key is now `(label, orthographic_bucket,
+resolution_signature, prediction_error)`, both directly observed, no
+inferred cause. Pending the user's own review/Codex round (see
+`docs/collaboration/active_task.md`
 for the full review/discussion history)
 
 ## Problem
@@ -339,13 +341,16 @@ case for `true_df` (missing column, empty input, duplicate
 the above exercises indirectly through `extract_weak_labels`: one case
 per `MentionDiagnostic.kind` confirming the returned `LabelResolution`
 has the right `mentions` tuple (kind + clause_index) as well as the
-right `value`, and the invariant test section 5's failure-cause lookup
-table depends on — for every one of the six `resolution_signature`
-values, confirm the corresponding `LabelResolution.value` is consistent
-with exactly one direction of error (`unqualified_only` → `1` always;
-every other signature → `0` or `None`, never `1`) — so a future change
-to the resolution order can't silently invalidate section 5's lookup
-table without breaking a test.
+right `value`, and the signature-to-error-direction invariant section
+5's error taxonomy depends on — for every one of the six
+`resolution_signature` values, confirm the corresponding
+`LabelResolution.value` is consistent with exactly one direction of
+error (`unqualified_only` → `1` always; every other signature → `0` or
+`None`, never `1`) — so a future change to the resolution order can't
+silently invalidate that mechanical fact without breaking a test. This
+test verifies a real constraint on possible error *direction*, not any
+claim about error *cause* — see section 5 for why that distinction
+matters.
 
 ### 4. Wilson score interval and the concrete decision rule
 
@@ -440,41 +445,48 @@ and most consequential sample, and makes leakage prevention depend on
 notebook discipline" rather than a mechanical guarantee.
 
 **Error taxonomy**: for each false positive, confident false negative,
-or abstained-on-true-positive case, compute `resolution_signature` —
-the set of distinct `MentionDiagnostic.kind` values found for that
-label in that report, collapsed to one of six mechanical values:
-`no_mention` (empty set), `unqualified_only`, `negation_qualified`,
-`normal_qualified`, `uncertain_qualified` (each a single-kind set), or
-`mixed_qualification` (more than one distinct kind present).
+or abstained-on-true-positive case, the taxonomy bucketing key is
+`(label, orthographic_bucket, resolution_signature, prediction_error)`,
+where both fields are **directly observed facts, not inferred causes**:
 
-Given the resolution order in section 2 step 6, `resolution_signature`
-alone always determines which single direction of error is even
-possible for that case — every signature except `unqualified_only`
-resolves to `0` or `None`, so it can only ever be a **false negative**;
-`unqualified_only` resolves to `1`, so it can only ever be a **false
-positive**. `prediction_error` and a human-readable `failure_cause` are
-therefore not independent bucketing dimensions — they're both a fixed
-lookup from `resolution_signature` alone (round 9 review: the tuple
-originally proposed here had a redundant field and an unplaced
-`unknown/report-label-disagreement` bucket; this table resolves both by
-construction):
+- `resolution_signature` — the set of distinct `MentionDiagnostic.kind`
+  values found for that label in that report, collapsed to one of six
+  mechanical values: `no_mention` (empty set), `unqualified_only`,
+  `negation_qualified`, `normal_qualified`, `uncertain_qualified` (each
+  a single-kind set), or `mixed_qualification` (more than one distinct
+  kind present) — purely a fact about what the resolver saw.
+- `prediction_error` — computed directly from `prediction` vs. `truth`
+  (`false_positive` if `prediction == 1 and truth == 0`,
+  `false_negative` otherwise for the cases this taxonomy covers) — not
+  derived through `resolution_signature`, even though the two are
+  related by construction (see the invariant below).
 
-| `resolution_signature` | implied `prediction_error` | `failure_cause` |
-|---|---|---|
-| `no_mention` | `false_negative` | `abstained_on_true_positive` |
-| `unqualified_only` | `false_positive` | `unknown_report_label_disagreement` — the only signature whose cause the resolver genuinely can't explain; the report plainly mentions the finding with no qualifying cue, so a mismatch here isn't attributable to a cue-detection bug, and is reported as an open disagreement between the report text and the human label rather than assumed to be an extractor error |
-| `negation_qualified` | `false_negative` | `negation_cue_misfire` |
-| `normal_qualified` | `false_negative` | `normal_assertion_cue_misfire` |
-| `uncertain_qualified` | `false_negative` | `abstained_on_uncertain_true_positive` |
-| `mixed_qualification` | `false_negative` | `mixed_qualification_miss` |
+**No causal label is attached to any bucket.** An earlier revision of
+this design named buckets like `negation_cue_misfire` or
+`mixed_qualification_miss` — Codex's round-10 review correctly rejected
+this: `resolution_signature` constrains which *direction* of error is
+even possible (a real, mechanical, provable fact — see the invariant
+below), but it does not establish *why* the human label disagrees.
+`negation_qualified` + truth `1` could be a genuine cue-scope bug, a
+real report/label disagreement (e.g. clinical context outside this
+report), or a mismatch between the report's wording and the
+competition's specific target definition — the abstract signature alone
+cannot distinguish these. Any hypothesis about cause belongs in the
+prose write-up in `docs/4_experiments.md`, explicitly hedged as an
+unconfirmed hypothesis, not as a data field name that asserts it as
+fact — and only worth writing if a future, explicitly-scoped
+manual/semantic audit (out of scope for this pass, see "Out of scope"
+below) supplies actual evidence for it.
 
-The taxonomy bucketing key is `(label, orthographic_bucket,
-resolution_signature)`; `prediction_error` and `failure_cause` are
-joined in for the printed table via the lookup above, not computed or
-stored independently. A unit test asserts the "only one direction of
-error is possible per signature" invariant this table depends on, so a
-future change to the resolution order in section 2 can't silently break
-this table without a test failure.
+**Invariant** (still true, still worth testing — this is the
+mechanical fact `resolution_signature` *does* establish): given the
+resolution order in section 2 step 6, every `resolution_signature`
+except `unqualified_only` resolves to `0` or `None`, so it can only
+ever pair with `prediction_error = false_negative`; `unqualified_only`
+resolves to `1`, so it can only ever pair with `prediction_error =
+false_positive`. A unit test asserts this signature-to-error-direction
+invariant (not a signature-to-cause mapping) so a future change to the
+resolution order in section 2 can't silently invalidate it.
 
 Print counts per bucket only — never report text, matched text, or
 per-study identifiers.
@@ -557,8 +569,11 @@ mount-path debugging needed to).
 - `docs/4_experiments.md`: one entry — baseline (naive) per-label table,
   fixed per-label table (both with precision/recall/coverage/support/
   CI/`passes_gate`), **the explicit per-label allowlist** (not just a
-  count), the orthographic-bucket comparison finding, and a one-line
-  conclusion.
+  count), the error-taxonomy counts (`resolution_signature` ×
+  `prediction_error`, per section 5 — reported as observed facts; any
+  cause named in the prose here must be explicitly hedged as an
+  unconfirmed hypothesis, never stated as established), the
+  orthographic-bucket comparison finding, and a one-line conclusion.
 - `docs/3_strategy.md`: Phase 2's entry is updated with the real
   allowlist either way — few or no labels passing additionally gets a
   short decision-point note naming the next candidate approach
