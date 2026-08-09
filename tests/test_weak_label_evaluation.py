@@ -197,11 +197,25 @@ def test_weak_label_metrics_raises_on_bool_label_column():
         weak_label_metrics(true_df, _constant_extractor(None))
 
 
-def test_weak_label_metrics_raises_on_float_label_column():
-    # 1.0/0.0 are also isin([0, 1])-equal via ==, so this must be
-    # checked via dtype too.
+def test_weak_label_metrics_accepts_float_label_column_with_clean_0_1_values():
+    # pandas.read_csv upcasts a column to float64 whenever it contains
+    # NaN anywhere in the full column -- train.csv's label columns are
+    # NaN for the unlabeled studies, and that float64 dtype survives
+    # filtering down to only the labeled, non-NaN subset. A clean
+    # 0.0/1.0 float column is this dataset's actual normal ground-truth
+    # shape and must be accepted, not rejected.
+    true_df = _true_df([_row("s1", "report", ACL=1), _row("s2", "report2", ACL=0)])
+    true_df["ACL"] = true_df["ACL"].astype(float)
+
+    metrics = weak_label_metrics(true_df, _constant_extractor(None))
+
+    assert metrics.loc["ACL", "actual_positive_support"] == 1
+
+
+def test_weak_label_metrics_raises_on_fractional_label_value():
     true_df = _true_df([_row("s1", "report")])
     true_df["ACL"] = true_df["ACL"].astype(float)
+    true_df.loc[0, "ACL"] = 0.5
 
     with pytest.raises(ValueError, match="outside"):
         weak_label_metrics(true_df, _constant_extractor(None))

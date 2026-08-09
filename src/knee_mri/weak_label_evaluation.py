@@ -62,13 +62,17 @@ def _validate_true_df(true_df: pd.DataFrame) -> None:
         raise ValueError("true_df has duplicate StudyInstanceUID values")
     for label in LABEL_COLUMNS:
         column = true_df[label]
-        # is_integer_dtype (not just isin([0, 1])) so a bool column
-        # (True/False, isin-equal to 1/0) or a float column (1.0/0.0,
-        # isin-equal via ==) is rejected rather than silently scored --
-        # the same input-boundary class already guarded against on the
-        # extractor-output side in _validate_extractor_output. A plain
-        # pandas.read_csv int64 column still passes.
-        if not pd.api.types.is_integer_dtype(column) or not column.isin([0, 1]).all():
+        # Reject bool dtype explicitly -- True/False are isin([0, 1])-equal
+        # to 1/0 via `==`, so a boolean mask passed by mistake would
+        # otherwise silently score as valid labels. Deliberately NOT
+        # requiring integer dtype: pandas.read_csv upcasts a column to
+        # float64 whenever it contains NaN anywhere in the full column
+        # (train.csv's label columns are NaN for the 4349 unlabeled
+        # studies), and that float64 dtype survives filtering down to
+        # only the labeled, non-NaN subset -- rejecting float dtype here
+        # would reject the actual normal shape of this dataset's
+        # ground truth, not just malformed input.
+        if pd.api.types.is_bool_dtype(column) or not column.isin([0, 1]).all():
             raise ValueError(f"true_df column '{label}' has values outside {{0, 1}}")
     is_string = true_df["Report"].apply(lambda value: isinstance(value, str))
     if true_df["Report"].isna().any() or not is_string.all():

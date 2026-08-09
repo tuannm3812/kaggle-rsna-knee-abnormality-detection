@@ -1011,3 +1011,57 @@ the notebook JSON for both. Set
 `notebooks/kernels/eda/kernel-metadata.json` still has `enable_internet:
 true` and was not touched; that kernel wasn't part of Codex's review and
 changing it isn't this task's scope.)
+
+### Kaggle run 1 — real data broke round 13's own fix (2026-08-09)
+
+Published `rsna-knee-mri-src` (includes the round-13 fix + hardening) and
+pushed kernel version 1. It failed on the very first metrics cell:
+
+```
+ValueError: true_df column 'ACL' has values outside {0, 1}
+```
+
+Root cause: `train.csv` has 4407 rows, only 58 labeled; the label columns
+are `NaN` for the other 4349. `pandas.read_csv` upcasts a column to
+`float64` whenever it contains `NaN` *anywhere in the full column* — and
+that `float64` dtype survives `split_labeled_studies` filtering down to
+just the 58 labeled (non-`NaN`) rows, even though no `NaN` remains in the
+filtered subset. Verified directly (not just inferred from the traceback):
+simulated the same shape locally (a CSV with 20 `NaN` rows + 5 labeled
+rows, filtered), confirmed `is_integer_dtype` is `False` and
+`is_bool_dtype` is `False` on the filtered subset, dtype `float64`, values
+`[0.0, 1.0, ...]`.
+
+**This means round 13 item 1's specific fix (`is_integer_dtype`) was
+stricter than correct** — it fixed the reported symptom (a `1.0`/`True`
+ground-truth value passing validation) by rejecting *all* float64 columns,
+but a clean 0.0/1.0 float64 column is this dataset's actual normal
+ground-truth shape, not malformed input. Round 13's own instruction to
+"preserve compatibility with the integer scalar type produced by
+`pandas.read_csv`" undersold how `read_csv` actually behaves on this
+specific CSV (partially-labeled columns, not fully-labeled ones).
+
+**Revised fix (commit pending):** reject `bool` dtype explicitly via
+`pd.api.types.is_bool_dtype` (the real semantic-mismatch risk — a boolean
+mask passed where labels are expected), but no longer require integer
+dtype — any dtype (int or float) is accepted as long as
+`isin([0, 1]).all()`. This still rejects `True`/`False` (Codex's original
+`True` example), still rejects out-of-range or fractional values (new
+test: a `float64` column containing `0.5`), and now also accepts the
+dataset's real 0.0/1.0 float64 shape. Verified against the same simulated
+NaN-upcast scenario: `is_bool_dtype` is `False`, `isin([0, 1]).all()` is
+`True` → accepted.
+
+Updated `test_weak_label_metrics_raises_on_float_label_column` (which
+asserted the now-known-wrong behavior) to
+`test_weak_label_metrics_accepts_float_label_column_with_clean_0_1_values`,
+and added `test_weak_label_metrics_raises_on_fractional_label_value` to
+keep the genuine-garbage case covered. 58 tests passing, `ruff check .`
+clean.
+
+Flagging this explicitly for Codex rather than treating it as a done deal:
+the previous fix was reviewed and confirmed twice (task reviewer +
+whole-branch reviewer) without anyone running it against the real CSV's
+actual dtype shape — a reminder that dtype-shape assumptions about
+`pandas.read_csv` output need checking against the real file, not just a
+hand-built test DataFrame with clean dtypes from the start.
