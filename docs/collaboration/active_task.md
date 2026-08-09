@@ -33,9 +33,11 @@ before the next step starts.
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
 - Task: Weak-Label Evaluation — Design Review (no implementation yet)
-- Status: **Revision required.** Codex review round 3 found 5 remaining
-  design problems (below). Claude has not yet revised the spec for round
-  3 — that revision is the next action, not implementation.
+- Status: **Design agreed, spec revision in progress.** Rounds 1-3 found
+  and resolved (or escalated) issues; round 4 (below) negotiated final
+  resolutions for the three open judgment calls in round 3. Codex:
+  "ready for Claude's final revision." Claude is now writing that
+  revision; not yet approved by the user, not yet implemented.
 - Implementation has not started. No code exists for this task yet.
 
 ## Review Thread
@@ -263,3 +265,75 @@ recommendations, but the revised spec has five remaining design problems:
 **Next action:** Claude revises the existing spec to resolve these five
 items and returns it for user approval. No implementation plan or code
 work should begin before that approval.
+
+### Round 4 — Discussion before revision (2026-08-09)
+
+Claude accepted round 3 findings 1 and 3 outright (no discussion needed).
+For findings 2, 4, and 5, Claude proposed counter-resolutions and asked
+Codex to respond specifically (via `codex exec -s read-only`) before
+writing the revision, rather than implementing unilaterally.
+
+**Finding 2 (assertion detector) — Codex: Refine, accepts the bounded
+scope.** Agreed a deliberately simple resolver is adequate for a
+diagnostic go/no-go pass, on two conditions:
+
+- The window must be genuinely clause-scoped — stop at punctuation/
+  newline boundaries with a fixed maximum distance, so a cue belonging
+  to an adjacent finding can't leak across clauses and get misattributed
+  (a real gap in Claude's original "30 characters" window, which had no
+  clause boundary).
+- Explicit resolution hierarchy per label, per report:
+  - Only unqualified abnormal mention(s) → `1`.
+  - Only negated/normal-asserting mention(s), or those plus unqualified
+    mentions → `0` (negated and normal-asserting mentions don't conflict
+    with each other; both support `0`).
+  - An explicit abnormal assertion *and* a negated/normal-asserting
+    mention for the *same* label in the *same* report → `None`
+    (abstain), logged to the error taxonomy as ambiguous rather than
+    silently picked.
+  - No mention at all → `None` (already agreed in round 2).
+- Add synthetic tests for: post-match cues, cue leakage across clauses,
+  repeated concordant mentions, and an explicit abnormal-vs-normal
+  conflict case.
+
+**Finding 4 (dependency/language-detection) — Codex: Agree with
+refinement.** Direct closed-form Wilson interval implementation
+confirmed preferable to adding `statsmodels` — "small, deterministic,
+offline-safe, and readily testable against known values." The language
+heuristic is accepted only if honestly framed as an **orthographic/
+script bucket**, not language identification: Greek via Unicode script,
+German/Turkish/Croatian via characteristic Latin diacritic characters,
+with overlapping/missing diacritics bucketed as "other/undetermined
+Latin" rather than a false-confident specific-language guess. Compare
+the same deterministic buckets between the 58 labeled and a sample of
+the 4349 unlabeled studies, and state this limitation explicitly in the
+spec/notebook rather than implying real language ID.
+
+**Finding 5 (go/no-go ignoring CIs) — Codex: Refine, with a materially
+different gate structure.** Confirmed: gate on the Wilson **lower
+bound**, not the point estimate. Two changes beyond what Claude proposed:
+
+- **Threshold: lower bound `>= 0.55`** (not Claude's tentative
+  `0.55-0.6` range), calibrated directly against the `support >= 5`
+  threshold's own achievable range: at `n=5`, even a flawless `5/5`
+  result has a Wilson lower bound of only ≈`0.566`; at `n=6`, `6/6`
+  ≈`0.610`; at `n=8`, `7/8` ≈`0.529`. A `0.60` threshold would make
+  `support >= 5` internally self-contradictory — it would claim 5
+  examples are enough evidence while requiring a bound that even
+  zero-error evidence at that sample size usually can't clear.
+- **Drop the macro-average gate entirely.** Require `>= 4` labels to
+  **each individually** pass their own lower-bound threshold, rather
+  than averaging lower bounds across labels — "averaging lower bounds
+  could let strong labels conceal an untrustworthy label that would
+  still be used downstream." This is a real structural change from
+  Claude's original proposal (aggregate macro-average), not just a
+  different number.
+
+**Codex's verdict:** "The design is ready for Claude's final revision
+with these Finding 2, 4, and 5 refinements incorporated." No remaining
+open questions from Codex's side.
+
+**Next action:** Claude writes the final spec revision incorporating
+round 3 findings 1 and 3 as originally specified, and findings 2, 4, and
+5 exactly as refined above. Returns for a final confirmation pass before
+user approval and before `writing-plans`.
