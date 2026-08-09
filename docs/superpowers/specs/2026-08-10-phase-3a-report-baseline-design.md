@@ -146,10 +146,12 @@ importing `MultilabelStratifiedKFold`. A missing wheel, checksum mismatch,
 installation failure, or version mismatch stops the notebook with a concise
 error that does not print the resolved path.
 
-Add `iterative-stratification==0.1.9` to the project's runtime dependencies
-and update `uv.lock` so local tests use the same pinned release. The vendored
-wheel is the Kaggle-offline transport for that dependency, not a different
-package source or version.
+Add `iterative-stratification==0.1.9` to `[project].dependencies` (the core
+runtime dependency list, not an optional extra) and update `uv.lock` so local
+tests use the same pinned release. `src/knee_mri/model_selection.py` imports
+this package directly, matching the existing rule that dependencies imported
+by package code are core. The vendored wheel is the Kaggle-offline transport
+for that dependency, not a different package source or version.
 
 The attached source dataset remains private during development. Before any
 notebook becomes public, the user must separately authorize making this
@@ -178,6 +180,17 @@ The modeling boundary validates before constructing folds:
   replaced with `""` so the final model produces its intercept-based
   probability; display only their aggregate count. A non-string, non-missing
   value stops execution rather than being silently stringified.
+
+Do not reimplement the hardened labeled-frame checks. Extract the current
+`weak_label_evaluation._validate_true_df` behavior into the public shared
+`knee_mri.validation.validate_labeled_studies` function, preserving its
+element-level `(bool, numpy.bool_)` rejection, acceptance of clean
+`float64` `0.0`/`1.0`, missing-column, empty-frame, duplicate-ID,
+binary-value, and string-report checks. Extend it only to reject
+whitespace-only reports. Both `weak_label_metrics` and Phase 3A call this
+shared validator, so the Phase 2 fixes remain the single implementation of
+those rules. Continue to use `split_labeled_studies` for the
+labeled/unlabeled split rather than re-deriving label completeness.
 
 Never print raw reports, study identifiers, row-level labels, OOF
 probabilities, or test probabilities.
@@ -274,6 +287,9 @@ independent confirmation set. No configuration is selected by OOF score.
 New tested logic belongs in focused `src/knee_mri` modules rather than being
 duplicated in the notebook:
 
+- `validation.py`
+  - `validate_labeled_studies(frame)` owns the shared hardened schema/value/
+    report validation extracted from Phase 2 and used by both phases.
 - `model_selection.py`
   - `select_multilabel_folds(y, candidate_splits=(5, 4, 3, 2), seed=42)`
     returns the selected fold count and index pairs after class preflight.
@@ -364,6 +380,13 @@ Add local synthetic tests for:
 - Vendored wheel filename/SHA-256 and presence of the accompanying upstream
   BSD 3-Clause license text.
 
+Move the existing Phase 2 labeled-frame validation tests to the shared
+validator (or parameterize them there), while retaining at least one
+`weak_label_metrics` integration test that proves it calls the shared
+boundary. Add the whitespace-only-report regression case. Do not maintain a
+second bool/float validation implementation or duplicate test matrix in the
+new report-model module.
+
 Notebook checks must confirm:
 
 - Valid notebook JSON and standard kernel metadata.
@@ -415,8 +438,11 @@ Phase 3A implementation is complete only when:
 - All three repository notebooks are output-free and pass the presentation
   and privacy checks.
 - All three kernels complete with internet disabled.
-- The final baseline kernel reproduces its recorded aggregate OOF result and
-  writes a schema-valid `submission.csv` within the competition runtime.
+- The final baseline kernel selects the same fold count and reproduces every
+  OOF AUC value transcribed into notebook Markdown and
+  `docs/4_experiments.md` when both runs are rounded to four decimal places;
+  bit-exact floating-point equality is not required. It also writes a
+  schema-valid `submission.csv` within the competition runtime.
 - The user approves and the exact completed kernel version is submitted via
   the kernel-native API.
 - Experiment and submission records match the actual run and score.

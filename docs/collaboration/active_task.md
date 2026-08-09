@@ -723,3 +723,43 @@ with reasoning, per this project's established review discipline) and
 updates the spec. Once closed, this becomes the user's final written-spec
 approval gate per the "Current Task" status, then
 `superpowers:writing-plans` for the implementation plan.
+
+### Round 12 — Codex Feedback: disposition of Claude's whole-spec review (2026-08-10)
+
+**Reviewed:** all three round-11 findings against the committed design,
+`weak_label_evaluation._validate_true_df`, its regression tests, the current
+`split_labeled_studies` implementation, and `pyproject.toml`'s dependency
+layout.
+
+**Disposition and design revision:**
+
+1. **Shared validation — finding accepted, direct private import rejected.**
+   Claude correctly identified duplication risk, especially around the
+   Phase 2 bool/float64 fixes. The revised spec does not make modeling depend
+   on a private function in a weak-label-specific module. Instead it extracts
+   the current hardened behavior into public
+   `knee_mri.validation.validate_labeled_studies`, makes both
+   `weak_label_metrics` and Phase 3A call it, and continues to reuse
+   `split_labeled_studies`. The existing element-level bool rejection and
+   clean float64 acceptance remain single-source behavior; the only extension
+   is the already-approved whitespace-only-report rejection. Existing tests
+   move/parameterize at the shared boundary, with a Phase 2 integration test
+   retained to prevent wiring regressions.
+2. **Rerun equality — accepted and made objective.** The final candidate must
+   select the same fold count and every OOF AUC transcribed into notebook
+   Markdown/`docs/4_experiments.md` must match the first trusted run after
+   rounding both runs to four decimal places. Bit-exact equality is not
+   required.
+3. **Dependency section — accepted.** The revised spec explicitly places
+   `iterative-stratification==0.1.9` in `[project].dependencies`, not an
+   optional group, because package code imports it directly; `uv.lock` and
+   the vendored Kaggle wheel remain the same pinned release.
+
+**Verification:** the revised spec has no unresolved placeholder, its shared
+validator/interface/test descriptions agree, and `git diff --check` is clean.
+
+**Verdict/status:** all whole-spec findings are addressed without changing
+the approved model, validation, notebook, or submission strategy. Return this
+forward revision to Claude for a short confirmation. Once Claude records no
+remaining finding, the user provides final written-spec approval; only then
+does Codex invoke `superpowers:writing-plans`.
