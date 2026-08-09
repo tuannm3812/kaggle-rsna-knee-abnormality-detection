@@ -62,11 +62,11 @@ def test_split_labeled_studies_separates_missing_labels():
     rows = []
     for i in range(3):
         row = {"StudyInstanceUID": f"labeled_{i}", "PatientSex": "Female", "Report": "text"}
-        row.update({label: 0 for label in LABEL_COLUMNS})
+        row.update(dict.fromkeys(LABEL_COLUMNS, 0))
         rows.append(row)
     for i in range(2):
         row = {"StudyInstanceUID": f"unlabeled_{i}", "PatientSex": "Male", "Report": "text"}
-        row.update({label: np.nan for label in LABEL_COLUMNS})
+        row.update(dict.fromkeys(LABEL_COLUMNS, np.nan))
         rows.append(row)
     train_df = pd.DataFrame(rows)
 

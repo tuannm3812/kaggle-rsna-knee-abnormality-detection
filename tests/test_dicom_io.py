@@ -60,5 +60,5 @@ def test_load_series_raises_on_empty_directory(tmp_path: Path):
     empty_dir = tmp_path / "empty_series"
     empty_dir.mkdir()
 
-    with pytest.raises(FileNotFoundError, match="No .dcm files"):
+    with pytest.raises(FileNotFoundError, match=r"No \.dcm files"):
         load_series(empty_dir)
