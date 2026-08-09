@@ -1025,9 +1025,15 @@ def weak_label_metrics(
 
 
 _GREEK_SCRIPT_RE = re.compile(r"[Ͱ-Ͽἀ-῿]")
-_TURKISH_CHARS_RE = re.compile(r"[ğşıİ]", re.IGNORECASE)
-_GERMAN_TURKISH_UMLAUT_RE = re.compile(r"[äöüß]", re.IGNORECASE)
-_SOUTH_SLAVIC_DIACRITICS_RE = re.compile(r"[čćđšž]", re.IGNORECASE)
+# Explicit case variants, not re.IGNORECASE: Python's Unicode case-folding
+# treats Turkish dotted-capital "İ" (U+0130) as fold-equivalent to plain
+# ASCII "i"/"I", which made re.IGNORECASE match ordinary English text
+# (e.g. "MRI") -- caught by an implementer's test run, not reasoned out
+# in review. Turkish's İ/i and I/ı pairs aren't the simple ASCII casing
+# relationship anyway, so IGNORECASE was never semantically right here.
+_TURKISH_CHARS_RE = re.compile(r"[ğĞşŞıİ]")
+_GERMAN_TURKISH_UMLAUT_RE = re.compile(r"[äöüßÄÖÜ]")
+_SOUTH_SLAVIC_DIACRITICS_RE = re.compile(r"[čćđšžČĆĐŠŽ]")
 _ASCII_ONLY_RE = re.compile(r"^[\x00-\x7F]*$")
 
 
