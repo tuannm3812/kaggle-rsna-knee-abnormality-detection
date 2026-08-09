@@ -33,12 +33,16 @@ before the next step starts.
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
 - Task: Weak-Label Evaluation — Design Review → Implementation Planning
-- Status: **APPROVED by user, 2026-08-09.** Round 11's non-blocking
-  wording cleanup (section 5's intro overclaimed "why extraction
-  failed"/"mechanically derivable explanation" vs. the corrected body
-  text) applied in the same pass. 11 review rounds total, no outstanding
-  findings. Next: `superpowers:writing-plans`.
-- Implementation has not started. No code exists for this task yet.
+- Status: **IMPLEMENTED, PR open, awaiting Codex review.** Design
+  approved 2026-08-09 (11 rounds, see below). Implemented via
+  `superpowers:subagent-driven-development` in worktree
+  `worktree-weak-label-evaluation` (4 tasks, each independently
+  reviewed) plus a final whole-branch review that found and fixed one
+  real bug. PR: https://github.com/tuannm3812/kaggle-rsna-knee-abnormality-detection/pull/1
+- Not yet done: the notebook has not been run on Kaggle (requires
+  republishing `src/knee_mri` first); `docs/4_experiments.md` and
+  `docs/3_strategy.md`'s real-numbers entries are deferred until that
+  run produces actual output.
 
 ## Review Thread
 
@@ -762,3 +766,96 @@ of claiming causes it can't establish.
 
 **Next action:** Invoke `superpowers:writing-plans` to turn this
 approved design into an implementation plan.
+
+### Implementation (2026-08-09)
+
+Plan: `docs/superpowers/plans/2026-08-09-weak-label-evaluation.md`. Executed
+via `superpowers:subagent-driven-development`, worktree
+`worktree-weak-label-evaluation`. Progress ledger:
+`.superpowers/sdd/progress.md` (full task-by-task detail; summarized here).
+
+- **Task 1** (`d5ab1b5`) — `extract_weak_labels` rewrite. Reviewer
+  independently hand-traced 5 subtle regex/clause cases. Clean.
+- **Task 2** (`d5ab1b5..d2db2f0`) — `weak_label_metrics` /
+  `orthographic_bucket`. Implementer found (did not silently fix) a real
+  bug: `re.IGNORECASE` case-folds Turkish dotted-capital İ to ASCII i/I,
+  making the "Turkish characters" regex spuriously match ordinary English
+  text like "MRI". Fixed with explicit case variants instead of
+  IGNORECASE, independently re-verified by the reviewer against all 7
+  fixture strings plus cross-pattern contamination between the three
+  diacritic regexes. Clean.
+- **Task 3** (`ed136f3`) — notebook + kernel-metadata scaffold
+  (transcription task, complete JSON given verbatim in the brief).
+  Reviewer byte-diffed the committed files against the brief. Clean.
+- **Task 4** (`ed136f3..51ebd66`) — final verification, done directly
+  (no reviewer needed — verification-only). Found the notebook (as the
+  plan specified it verbatim) failed `ruff check .` (unsorted import, 2
+  lines >100 chars); fixed (`cc47b8c`). That fix's own tooling then
+  collapsed 2 cells' `"source"` field to a single string, diverging from
+  the notebook's list-of-lines convention; corrected (`51ebd66`).
+- **Final whole-branch review** (opus, range `279810c..51ebd66`) —
+  "Ready to merge: With fixes." Found one **Important** bug:
+  `_classify_mention` searched a *sliced* text window for cues, so
+  slicing mid-word manufactured word boundaries the source text doesn't
+  have — "abnormal" cut at the window edge could leak a false "normal"
+  cue; "cannot"/"nodular"/"notable" similarly leaked "not"/"no". One-way
+  (`unqualified → qualified`, i.e. inflates false negatives, never false
+  positives), but real. Also flagged: no test ever composed the real
+  extractors with `weak_label_metrics` (only synthetic ones), and
+  `_validate_extractor_output` silently accepted `bool`/`float` via
+  Python's `in`/`==` semantics.
+- **Fix** (`136c55e`) — replaced the slice-and-search with a
+  `_has_cue_in_window` helper that runs `finditer` over the whole clause
+  and span-filters matches into the window bounds (no slicing, no
+  manufactured boundaries); added the two missing composition tests;
+  tightened the value check to `type(value) is int`.
+- **Re-review** (opus, range `51ebd66..136c55e`) — "Ready to merge: Yes."
+  Independently re-derived the fix via a 30,000-clause differential fuzz
+  test (new cue-set ⊆ old cue-set in 100% of cases, zero genuine-cue
+  losses), confirmed window bounds bit-identical to the pre-fix formula,
+  validated the bool/float truth table. One nit: the regression test's
+  single fixed padding only actually exercised the bug for 1 of 4 trap
+  words. Fixed (`cc29435`) — swept a padding range, verified non-vacuous
+  for all 4 words against a standalone copy of the pre-fix logic before
+  applying.
+- **Result:** 55 tests passing, `ruff check .` clean. PR opened:
+  https://github.com/tuannm3812/kaggle-rsna-knee-abnormality-detection/pull/1
+  (this repo's first-ever push — `main` had never been pushed to
+  origin either; pushed both and fixed GitHub's default-branch setting
+  as part of opening the PR).
+
+### Discussion before user's own Codex review (2026-08-09)
+
+User asked what's worth flagging before running their own Codex review
+(per the workflow: user runs Codex themselves, see the note in "Current
+Task" history / project memory). Points raised:
+
+**Already fixed and re-verified across 2 review rounds** — re-flagging
+these would be re-litigation: the window-slicing bug above; the missing
+composition tests; the lax bool/float validation.
+
+**Deferred on purpose, not overlooked:**
+- `docs/2_eda_insights.md` and `docs/3_strategy.md` still describe the
+  pre-this-branch design (naive-only extractor; go/no-go framing instead
+  of the approved per-label allowlist). Real-numbers entries and doc sync
+  wait for the actual Kaggle run — writing them now would mean
+  fabricating results.
+- The plan document's verbatim notebook JSON has drifted slightly from
+  what's actually committed (the ruff-fix diff wasn't back-ported into
+  the plan's Step 1 block). Historical-record drift, not a behavioral
+  issue.
+- English-only cue lists misfiring on some non-English reports (e.g.
+  Turkish "not" as a common word) is accepted spec scope — the
+  orthographic-bucket taxonomy exists specifically to surface this later,
+  not to prevent it now.
+
+**Genuinely open, not yet resolved by review:**
+- The notebook has not been run on Kaggle. Everything verified so far is
+  logic-correctness (does the code do what the spec says), not "does this
+  extractor work well enough on real reports" — the actual
+  precision/recall/coverage numbers and resulting allowlist are unknown
+  until that run happens.
+- `_wilson_interval`'s `n=0 → (0.0, 0.0)` convention is spec-mandated and
+  internally consistent, but prints as a confident zero rather than
+  "undefined" in the metrics table. Not a bug, but a live UX judgment
+  call for however the eventual results table gets presented.
