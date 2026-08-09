@@ -1,10 +1,9 @@
 # Weak-Label Evaluation — Design
 
 Date: 2026-08-09
-Status: Revised after 5 rounds of Codex review (2 remaining defects
-fixed: Wilson formula error, missing `total_rows` column) — pending
-user approval (see `docs/collaboration/active_task.md` for the full
-review/discussion history)
+Status: Revised after 7 rounds of Codex review — pending round-8
+confirmation, then user approval (see `docs/collaboration/active_task.md`
+for the full review/discussion history)
 
 ## Problem
 
@@ -27,9 +26,9 @@ amplify a broken mechanism rather than fix it.
 This work is named **weak-label evaluation**, not "calibration" — no
 probability calibration happens here. It measures the extractor against
 real ground truth (the 58 labeled studies), fixes the assertion-detection
-gap (justified above, not decided from baseline numbers — see "Decision
-rule"), and reports a concrete go/no-go verdict rather than open-ended
-iteration.
+gap, and produces a **persisted per-label allowlist** (which specific
+labels are trustworthy enough to weak-label with) rather than a single
+project-wide go/no-go boolean.
 
 ## Constraint: competition data never leaves Kaggle
 
@@ -56,12 +55,15 @@ raw text:
 - Study identifiers (`StudyInstanceUID`) may appear in aggregate counts
   (e.g. "12 studies") but never as a list that could be joined back to
   specific report text outside Kaggle.
+- The error-taxonomy mechanism (section 5) is specifically designed so
+  no manual/human inspection of real report text is ever needed — see
+  that section for why, and what was rejected instead.
 
 ## Design
 
 ### 1. Two named extractors, so one notebook run can measure both
 
-`weak_label_metrics` (section 2) takes an extractor function as an
+`weak_label_metrics` (section 3) takes an extractor function as an
 explicit parameter rather than hardcoding a call to
 `extract_weak_labels` internally. This exists because publishing the
 fixed `src/knee_mri` package before the notebook's first run — required
@@ -77,8 +79,10 @@ functions solve this without needing two separate publish/run cycles:
   the historical baseline for this one comparison. (Candidate for
   removal in a later cleanup once the before/after result is recorded in
   `docs/4_experiments.md` — not this pass's concern.)
-- **`extract_weak_labels`**: the new, fixed implementation (below),
-  `dict[str, int | None]`.
+- **`extract_weak_labels`**: the new, fixed implementation (section 2),
+  `dict[str, int | None]` — a thin wrapper over an internal resolver
+  (also section 2) that keeps the richer diagnostic detail needed for
+  the error taxonomy (section 5) out of the public return value.
 
 Both live in `src/knee_mri/labels.py`, both are unit-tested, both are
 published together, and the notebook calls `weak_label_metrics` twice —
@@ -87,15 +91,14 @@ run.
 
 ### 2. `extract_weak_labels`'s new contract and mechanism
 
-Returns `dict[str, int | None]`:
+Public contract: returns `dict[str, int | None]`.
 
-- `None` ("abstain") — no textual evidence found for this label at all.
+- `None` ("abstain") — no textual evidence found for this label, or the
+  only evidence found was uncertain (see below).
 - `1` — an unqualified positive mention (the label's keyword matched,
-  with no negation or normal-assertion cue nearby).
-- `0` — a negated or normal-asserting mention (the label's keyword
-  matched, with a negation/normal-assertion cue nearby — see below;
-  these two cue types are not distinguished in the output, only in the
-  error-taxonomy diagnostic in section 5).
+  with no negation, normal-assertion, or uncertainty cue nearby).
+- `0` — a negated or normal-asserting mention dominates (see resolution
+  order below).
 
 This is a genuine interface change, made now rather than later because
 `extract_weak_labels` has **no consumers yet** — `split_labeled_studies`
@@ -104,65 +107,98 @@ the extractor's output at all, so this change has zero migration cost
 today and only grows more expensive to make later once something depends
 on the old contract.
 
-**Mechanism — clause-scoped, bidirectional cue detection:**
+**Mechanism — clause-scoped, bidirectional, word-bounded cue detection:**
 
-1. Split `report_text` into clauses on `[.;:\n]` (sentence/clause
-   boundaries — a cue belonging to an adjacent clause about a different
-   finding must never be attributed to this match).
+1. Split `report_text` into clauses on `[.;\n]` only — **not** `:`,
+   which would incorrectly separate a common heading form like `"ACL:
+   intact"` into two clauses, leaving the keyword's own clause with no
+   cue to find.
 2. For each of a label's keyword pattern matches, determine which clause
-   contains it.
+   contains it (its `clause_index`).
 3. Within that clause only, and within a further fixed maximum distance
    of 40 characters on each side of the match (so one very long clause
-   still can't pull in an unrelated cue), search for any cue in a single
-   combined cue list (case-insensitive): `no`, `not`, `without`,
-   `negative for`, `absence of`, `rule out`, `intact`, `preserved`,
-   `unremarkable`, `normal`, `within normal limits`. A hit on either
-   side classifies this mention as **qualified** (negated or
-   normal-asserting); no hit classifies it as **unqualified**
-   (asserted-positive).
+   still can't pull in an unrelated cue), search for a cue from three
+   categories, each matched as a **word-bounded** phrase (`\b`-delimited
+   for alphanumeric cues; `r/o` matched as a whitespace/punctuation-
+   delimited literal token, since `\b` doesn't work cleanly around `/`)
+   so `"notable"` can never match the cue `"no"`:
+   - **Negation** (case-insensitive): `no`, `not`, `without`, `negative
+     for`, `absence of`.
+   - **Normal assertion** (case-insensitive): `intact`, `preserved`,
+     `unremarkable`, `normal`, `within normal limits`.
+   - **Uncertain** (case-insensitive): `rule out`, `r/o`, `question of`,
+     `possible`, `cannot exclude`. Distinct from negation — `"rule out
+     fracture"` means the possibility is being considered, not
+     confidently denied.
    - **Intentionally English-only for this pass.** Multilingual cue
      lists are out of scope here (see "Out of scope" below) — the error
      taxonomy (section 5) will show whether non-English reports have a
      materially different assertion-detection failure pattern, which
      would justify a follow-up pass with real evidence behind it, rather
      than speculative translated cue lists now.
-4. Collect the set of mention classifications found for the label across
-   the whole report (a label's keyword can match more than once). Resolve:
-   - No mentions at all → `None` (abstain).
-   - Only unqualified mention(s) → `1`.
-   - Only qualified mention(s), or qualified + unqualified mixed → `0`
-     (a qualified mention dominates an unqualified one — a report that
-     both mentions the anatomy plainly and separately negates/normalizes
-     it is read as negative).
+4. Each mention is classified into exactly one `kind`: `unqualified` (no
+   cue found), `qualified_negation`, `qualified_normal_assertion`, or
+   `qualified_uncertain`.
+5. **Internal resolver** (not part of `extract_weak_labels`'s public
+   return value — see section 5 for why this distinction exists)
+   produces, per label:
 
-   **Accepted simplification (confirmed with Codex, round 5):** round 4's
-   hierarchy included a fourth case — "explicit abnormal assertion AND
-   negated/normal-asserting mention for the same label → `None`,
-   ambiguous" — distinct from "qualified + unqualified mixed → `0`".
-   This design deliberately collapses that distinction to the two-
-   category (qualified/unqualified) system above, with no separate
-   ambiguous case, because a real third category would need its own
-   positive-assertion vocabulary (e.g. `tear`, `rupture`, `sprain`,
-   `identified`, `present`) distinct from the existing anatomy-name/
-   finding-word `_LABEL_PATTERNS`, plus label-specific grammatical
-   proximity rules to use it correctly — a materially broader,
-   speculative extractor design not justified for this bounded pass.
-   Treating an inherently-abnormal keyword like `fracture` as
-   automatically "explicit" would also misclassify `"no fracture"`
-   unless qualification were evaluated first, so the distinction isn't
-   even a clean addition on top of the existing mechanism. Not a
-   candidate for this pass; revisit only if real data specifically
-   motivates it.
+   ```python
+   @dataclass(frozen=True)
+   class MentionDiagnostic:
+       kind: Literal[
+           "unqualified",
+           "qualified_negation",
+           "qualified_uncertain",
+           "qualified_normal_assertion",
+       ]
+       clause_index: int
+
+   @dataclass(frozen=True)
+   class LabelResolution:
+       value: int | None
+       mentions: tuple[MentionDiagnostic, ...]
+   ```
+
+   No clause text, matched text, character offsets, study identifiers,
+   or the specific cue string are retained anywhere — only the abstract
+   `kind` and which clause (by index, not content) it came from.
+
+6. **Resolution order** (first matching rule wins, applied to the set of
+   mention kinds found across all of a label's matches in the report):
+   1. No mentions at all → `value = None`.
+   2. Any `qualified_negation` or `qualified_normal_assertion` mention
+      present (regardless of what else is also present) → `value = 0`.
+      A confident qualification is the strongest signal and dominates
+      everything else, including an unqualified mention elsewhere in
+      the report.
+   3. Else, any `qualified_uncertain` mention present (and no confident
+      qualification) → `value = None`. Uncertainty language should not
+      be forced into a confident positive or negative.
+   4. Else (only `unqualified` mention(s)) → `value = 1`.
+   - `extract_weak_labels(text)` returns `{label: resolution.value for
+     label, resolution in ...}` — the thin public projection.
 
 `LABEL_COLUMNS` (the 12-name schema) is unaffected by this change — only
 the *value type* per label changes.
+
+**Accepted simplification (confirmed with Codex, round 5):** this
+mechanism does not attempt to distinguish a "bare mention" from a
+"stronger explicit abnormal assertion" as two separate unqualified-tier
+categories (which would add a genuine ambiguous/conflict resolution
+outcome). A real third category would need its own positive-assertion
+vocabulary (e.g. `tear`, `rupture`, `sprain`, `identified`, `present`)
+distinct from the existing anatomy-name/finding-word `_LABEL_PATTERNS`,
+plus label-specific grammatical proximity rules — a materially broader,
+speculative extractor design not justified for this bounded pass.
+Revisit only if real data specifically motivates it.
 
 ### 3. `src/knee_mri/weak_label_evaluation.py` (new)
 
 ```python
 def weak_label_metrics(
     true_df: pd.DataFrame,
-    extractor: Callable[[str], dict[str, int | None]],
+    extractor: Callable[[str], Mapping[str, int | None]],
 ) -> pd.DataFrame:
     """Score a weak-label extractor against ground-truth labels.
 
@@ -206,10 +242,14 @@ def weak_label_metrics(
     (n=predicted_positive_support, k=tp) and for recall
     (n=actual_positive_support, k=tp) per label, using a directly
     implemented closed-form Wilson interval (no new runtime dependency —
-    see "Decision rule" below).
+    see "Decision rule" below), and a boolean `passes_gate` column (see
+    "Decision rule").
 
     Validates true_df at the evaluation boundary before scoring
     anything, and raises ValueError (not a silent skip) on:
+      - true_df missing StudyInstanceUID, Report, or any LABEL_COLUMNS
+        column
+      - true_df has zero rows
       - a duplicate StudyInstanceUID (would silently double-count in
         every confusion tally)
       - any LABEL_COLUMNS value that isn't exactly 0 or 1 (including
@@ -218,6 +258,14 @@ def weak_label_metrics(
     These checks run even though split_labeled_studies is the only
     current caller and already prevents most of them -- validation
     belongs at the function's own boundary, not only upstream.
+
+    Also validates `extractor`'s output on every call: raises ValueError
+    if the returned mapping's keys are not exactly LABEL_COLUMNS, or if
+    any value is not in {0, 1, None} -- `extractor` is an arbitrary
+    caller-supplied callable (needed so the same function scores both
+    extract_weak_labels_naive and extract_weak_labels from one published
+    package), so its output must be validated the same as any other
+    external input, not trusted implicitly.
 
     Args:
         true_df: A frame with StudyInstanceUID, Report, and all 12
@@ -228,6 +276,10 @@ def weak_label_metrics(
             extract_weak_labels_naive or extract_weak_labels itself) --
             passed explicitly so the same function can score either
             extractor from the same published package in the same run.
+            Typed as Mapping (not dict) so extract_weak_labels_naive's
+            dict[str, int] return type satisfies the parameter without
+            a dict-invariance typing conflict against dict[str, int |
+            None].
 
     Returns:
         A DataFrame indexed by label, one row per LABEL_COLUMNS entry,
@@ -235,30 +287,35 @@ def weak_label_metrics(
         abstained_on_negative, actual_positive_support,
         predicted_positive_support, non_abstained_count, total_rows,
         precision, recall, coverage, precision_ci_low,
-        precision_ci_high, recall_ci_low, recall_ci_high.
+        precision_ci_high, recall_ci_low, recall_ci_high, passes_gate.
 
     Raises:
-        ValueError: On any of the three schema violations above.
+        ValueError: On any of the schema violations above, for either
+            true_df or the extractor's output.
     """
 ```
+
+Module-level constants (frozen decision-rule inputs, see section 4):
+`MIN_SUPPORT = 5`, `MIN_PRECISION_LOWER_BOUND = 0.55`.
 
 Tested locally with small synthetic report/label fixtures (hand-written
 sentences, not real competition data) covering: a clean true positive, a
 clean true negative, a negated mention (true negative, correctly
-detected), a post-match cue (`"ACL intact"` — the exact case Codex's
-review identified as missed by a before-only window), cue leakage across
-a clause boundary (a cue for a *different* finding in an adjacent clause
-must not affect this label's classification), repeated concordant
-mentions of the same label (multiple matches, all unqualified — still
-resolves to `1`), an abstain case (no mention at all — verify it's
-excluded from `tp`/`fp`/`tn`/`fn_confident` and counted toward
-`abstained_on_positive` or `abstained_on_negative` correctly depending on
-truth), a false positive (unqualified keyword present but ground truth
-is negative — a real extractor miss, not a schema issue), a
-zero-support label (precision/recall/coverage all `0.0`, no exception),
-and each of the three `ValueError` schema-violation cases (duplicate
+detected), a post-match cue (`"ACL: intact"` — the exact heading-colon
+case Codex's round-6 review identified as broken by naive `:`-splitting),
+an uncertain cue (`"rule out fracture"` — resolves to abstain, not
+confident-negative), a substring trap (`"notable"` must not trigger the
+`"no"` cue), cue leakage across a clause boundary (a cue for a
+*different* finding in an adjacent clause must not affect this label's
+classification), repeated concordant mentions of the same label
+(multiple matches, all unqualified — still resolves to `1`), an abstain
+case (no mention at all), a false positive (unqualified keyword present
+but ground truth is negative), a zero-support label (precision/recall/
+coverage all `0.0`, no exception), each `ValueError` schema-violation
+case for `true_df` (missing column, empty input, duplicate
 `StudyInstanceUID`, non-binary label value, missing/non-string
-`Report`).
+`Report`), and each `ValueError` case for a malformed extractor output
+(wrong keys, a value outside `{0, 1, None}`).
 
 ### 4. Wilson score interval and the concrete decision rule
 
@@ -281,96 +338,130 @@ and each of the three `ValueError` schema-violation cases (duplicate
   ```
 
   (Verified against Codex's round-5 reference value: `n=5, k=5` →
-  `lower ≈ 0.5655`, matching the `≈0.566` figure cited below. An earlier
-  draft of this formula had the variance term's `1/n` factor wrong,
-  caught in round 5 review — write the unit test for this formula
-  against this exact reference value first.)
-
-  where `n` is the metric's own denominator (`predicted_positive_support`
-  for precision, `actual_positive_support` for recall) and `k` is `tp`.
-  Undefined (`n == 0`) → interval is `(0.0, 0.0)`, matching the
-  point-estimate convention above.
-- **Adequate support threshold**: a label only counts toward the
-  go/no-go decision if `predicted_positive_support >= 5`. Below that,
-  the interval is wide enough to be uninformative for a decision, though
-  still reported in the output table.
-- **Primary metric for the decision: precision.** A false positive
-  actively corrupts a pseudo-label used for training later; a missed
-  positive (abstain or confident false negative) is comparatively less
-  harmful, especially once training code can treat abstain as "no
-  signal" rather than "confirmed negative" (a later piece of work, out
-  of scope here, but the 3-state contract exists specifically to make
-  that possible).
-- **Go/no-go rule**, evaluated once, after both extractors have been run
-  in the same notebook execution:
-  - For each label with `predicted_positive_support >= 5`, compute the
-    Wilson **lower bound** of precision. The label individually "passes"
-    if that lower bound is `>= 0.55`.
-  - **Go** if at least 4 of the 12 labels individually pass.
-  - **No-go** otherwise.
-  - **No macro-averaging** — passing is per-label and counted, not
-    averaged. Averaging lower bounds across labels could let a few
-    strong labels conceal one untrustworthy label that would still be
-    used downstream for that label specifically; a per-label pass/fail
-    count doesn't have that failure mode.
+  `lower ≈ 0.5655`, matching the `≈0.566` figure cited below. Write the
+  unit test for this formula against this exact reference value first.)
+- **Adequate support threshold**: `predicted_positive_support >=
+  MIN_SUPPORT` (`5`). Below that, the interval is wide enough to be
+  uninformative for a decision, though still reported in the output
+  table.
+- **Primary metric: precision.** A false positive actively corrupts a
+  pseudo-label used for training later; a missed positive (abstain or
+  confident false negative) is comparatively less harmful, especially
+  once training code can treat abstain as "no signal" rather than
+  "confirmed negative" (a later piece of work, out of scope here, but
+  the 3-state contract exists specifically to make that possible).
+- **Per-label gate, not a global boolean**: a label's `passes_gate` is
+  `True` if and only if `predicted_positive_support >= MIN_SUPPORT` and
+  the Wilson **lower bound** of precision is `>=
+  MIN_PRECISION_LOWER_BOUND` (`0.55`). No macro-averaging — averaging
+  lower bounds across labels could let a few strong labels conceal one
+  untrustworthy label that would still get used downstream for that
+  label specifically; a per-label pass/fail doesn't have that failure
+  mode.
   - **Why `0.55`, not a rounder number like `0.6` or `0.7`**: calibrated
-    directly against the `support >= 5` threshold's own achievable
-    range. At `n=5`, even a flawless `5/5` result has a Wilson lower
-    bound of only ≈`0.566`; at `n=6`, `6/6` ≈`0.610`; at `n=8`, `7/8`
-    ≈`0.529`. A `0.60` threshold would make `support >= 5` internally
-    self-contradictory — claiming 5 examples is enough evidence to judge
-    a label, while requiring a bound that even zero-error evidence at
+    directly against `MIN_SUPPORT`'s own achievable range. At `n=5`,
+    even a flawless `5/5` result has a Wilson lower bound of only
+    ≈`0.566`; at `n=6`, `6/6` ≈`0.610`; at `n=8`, `7/8` ≈`0.529`. A
+    `0.60` threshold would make `MIN_SUPPORT = 5` internally self-
+    contradictory — claiming 5 examples is enough evidence to judge a
+    label, while requiring a bound that even zero-error evidence at
     that sample size usually can't clear. `0.55` is intentionally
     conservative: it demands close to spotless evidence at the smallest
-    supported sample sizes, and a no-go result from it means "the
-    evidence is insufficient," not "the extractor is proven bad" —
-    appropriate for a diagnostic gate at this data scale.
-  - A no-go result means: stop iterating on regex-based extraction in
-    this project phase. Record the result in `docs/3_strategy.md` as a
-    decision point — the next step would be a fundamentally different
-    approach (multilingual assertion-extraction model, or probabilistic
-    weak supervision combining multiple labeling functions), not another
-    regex tweak. Do not attempt a second regex iteration in the same
-    pass if the result is no-go.
-  - These thresholds (`5` support, `0.55` lower-bound precision, `4/12`
-    label count) are this design's frozen decision rule, set before any
-    real result is viewed. They may still be changed during user review
-    of this spec — but not after the Kaggle run produces real numbers.
-- Recall and coverage are reported for every label regardless of the
-  go/no-go outcome (context for how much of the 4349 report-only studies
+    supported sample sizes.
+- **The deliverable is a persisted per-label allowlist** — the list of
+  labels where `passes_gate == True` — not a single project-wide
+  boolean. Any future work that applies weak labels to expand a
+  training set (out of scope for this pass, see below) must only use
+  labels on this allowlist; a label not on it stays abstained/
+  unavailable for weak-labeling purposes regardless of how many *other*
+  labels passed.
+- **Project-phase signal** (informational, not a gate on individual
+  labels): count how many of the 12 labels are on the allowlist, for
+  `docs/3_strategy.md`'s Phase 2 fork. If very few labels pass (a
+  threshold worth discussing at that point rather than frozen here,
+  since it's about project direction, not per-label correctness), that's
+  a signal to stop iterating on regex-based extraction and consider a
+  fundamentally different approach (multilingual assertion-extraction
+  model, or probabilistic weak supervision combining multiple labeling
+  functions) — recorded as a decision point when/if it happens.
+- These thresholds (`MIN_SUPPORT = 5`, `MIN_PRECISION_LOWER_BOUND =
+  0.55`) are this design's frozen decision rule, set before any real
+  result is viewed. They may still change during user review of this
+  spec — but not after the Kaggle run produces real numbers.
+- Recall and coverage are reported for every label regardless of
+  `passes_gate` (context for how much of the 4349 report-only studies
   would get a usable label at all), but do not gate the decision.
 
-### 5. Error taxonomy and language-distribution checks (Kaggle-only, counts only)
+### 5. Error taxonomy and orthographic-bucket comparison (Kaggle-only, counts only)
 
-Two additional notebook cells, both producing only aggregate counts:
+**Why the taxonomy needs the internal resolver, not just
+`extract_weak_labels`'s public output:** aggregate precision/recall
+alone can't explain *why* extraction failed (negation miscue? wrong
+cue-vs-uncertain classification? no keyword at all?). Two ways to get
+that explanation were considered: (a) have the resolver expose its
+internal mention classification as a diagnostic structure, so the
+explanation is mechanically derivable with zero raw-text access ever
+needed, or (b) a bounded, explicitly-permitted human-in-the-loop
+Kaggle-only triage step (transient inspection of real text during the
+notebook session, only aggregate counts committed). Codex's
+recommendation (round 7): **(a)**, firmly rejecting (b) as
+"irreproducible, introduces reviewer judgment at exactly the smallest
+and most consequential sample, and makes leakage prevention depend on
+notebook discipline" rather than a mechanical guarantee.
 
-- **Error taxonomy**: for each false positive/false negative/abstained-
-  on-positive case, bucket by `(label, coarse report-language, failure
-  cause)` where failure cause is one of `{no-keyword-match,
-  qualified-when-should-be-unqualified, unqualified-when-should-be-
-  qualified, abstained-on-true-positive}` — print counts per bucket
-  only, never the underlying report text. This is what actually explains
-  *why* precision/recall land where they do, and directly surfaces
-  whether the English-only cue-list limitation (section 2) is a real
-  problem worth a follow-up pass.
-- **Language-distribution comparison**: a coarse **orthographic/script
-  bucket** heuristic — explicitly *not* language identification, framed
-  honestly as such in the notebook and in `docs/4_experiments.md`:
-  - Greek script (Unicode ranges `Ͱ`–`Ͽ`, `ἀ`–`῿`) →
-    `greek`.
-  - Contains `ä`/`ö`/`ü`/`ß` (case-insensitive) → `german`.
-  - Contains `ğ`/`ş`/`ı`/`İ` → `turkish`.
-  - Contains `č`/`ć`/`đ`/`š`/`ž` → `croatian`.
-  - Matches more than one of the above → `mixed`.
-  - Entirely ASCII → `ascii_only` (not claimed to be English — merely
-    undifferentiated from it by this heuristic).
-  - Any other non-ASCII Latin-script text → `other_latin_undetermined`.
+**Error taxonomy**: for each false positive, confident false negative,
+or abstained-on-true-positive case, bucket by `(label,
+orthographic_bucket, prediction_error, resolution_signature)`, where:
 
-  Run over both the 58 labeled studies and a sample of the 4349
-  unlabeled studies, compared as counts/proportions of these buckets
-  only. If the labeled set's bucket mix doesn't resemble the unlabeled
-  set's, state that explicitly as a caveat on how far the go/no-go
-  result generalizes — do not silently assume it does.
+- `prediction_error` is one of `false_positive`, `false_negative`
+  (covers both confident-wrong-negative and abstained-on-positive —
+  both are "missed the true positive," distinguished by
+  `resolution_signature` instead, not a separate axis).
+- `resolution_signature` derives mechanically from the set of distinct
+  `MentionDiagnostic.kind` values found for that label in that report:
+  `no_mention` (empty set), `unqualified_only`, `negation_qualified`,
+  `normal_qualified`, `uncertain_qualified` (each a single-kind set), or
+  `mixed_qualification` (more than one distinct kind present).
+- Cases whose `resolution_signature` cannot mechanically explain the
+  mismatch — most notably an `unqualified_only` false positive, where
+  the report plainly mentions the finding but ground truth says negative
+  — are bucketed as `unknown/report-label-disagreement` rather than
+  assumed to be a cue-classification bug. This is deliberate: it avoids
+  claiming the report text proves what actually happened when the
+  resolver's own signature doesn't support that claim.
+
+Print counts per bucket only — never report text, matched text, or
+per-study identifiers.
+
+**Orthographic-bucket comparison** — explicitly *not* language
+identification, named and framed honestly as observed character sets,
+per round 6's finding that language-named buckets overclaim (e.g. `ö`/
+`ü` are shared by German *and* Turkish, not German-exclusive; the
+originally-listed Croatian characters aren't Croatian-exclusive among
+South Slavic languages either):
+
+- Greek script (Unicode ranges `Ͱ`–`Ͽ`, `ἀ`–`῿`) →
+  `greek_script`.
+- Contains `ğ`/`ş`/`ı`/`İ` → `latin_with_turkish_chars` (this set is
+  distinctive enough among the languages actually observed to keep as
+  its own bucket).
+- Contains `ä`/`ö`/`ü`/`ß` → `latin_with_german_turkish_umlaut` (named
+  to reflect the real overlap, not asserting German specifically).
+- Contains `č`/`ć`/`đ`/`š`/`ž` → `latin_with_south_slavic_diacritics`
+  (named to reflect the broader language family, not Croatian
+  specifically).
+- Matches more than one of the above → `mixed_latin_diacritics`.
+- Entirely ASCII → `ascii_only` (not claimed to be English — merely
+  undifferentiated from it by this heuristic).
+- Any other non-ASCII Latin-script text → `other_latin_undetermined`.
+
+Run over the 58 labeled studies and **all 4349 unlabeled studies** (a
+full scan of already-loaded CSV report strings is inexpensive — no
+sampling, no sample-size/selection-rule question to leave unanswered),
+compared as counts/proportions of these buckets only. If the labeled
+set's bucket mix doesn't resemble the unlabeled set's, state that
+explicitly as a caveat on how far the per-label allowlist generalizes —
+do not silently assume it does.
 
 ### 6. `notebooks/02_weak_label_evaluation.ipynb` (new)
 
@@ -389,14 +480,17 @@ seed, `NOTEBOOK_VERSION`, real cells:
 4. **Baseline measurement**: `weak_label_metrics(labeled_df,
    extract_weak_labels_naive)`; print the full per-label table.
 5. **Fixed measurement**: `weak_label_metrics(labeled_df,
-   extract_weak_labels)`; print the full per-label table. Both this and
-   step 4 run against the same published package — no republish between
-   them.
-6. Error taxonomy and language-distribution cells (section 5 above),
-   computed against the fixed extractor's errors.
-7. Apply the go/no-go rule from section 4; print the verdict explicitly
-   (`"GO"` or `"NO-GO"` plus the exact numbers that produced it).
-8. Insight cells with real, timeless findings only (no report excerpts,
+   extract_weak_labels)`; print the full per-label table, including
+   `passes_gate`. Both this and step 4 run against the same published
+   package — no republish between them.
+6. Error taxonomy cell (section 5), using the internal resolver directly
+   (not the public `extract_weak_labels` wrapper) to get
+   `MentionDiagnostic` detail for every false positive/negative case.
+7. Orthographic-bucket comparison cell (section 5), full 4349-row scan.
+8. **Allowlist**: print the explicit list of labels where `passes_gate
+   == True`, and the count out of 12, as the actual deliverable of this
+   notebook — not a single "GO"/"NO-GO" string.
+9. Insight cells with real, timeless findings only (no report excerpts,
    no per-study identifiers beyond aggregate counts).
 
 Needs its own `notebooks/kernels/weak-label-evaluation/
@@ -416,28 +510,35 @@ mount-path debugging needed to).
 
 - `docs/4_experiments.md`: one entry — baseline (naive) per-label table,
   fixed per-label table (both with precision/recall/coverage/support/
-  CI), the go/no-go verdict with the exact numbers, the language-
-  distribution/error-taxonomy findings, and a one-line conclusion.
-- `docs/3_strategy.md`: Phase 2's entry is updated with the real result
-  either way (go or no-go) — a no-go result additionally gets a short
-  decision-point note naming the next candidate approach (multilingual
-  assertion-extraction model or probabilistic weak supervision) as a
-  future strategy fork, not implemented in this pass either way.
+  CI/`passes_gate`), **the explicit per-label allowlist** (not just a
+  count), the orthographic-bucket comparison finding, and a one-line
+  conclusion.
+- `docs/3_strategy.md`: Phase 2's entry is updated with the real
+  allowlist either way — few or no labels passing additionally gets a
+  short decision-point note naming the next candidate approach
+  (multilingual assertion-extraction model or probabilistic weak
+  supervision) as a future strategy fork, not implemented in this pass
+  either way.
 
 ## Out of scope for this pass
 
-- A second regex iteration within this same pass if the result is
-  no-go — the go/no-go rule exists specifically to prevent open-ended
-  regex tweaking; a no-go result is itself the deliverable (a documented
-  decision point), not a trigger to keep trying.
-- Multilingual cue/keyword expansion — the assertion-detection cue list
-  in section 2 is intentionally English-only for this pass; the error
+- A second regex iteration within this same pass — the per-label gate
+  and the project-phase signal exist specifically to prevent open-ended
+  regex tweaking; the allowlist (however many labels pass) is itself the
+  deliverable, not a trigger to keep trying.
+- Multilingual cue/keyword expansion — the assertion-detection cue lists
+  in section 2 are intentionally English-only for this pass; the error
   taxonomy will show whether this is a real, evidenced gap worth a
   follow-up, rather than speculative translated cue lists added now.
 - A more sophisticated resolution mechanism for genuinely conflicting
-  same-label mentions beyond the qualified/unqualified split in section
-  2 — not attempted speculatively; a candidate for a follow-up only if
-  the real error taxonomy shows it matters.
+  same-label mentions beyond the qualified/unqualified/uncertain split
+  in section 2 — not attempted speculatively; a candidate for a
+  follow-up only if the real error taxonomy shows it matters.
+- A human-in-the-loop manual triage step for ambiguous errors — rejected
+  in round 7 in favor of the mechanically-derivable resolver-based
+  taxonomy; may be revisited as a follow-up *investigation* after a
+  low-allowlist result, not as part of this evaluation's committed
+  design.
 - Applying weak labels (positive/negative/abstain) to actually expand
   the training set for a baseline model, or designing how a future
   training pipeline should treat the abstain state — that's the next
