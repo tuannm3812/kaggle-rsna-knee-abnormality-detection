@@ -649,3 +649,77 @@ preflight, result-to-Markdown rerun sequence, submission authorization, and
 whether every acceptance criterion is objectively verifiable. Append a
 numbered review round here; do not edit the spec or implementation files from
 the reviewer role.
+
+### Round 11 — Claude's whole-spec review (2026-08-10)
+
+**Reviewed:** the complete committed spec
+(`docs/superpowers/specs/2026-08-10-phase-3a-report-baseline-design.md`,
+`0805b81`), cross-checked section by section against every prior round's
+resolution rather than the round-10 summary. Also checked
+`pyproject.toml`'s actual dependency structure directly.
+
+**Confirms every prior round's resolution landed correctly, no
+regressions found:** the functional `IS_KAGGLE` guard is present with
+only its print removed (§4); the deterministic fold contract exactly
+matches round 7/8's resolution — one split per candidate, no seed
+retries, no score consultation (§6); the frozen model matches round
+7/8/9 exactly, including the explicit `OneVsRestClassifier` wrap instead
+of the deprecated shorthand (§7); the wheel pin's package/version/hash/
+license match what I independently verified against PyPI in round 8
+(§4); `macro_auc`/`per_label_auc` reuse is stated explicitly (§8); no
+scope creep into weak labels, image features, or fusion (§2). The test
+plan (§12) is genuinely thorough — the fold-local-vocabulary leakage
+test (validation-fold tokens never enter that fold's learned
+vocabulary) is a real, non-obvious test I hadn't asked for and is
+exactly the right thing to check for this design.
+
+**Three concrete findings, none blocking the overall approach:**
+
+1. **§5/§9 — input-contract validation logic (Boolean/float dtype
+   handling, duplicate-ID checks, missing-report checks) doesn't say
+   whether it reuses `weak_label_evaluation.py`'s already-hardened
+   `_validate_true_df`/`dataset.py`'s `split_labeled_studies`, or
+   re-derives equivalent checks in the new modules.** This isn't
+   cosmetic: Phase 2 spent several Codex rounds (13-15) getting the
+   exact bool/float dtype edge cases right, including a real bug caught
+   only against actual `train.csv` data (NaN-driven float64 upcast). Six
+   of §12's listed tests ("Boolean/non-binary labels, duplicate
+   identifiers, missing labeled reports...") would just re-verify
+   already-tested behavior if reused, or risk a subtly weaker
+   reimplementation if not. Request: state explicitly that Phase 3A's
+   input validation reuses (or directly calls) the existing tested
+   functions rather than duplicating their logic.
+2. **§14 acceptance criterion "the final baseline kernel reproduces its
+   recorded aggregate OOF result" has no stated equality/tolerance
+   definition** — round 10 explicitly asked whether every acceptance
+   criterion is objectively verifiable, and this is the one that isn't
+   as written. `liblinear`+fixed seeds+single-threaded (`n_jobs=1`)
+   should be deterministic run-to-run on the same environment, but
+   floating-point exactness across separate Kaggle kernel executions
+   isn't something this project can guarantee with certainty. Request:
+   define "reproduces" as matching to the same decimal precision the
+   Markdown/`docs/4_experiments.md` transcription reports (e.g. 4
+   decimal places), not implicit bit-exact equality.
+3. **§4 doesn't say which `pyproject.toml` section `iterative-
+   stratification==0.1.9` belongs in.** Checked the file directly:
+   `dependencies` currently holds only packages `src/knee_mri` code
+   itself imports (pandas, numpy, scikit-learn, pydicom); `notebook`/
+   `dev`/`kaggle`/`dicom-extra`/`torch` are all optional extras for
+   non-core uses. Since `model_selection.py` (§9) is tested `src/knee_mri`
+   code that imports this package directly, it belongs in core
+   `dependencies` by the existing pattern, not a new optional group.
+   Minor, but worth stating so the implementation plan doesn't have to
+   guess.
+
+**No objection to:** Kaggle feasibility (CPU-only, well within the 9h
+runtime budget, offline-safe with SHA-256 + installed-version
+verification before import), privacy/publication rules (kernels/dataset
+stay private, no raw report or identifier printing anywhere, explicit
+user approval gated before actual leaderboard submission), or the
+result-to-Markdown-then-rerun-then-submit sequence in §3/§10.
+
+**Next action:** Codex resolves the three findings above (or pushes back
+with reasoning, per this project's established review discipline) and
+updates the spec. Once closed, this becomes the user's final written-spec
+approval gate per the "Current Task" status, then
+`superpowers:writing-plans` for the implementation plan.
