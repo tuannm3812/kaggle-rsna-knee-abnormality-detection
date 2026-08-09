@@ -1,9 +1,11 @@
 # Weak-Label Evaluation — Design
 
 Date: 2026-08-09
-Status: Codex-confirmed ready after 8 review rounds — pending user
-approval (see `docs/collaboration/active_task.md` for the full
-review/discussion history)
+Status: Codex-confirmed ready (rounds 1-9, no blocking findings); round
+9's two non-blocking interface gaps (naming the internal resolver,
+placing the `unknown/report-label-disagreement` bucket) resolved in this
+revision — pending user approval (see `docs/collaboration/active_task.md`
+for the full review/discussion history)
 
 ## Problem
 
@@ -164,6 +166,21 @@ on the old contract.
    or the specific cue string are retained anywhere — only the abstract
    `kind` and which clause (by index, not content) it came from.
 
+   This resolver is a named, importable function — not just a
+   conceptual step — since section 5's notebook diagnostic cell calls
+   it directly (`extract_weak_labels` itself only exposes the
+   projected `value`, per step 6 below):
+
+   ```python
+   def _resolve_weak_labels(report_text: str) -> dict[str, LabelResolution]:
+       """Same matching/clause logic as extract_weak_labels, but
+       returns the full LabelResolution (value + mention diagnostics)
+       per label instead of projecting to just the value. Internal —
+       imported directly by the evaluation notebook's diagnostic cell,
+       not part of extract_weak_labels's public contract.
+       """
+   ```
+
 6. **Resolution order** (first matching rule wins, applied to the set of
    mention kinds found across all of a label's matches in the report):
    1. No mentions at all → `value = None`.
@@ -177,7 +194,8 @@ on the old contract.
       be forced into a confident positive or negative.
    4. Else (only `unqualified` mention(s)) → `value = 1`.
    - `extract_weak_labels(text)` returns `{label: resolution.value for
-     label, resolution in ...}` — the thin public projection.
+     label, resolution in _resolve_weak_labels(text).items()}` — the
+     thin public projection over `_resolve_weak_labels`.
 
 `LABEL_COLUMNS` (the 12-name schema) is unaffected by this change — only
 the *value type* per label changes.
@@ -317,6 +335,18 @@ case for `true_df` (missing column, empty input, duplicate
 `Report`), and each `ValueError` case for a malformed extractor output
 (wrong keys, a value outside `{0, 1, None}`).
 
+`_resolve_weak_labels` (section 2) gets its own direct tests beyond what
+the above exercises indirectly through `extract_weak_labels`: one case
+per `MentionDiagnostic.kind` confirming the returned `LabelResolution`
+has the right `mentions` tuple (kind + clause_index) as well as the
+right `value`, and the invariant test section 5's failure-cause lookup
+table depends on — for every one of the six `resolution_signature`
+values, confirm the corresponding `LabelResolution.value` is consistent
+with exactly one direction of error (`unqualified_only` → `1` always;
+every other signature → `0` or `None`, never `1`) — so a future change
+to the resolution order can't silently invalidate section 5's lookup
+table without breaking a test.
+
 ### 4. Wilson score interval and the concrete decision rule
 
 - **Interval method**: Wilson score interval, 95% confidence,
@@ -410,25 +440,41 @@ and most consequential sample, and makes leakage prevention depend on
 notebook discipline" rather than a mechanical guarantee.
 
 **Error taxonomy**: for each false positive, confident false negative,
-or abstained-on-true-positive case, bucket by `(label,
-orthographic_bucket, prediction_error, resolution_signature)`, where:
+or abstained-on-true-positive case, compute `resolution_signature` —
+the set of distinct `MentionDiagnostic.kind` values found for that
+label in that report, collapsed to one of six mechanical values:
+`no_mention` (empty set), `unqualified_only`, `negation_qualified`,
+`normal_qualified`, `uncertain_qualified` (each a single-kind set), or
+`mixed_qualification` (more than one distinct kind present).
 
-- `prediction_error` is one of `false_positive`, `false_negative`
-  (covers both confident-wrong-negative and abstained-on-positive —
-  both are "missed the true positive," distinguished by
-  `resolution_signature` instead, not a separate axis).
-- `resolution_signature` derives mechanically from the set of distinct
-  `MentionDiagnostic.kind` values found for that label in that report:
-  `no_mention` (empty set), `unqualified_only`, `negation_qualified`,
-  `normal_qualified`, `uncertain_qualified` (each a single-kind set), or
-  `mixed_qualification` (more than one distinct kind present).
-- Cases whose `resolution_signature` cannot mechanically explain the
-  mismatch — most notably an `unqualified_only` false positive, where
-  the report plainly mentions the finding but ground truth says negative
-  — are bucketed as `unknown/report-label-disagreement` rather than
-  assumed to be a cue-classification bug. This is deliberate: it avoids
-  claiming the report text proves what actually happened when the
-  resolver's own signature doesn't support that claim.
+Given the resolution order in section 2 step 6, `resolution_signature`
+alone always determines which single direction of error is even
+possible for that case — every signature except `unqualified_only`
+resolves to `0` or `None`, so it can only ever be a **false negative**;
+`unqualified_only` resolves to `1`, so it can only ever be a **false
+positive**. `prediction_error` and a human-readable `failure_cause` are
+therefore not independent bucketing dimensions — they're both a fixed
+lookup from `resolution_signature` alone (round 9 review: the tuple
+originally proposed here had a redundant field and an unplaced
+`unknown/report-label-disagreement` bucket; this table resolves both by
+construction):
+
+| `resolution_signature` | implied `prediction_error` | `failure_cause` |
+|---|---|---|
+| `no_mention` | `false_negative` | `abstained_on_true_positive` |
+| `unqualified_only` | `false_positive` | `unknown_report_label_disagreement` — the only signature whose cause the resolver genuinely can't explain; the report plainly mentions the finding with no qualifying cue, so a mismatch here isn't attributable to a cue-detection bug, and is reported as an open disagreement between the report text and the human label rather than assumed to be an extractor error |
+| `negation_qualified` | `false_negative` | `negation_cue_misfire` |
+| `normal_qualified` | `false_negative` | `normal_assertion_cue_misfire` |
+| `uncertain_qualified` | `false_negative` | `abstained_on_uncertain_true_positive` |
+| `mixed_qualification` | `false_negative` | `mixed_qualification_miss` |
+
+The taxonomy bucketing key is `(label, orthographic_bucket,
+resolution_signature)`; `prediction_error` and `failure_cause` are
+joined in for the printed table via the lookup above, not computed or
+stored independently. A unit test asserts the "only one direction of
+error is possible per signature" invariant this table depends on, so a
+future change to the resolution order in section 2 can't silently break
+this table without a test failure.
 
 Print counts per bucket only — never report text, matched text, or
 per-study identifiers.
@@ -483,8 +529,8 @@ seed, `NOTEBOOK_VERSION`, real cells:
    extract_weak_labels)`; print the full per-label table, including
    `passes_gate`. Both this and step 4 run against the same published
    package — no republish between them.
-6. Error taxonomy cell (section 5), using the internal resolver directly
-   (not the public `extract_weak_labels` wrapper) to get
+6. Error taxonomy cell (section 5), calling `_resolve_weak_labels`
+   directly (not the public `extract_weak_labels` wrapper) to get
    `MentionDiagnostic` detail for every false positive/negative case.
 7. Orthographic-bucket comparison cell (section 5), full 4349-row scan.
 8. **Allowlist**: print the explicit list of labels where `passes_gate
