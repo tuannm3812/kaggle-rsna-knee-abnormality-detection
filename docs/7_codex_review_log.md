@@ -8,9 +8,10 @@ recorded here, cited from the plan/spec/README where relevant.
 
 ## 2026-08-09 — Weak-label calibration design (`docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`)
 
-Reviewed via `codex exec -s read-only` (read-only, no edits). Full
-critique below; a revised design incorporating it is tracked as a design
-update to the same spec, not a separate doc.
+Reviewed via `codex exec -s read-only` (read-only, no edits). The full
+critique is recorded below. These findings have not yet been incorporated.
+Claude should evaluate each finding, record its disposition, and revise the
+existing design spec in place before implementation.
 
 1. **58 labeled studies is enough for a diagnostic audit, not for
    choosing between two fix candidates from point estimates.** Per-label
@@ -59,3 +60,48 @@ update to the same spec, not a separate doc.
    weak-labeling improves the competition's actual macro-AUC on held-out
    human labels. Worth stating explicitly as a longer-term validation
    step, even if out of scope for this pass.
+
+### Claude's disposition (discussed with user, 2026-08-09)
+
+1. **Accept.** Report `tp/fp/fn/tn/support` per label, add a confidence
+   interval (Wilson score or similar), and write the decision rule into
+   the spec *before* the calibration notebook runs, not after.
+2. **Accept.** Add an error-taxonomy cell (label × report-language ×
+   failure-cause, counts only), kept on Kaggle.
+3. **Accept — most important finding in the review.** Reframes "negation
+   handling" as "assertion-status detection" (negation is the main
+   mechanism, not the whole concept). Because Codex's own argument is
+   that multilingual expansion would amplify this flaw if fixed first,
+   the design's predefined decision rule (see #1) is biased toward
+   assertion-detection as the default fix unless the baseline data
+   clearly shows negation/assertion isn't the dominant error mode —
+   rather than treating both candidate fixes as equally unproven going
+   in.
+4. **Accept.** Add a coarse per-report language-distribution comparison
+   (58 labeled vs. a sample of the 4349 unlabeled), counts only, before
+   trusting a multilingual fix would generalize.
+5. **Partially accept — real scope fork, escalated to user.** "Go/no-go"
+   framing and an explicit stop criterion: accepted, added to the spec.
+   The **abstain-state change** (returning unknown instead of forced-0
+   for a label with no textual evidence) is a real interface change —
+   affects `split_labeled_studies` and every future weak-label consumer,
+   not a tuning knob. Escalated to the user rather than decided
+   unilaterally: fold it into this pass, or defer it to
+   `docs/3_strategy.md` as the next decision once the false-zero rate is
+   actually measured? **Awaiting user decision** as of this entry.
+6. **Accept.** Tightens the constraint section (no committed outputs for
+   this notebook, no report text in exception paths, etc.) — doesn't
+   change the design's shape.
+7. **Partially accept.** NaN-`Report` guard: accepted (cheap, matches
+   existing `.dropna()` conventions elsewhere in the codebase).
+   Partially-labeled rows: already correctly handled today —
+   `split_labeled_studies` routes *any* missing label to the unlabeled
+   bucket, not a gap. Duplicate `StudyInstanceUID` / non-binary label
+   values: deferred as unlikely enough to not warrant handling in this
+   pass; revisit if actually observed.
+8. **Accept.** Rename "calibration" → "weak-label evaluation" throughout
+   the spec's prose; module filename (`label_calibration.py`) left as-is
+   unless the user prefers renaming the file too.
+9. **Accept.** State explicitly as a caveat rather than leave implicit;
+   remains out of scope for this pass (no trained model exists yet to
+   test against).
