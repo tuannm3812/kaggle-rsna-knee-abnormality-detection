@@ -1,17 +1,48 @@
-# Codex Review Log
+# Claude–Codex Active Task Log
 
-Append-only: independent Codex CLI review of design specs, plans, and
-milestones — a collaboration input, not an approved decision by itself.
-Same workflow as `kaggriculture` and
-`kaggle-s6e8-predicting-smartphone-addiction`: run by hand, findings
-recorded here, cited from the plan/spec/README where relevant.
+This tracked file is the shared handoff and review channel for the current
+task. Claude and Codex must read it before starting work and append
+concise, evidence-based updates. Same pattern as
+`kaggle-s6e8-predicting-smartphone-addiction`'s early (pre-Cursor) setup:
+Claude implements, Codex reviews independently, findings get resolved here
+before the next step starts.
 
-## 2026-08-09 — Weak-label calibration design (`docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`)
+## Workflow Rules
 
-Reviewed via `codex exec -s read-only` (read-only, no edits). The full
-critique is recorded below. These findings have not yet been incorporated.
-Claude should evaluate each finding, record its disposition, and revise the
-existing design spec in place before implementation.
+1. Work from the shared `main` checkout. Use a worktree
+   (`superpowers:using-git-worktrees`) for a bounded implementation pass
+   once a spec is approved — not for docs-only design/review iteration.
+2. Before acting, read `git status`, recent `git log`, the relevant design
+   spec or plan, and this file.
+3. Claude drafts/revises the design (or implements the approved plan) and
+   commits one coherent change.
+4. Codex reviews independently (`codex exec -s read-only` / `codex
+   review`) without changing any files. Findings and evidence are recorded
+   here, not left only in the chat transcript.
+5. Claude addresses accepted findings in a separate fix/revision commit;
+   never amend or rewrite a commit Codex already reviewed.
+6. Do not begin implementation while findings or the user's approval
+   decision remain unresolved.
+7. When a task is fully accepted (spec approved and, once implemented,
+   both reviews closed), move this file's record to
+   `docs/collaboration/archive/YYYY-MM-DD-<task-name>.md` and start a
+   fresh `active_task.md` for the next task.
+
+## Current Task
+
+- Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
+- Plan: `docs/3_strategy.md` — Phase 2
+- Task: Weak-Label Evaluation — Design Review (no implementation yet)
+- Status: **Revision required.** Codex review round 3 found 5 remaining
+  design problems (below). Claude has not yet revised the spec for round
+  3 — that revision is the next action, not implementation.
+- Implementation has not started. No code exists for this task yet.
+
+## Review Thread
+
+### Round 1 — Codex review of the initial design (2026-08-09)
+
+Reviewed via `codex exec -s read-only` (read-only, no edits).
 
 1. **58 labeled studies is enough for a diagnostic audit, not for
    choosing between two fix candidates from point estimates.** Per-label
@@ -106,48 +137,48 @@ existing design spec in place before implementation.
    remains out of scope for this pass (no trained model exists yet to
    test against).
 
-### Codex follow-up on Claude's disposition (2026-08-09)
+### Round 2 — Codex follow-up on Claude's disposition (2026-08-09)
 
 Claude's disposition addresses all nine findings, but four points need
 resolution before the design is ready for implementation:
 
-1. **Include abstention in this pass.** There are no downstream weak-label
-   consumers yet, so this is the least disruptive time to establish the
-   correct three-state contract: positive, negative, or unknown. Absence of
-   textual evidence must not be interpreted as a negative assertion. This
-   change does not require changing `split_labeled_studies`; that function
-   separates rows by human-label completeness and does not consume the
-   extractor's output. It does require updating `extract_weak_labels`'s
-   return type and its tests.
-2. **Do not defer basic evaluation-schema validation.** Duplicate study IDs,
-   non-binary ground-truth values, or partially labeled input can silently
-   invalidate metrics. `weak_label_metrics` should reject these conditions,
-   as well as missing or non-string reports, even when an upstream splitter
-   normally prevents them. These checks are inexpensive and belong at the
-   evaluation boundary.
-3. **Rename new artifacts consistently.** The proposed module, notebook, and
-   kernel do not exist yet, so use `weak_label_evaluation.py`,
-   `02_weak_label_evaluation.ipynb`, and `weak-label-evaluation` now rather
-   than retaining "calibration" in filenames and creating terminology debt.
-4. **Make the decision rule concrete in the revised spec.** "Wilson score or
-   similar" and an unspecified stop criterion are not predefined decisions.
-   The spec must name the interval method, define coverage and support, state
-   the thresholds or comparison rule, and explain what result triggers a
-   stop or a move away from regex-based extraction before the Kaggle run.
+1. **Include abstention in this pass.** There are no downstream
+   weak-label consumers yet, so this is the least disruptive time to
+   establish the correct three-state contract: positive, negative, or
+   unknown. Absence of textual evidence must not be interpreted as a
+   negative assertion. This change does not require changing
+   `split_labeled_studies`; that function separates rows by human-label
+   completeness and does not consume the extractor's output. It does
+   require updating `extract_weak_labels`'s return type and its tests.
+2. **Do not defer basic evaluation-schema validation.** Duplicate study
+   IDs, non-binary ground-truth values, or partially labeled input can
+   silently invalidate metrics. `weak_label_metrics` should reject these
+   conditions, as well as missing or non-string reports, even when an
+   upstream splitter normally prevents them. These checks are
+   inexpensive and belong at the evaluation boundary.
+3. **Rename new artifacts consistently.** The proposed module, notebook,
+   and kernel do not exist yet, so use `weak_label_evaluation.py`,
+   `02_weak_label_evaluation.ipynb`, and `weak-label-evaluation` now
+   rather than retaining "calibration" in filenames and creating
+   terminology debt.
+4. **Make the decision rule concrete in the revised spec.** "Wilson
+   score or similar" and an unspecified stop criterion are not
+   predefined decisions. The spec must name the interval method, define
+   coverage and support, state the thresholds or comparison rule, and
+   explain what result triggers a stop or a move away from regex-based
+   extraction before the Kaggle run.
 
-The design spec itself still describes the original binary keyword-matching
-approach. Claude should incorporate the accepted findings and the resolutions
-above into that existing spec, then return it for user approval before any
-implementation begins. This follow-up is a review recommendation, not design
-approval.
+The design spec itself still described the original binary
+keyword-matching approach at this point. Next action: Claude incorporates
+the accepted findings and the resolutions above into that existing spec.
 
 ### Claude's incorporation (2026-08-09)
 
-All four follow-up points accepted — the abstention argument in
-particular (no downstream consumers yet, so this is the cheapest point in
-the project's life to fix the contract) is correct and I'd underweighted
-it in my original disposition. The spec at
-`docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md` is
+All four round-2 points accepted — the abstention argument in particular
+(no downstream consumers yet, so this is the cheapest point in the
+project's life to fix the contract) is correct and was underweighted in
+the original disposition. The spec at
+`docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md` was
 rewritten in place (not a new file) to incorporate all of it:
 
 - `extract_weak_labels` return type becomes `dict[str, int | None]`
@@ -170,14 +201,65 @@ rewritten in place (not a new file) to incorporate all of it:
   reach adequate support and macro-average precision across them is
   `>= 0.7`, no-go otherwise. These three numbers (`5`, `0.7`, `4/12`) are
   stated in the spec as reasonable-but-adjustable defaults, not derived
-  from this project's actual data (which isn't measured yet) — flagged
-  for the user to push back on if they disagree.
+  from this project's actual data (which isn't measured yet).
 - Module/notebook/kernel renamed throughout:
   `label_calibration.py` → `weak_label_evaluation.py`,
   `02_weak_label_calibration.ipynb` → `02_weak_label_evaluation.ipynb`,
   `weak-label-calibration` kernel → `weak-label-evaluation`.
 - Output-free notebook policy and broader leakage-surface guardrails
-  (finding 6, already accepted) folded into the Constraint section.
+  (round 1 finding 6, already accepted) folded into the Constraint
+  section.
 
-Returned to the user for approval before this becomes an implementation
-plan — see the conversation for the request to review this exchange.
+Committed as `5a0e7f7`, returned for user approval / further review.
+
+### Round 3 — Codex review of Claude's incorporation (2026-08-09)
+
+**Reviewed commit:** `5a0e7f7` (`docs(spec): revise weak-label evaluation
+design per Codex review round 2`)
+
+**Verdict: Revision required.** Claude incorporated the four round-2
+recommendations, but the revised spec has five remaining design problems:
+
+1. **The baseline/after data flow is impossible as written.** The
+   notebook is instructed to evaluate the current pre-fix extractor,
+   then the fixed extractor, but it is also instructed to publish the
+   already-fixed package before the notebook's first run. Both
+   implementations must be available from the same published package
+   through an explicit, tested interface (for example, two extractor
+   callables passed to `weak_label_metrics` or a frozen legacy mode);
+   the notebook cannot recover pre-fix behavior from an overwritten
+   implementation.
+2. **The assertion detector still misses the review's own `"ACL
+   intact"` example.** A window immediately *before* the anatomy keyword
+   can find `"no fracture"`, but not post-keyword normality assertions
+   such as `"ACL intact"` or `"meniscus preserved"`. The design must
+   specify clause-scoped cues on both sides of a match and deterministic
+   resolution when one report contains multiple or conflicting mentions.
+3. **The metric's `support` definition is internally inconsistent.**
+   The spec defines `FN` to include abstained true positives, then calls
+   `TP + FP + FN + TN` the non-abstained row count. Those statements
+   cannot both be true. Report separate, unambiguous quantities:
+   actual-positive support (`TP + FN`), predicted-positive support
+   (`TP + FP`), non-abstained count, and total rows; use each metric's
+   actual denominator for its confidence interval.
+4. **Dependency and language-detection choices remain unresolved.** The
+   spec says to add `statsmodels` to either `dev` or a new optional
+   group and incorrectly calls it a scikit-learn transitive dependency;
+   it is absent from both `pyproject.toml` and `uv.lock`. Choose one
+   offline-safe approach, preferably the small Wilson formula implemented
+   directly unless an explicit runtime dependency is justified.
+   Likewise, non-ASCII fraction cannot distinguish the observed
+   Latin-script languages, and `"langdetect-style"` is not an
+   implementable offline specification; select one deterministic method
+   and declare how it reaches Kaggle.
+5. **The go/no-go gate does not use the confidence intervals added for
+   small-sample uncertainty.** It gates on macro-average point
+   precision. Either incorporate a defined lower confidence bound into
+   the decision or explicitly make the intervals descriptive and justify
+   why the point-only heuristic is sufficient. Thresholds may be changed
+   during user review, but must be frozen before any real result is
+   viewed.
+
+**Next action:** Claude revises the existing spec to resolve these five
+items and returns it for user approval. No implementation plan or code
+work should begin before that approval.
