@@ -245,3 +245,26 @@ write the Phase 3A design doc per round 1's design-issues list. Claude
 reviews that design next, per round 1's explicit request (validation
 contract, fold-safety, fixed model configuration, Kaggle offline
 dependency/submission path, scope boundary).
+
+### User decisions on round 3, plus a new housekeeping request (2026-08-10)
+
+- **`IS_KAGGLE` guard: confirmed keep**, per round 3's recommendation
+  (all notebooks only ever run on Kaggle anyway — the guard is what
+  enforces that, not incidental to it).
+- **New request: kernel display titles should be Title Case** ("capital
+  each word") for a more professional look, across all notebooks — not
+  scoped to Phase 3 specifically. Applied directly by Claude as
+  housekeeping (not implementation of the Phase 3A design, so it doesn't
+  cross the reviewer-role boundary):
+  - `notebooks/kernels/eda/kernel-metadata.json`: `"rsna-knee-eda"` →
+    `"RSNA Knee EDA"` (acronym kept uppercase). Pushed — kernel version 8.
+  - `notebooks/kernels/weak-label-evaluation/kernel-metadata.json`: already
+    `"RSNA Knee Weak-Label Evaluation"` locally (set during Phase 2 round
+    14) but never actually pushed live until now. Pushed — kernel
+    version 5.
+  - Both re-ran on push (title-only changes still trigger a kernel
+    version); both confirmed `KernelWorkerStatus.COMPLETE`.
+  - **Applies going forward too:** the future `03_baseline_modeling.ipynb`
+    kernel's title should follow the same convention, e.g. `"RSNA Knee
+    Baseline Modeling"`, not a lowercase/hyphenated slug — Codex should
+    use Title Case when writing that kernel's `kernel-metadata.json`.
