@@ -129,20 +129,20 @@ can upload `.venv/`/`.git/` by accident. The script stages `src/`
 the Kaggle CLI's default `--dir-mode` is `"skip"`, which silently omits
 directories (including `src/` itself) from the upload if omitted.
 
-The exact mounted layout (`<dataset-mount>/src/knee_mri/` vs.
-`<dataset-mount>/knee_mri/`) depends on Kaggle's own zip-extraction
-behavior, unverified until the first real publish + kernel run — staging
-`src/` rather than flattening to `knee_mri/` directly keeps `knee_mri` as
-the zip's one top-level entry either way (flattening would upload
-`knee_mri`'s individual files with no enclosing directory at all, since
-`shutil.make_archive` zips a directory's *contents*, not the directory
-itself). `01_eda.ipynb`'s config cell checks both
-`<dataset-mount>/src/knee_mri` and `<dataset-mount>/knee_mri` before
-importing, and raises a clear error (rather than an opaque
-`ModuleNotFoundError`) if neither exists — including the case where the
-zip is left unextracted at the mount root. Record the real observed
-layout in `docs/6_kaggle_troubleshooting.md` after the first publish so
-this stops being a guess.
+**Confirmed against a real kernel run** (see
+`docs/6_kaggle_troubleshooting.md`): a personal/private dataset attached
+via `dataset_sources` mounts at
+`/kaggle/input/datasets/<owner>/<dataset-slug>/` — **not**
+`/kaggle/input/<dataset-slug>/`, which only holds true for a kernel's
+*own* output or in older/solo-dataset-source kernels. Competition data
+attached via `competition_sources` does mount at the flat
+`/kaggle/input/competitions/<competition-slug>/`, as originally assumed —
+only the dataset path needed correcting. Within the dataset mount, the
+zip's `src/` wrapper is preserved (`.../rsna-knee-mri-src/src/knee_mri/`),
+matching the staging choice explained above. `01_eda.ipynb`'s config cell
+uses this confirmed path directly and still checks both the `src/`-nested
+and flat forms before importing, raising a clear error (rather than an
+opaque `ModuleNotFoundError`) if neither exists.
 
 Submit with `scripts/submit_kaggle.sh`, which wraps
 `api.competition_submit_code(...)` against a completed kernel version —
