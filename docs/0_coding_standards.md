@@ -18,7 +18,9 @@ code here is expected to run against real data outside a Kaggle Kernel.
 
 - `notebooks/` — `01_eda.ipynb`, plus `notebooks/kernels/<name>/` holding
   each notebook's Kaggle `kernel-metadata.json`.
-- `docs/` — durable findings and decisions.
+- `docs/` — durable findings and decisions, including
+  `docs/collaboration/active_task.md` (current task's live handoff/review
+  channel) and `docs/collaboration/archive/` (closed tasks' records).
 - `src/knee_mri/` — tested, locally-verifiable package: DICOM series
   loading, report-based weak-label mining, study-level dataset assembly,
   and the macro-AUC evaluation metric. Written from scratch — unlike
@@ -47,10 +49,28 @@ biohub's, so there's nothing to usefully keep in a local `data/` folder.
   progress record. Append-only.
 - `6_kaggle_troubleshooting.md` — reusable diagnosis for Kaggle CLI/API
   friction. Append-only.
-- `7_codex_review_log.md` — independent Codex CLI review of design specs,
-  plans, and milestones, same pattern as `kaggriculture` and
-  `kaggle-s6e8-predicting-smartphone-addiction`. Append-only; one entry
-  per review, cited by section/date from the plan or spec it reviewed.
+
+## Collaboration Log
+
+`docs/collaboration/active_task.md` is the shared handoff and review
+channel for whatever task is currently in progress — design discussion,
+Codex review rounds, implementation reports, and Claude's own review, all
+in one place, in chronological order. Same pattern as
+`kaggle-s6e8-predicting-smartphone-addiction`'s (pre-Cursor)
+`docs/collaboration/`: Claude implements/drafts, Codex reviews
+independently, findings get resolved there before the next step starts.
+Read it (and the relevant design spec or plan) before starting or
+resuming any task.
+
+When a task is fully accepted — spec approved and, once implemented, both
+reviews closed — move `active_task.md`'s record to
+`docs/collaboration/archive/YYYY-MM-DD-<task-name>.md` and start a fresh
+`active_task.md` for the next task. This replaces the earlier
+single-growing-file `docs/7_codex_review_log.md` approach (used for this
+project's first design review, now migrated into
+`docs/collaboration/active_task.md`) — a per-task file that gets archived
+scales better once the project has many sequential tasks, rather than one
+document that grows without bound across the whole project.
 
 ## Codex Review
 
@@ -59,9 +79,18 @@ phase), get an independent second opinion from the Codex CLI (`codex
 review` / `codex exec -s read-only`) alongside Claude's own review
 process — matches the manual, no-automation workflow already used in
 `kaggriculture` and `kaggle-s6e8-predicting-smartphone-addiction`: run it
-by hand, record findings in `docs/7_codex_review_log.md`, and treat it as
-a collaboration input, not an approved decision by itself. No CI/hook
-wiring — this is a workflow habit, not a config artifact.
+by hand, record findings in `docs/collaboration/active_task.md`, and
+treat it as a collaboration input, not an approved decision by itself. No
+CI/hook wiring — this is a workflow habit, not a config artifact.
+
+Every subsequent Codex evaluation of Claude's response, disposition, or
+revision must also be appended to `docs/collaboration/active_task.md`; do
+not leave feedback only in the chat transcript. Each round records the
+date, reviewed commit or artifact, verdict (`approved`, `revision
+required`, or `blocked on user decision`), resolved findings, remaining
+findings with concrete evidence, and the next required action. Record the
+entry before asking Claude for the next revision so the full exchange
+remains reconstructable from the repository alone.
 
 Notebook naming: `01_eda.ipynb`, `02_baseline_modeling.ipynb`, ... —
 zero-padded, matching the sibling repos. Prefer a new config flag inside
