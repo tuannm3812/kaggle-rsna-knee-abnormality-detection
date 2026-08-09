@@ -187,6 +187,26 @@ def test_weak_label_metrics_raises_on_non_binary_label_value():
         weak_label_metrics(true_df, _constant_extractor(None))
 
 
+def test_weak_label_metrics_raises_on_bool_label_column():
+    # bool is isin([0, 1])-equal to 0/1 (True == 1, False == 0), so this
+    # must be checked via dtype, not just isin.
+    true_df = _true_df([_row("s1", "report")])
+    true_df["ACL"] = true_df["ACL"].astype(bool)
+
+    with pytest.raises(ValueError, match="outside"):
+        weak_label_metrics(true_df, _constant_extractor(None))
+
+
+def test_weak_label_metrics_raises_on_float_label_column():
+    # 1.0/0.0 are also isin([0, 1])-equal via ==, so this must be
+    # checked via dtype too.
+    true_df = _true_df([_row("s1", "report")])
+    true_df["ACL"] = true_df["ACL"].astype(float)
+
+    with pytest.raises(ValueError, match="outside"):
+        weak_label_metrics(true_df, _constant_extractor(None))
+
+
 def test_weak_label_metrics_raises_on_missing_report():
     true_df = _true_df([_row("s1", "report")])
     true_df.loc[0, "Report"] = None

@@ -61,7 +61,14 @@ def _validate_true_df(true_df: pd.DataFrame) -> None:
     if true_df["StudyInstanceUID"].duplicated().any():
         raise ValueError("true_df has duplicate StudyInstanceUID values")
     for label in LABEL_COLUMNS:
-        if not true_df[label].isin([0, 1]).all():
+        column = true_df[label]
+        # is_integer_dtype (not just isin([0, 1])) so a bool column
+        # (True/False, isin-equal to 1/0) or a float column (1.0/0.0,
+        # isin-equal via ==) is rejected rather than silently scored --
+        # the same input-boundary class already guarded against on the
+        # extractor-output side in _validate_extractor_output. A plain
+        # pandas.read_csv int64 column still passes.
+        if not pd.api.types.is_integer_dtype(column) or not column.isin([0, 1]).all():
             raise ValueError(f"true_df column '{label}' has values outside {{0, 1}}")
     is_string = true_df["Report"].apply(lambda value: isinstance(value, str))
     if true_df["Report"].isna().any() or not is_string.all():
