@@ -33,12 +33,11 @@ before the next step starts.
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
 - Task: Weak-Label Evaluation — Design Review (no implementation yet)
-- Status: **Design confirmed ready (9 review rounds, no blocking
-  findings); round 9's 2 non-blocking gaps resolved in commit `fbd33a0`.**
-  Awaiting the user's own review/approval (or a further Codex round the
-  user runs themselves — Claude will not invoke `codex` on this spec
-  proactively going forward). Once approved, next step is
-  `superpowers:writing-plans`.
+- Status: **Round 10's causal-labeling issue resolved in commit
+  `aa69a98`** — `failure_cause` removed; taxonomy is now purely
+  observational (`resolution_signature` × `prediction_error`, both
+  directly observed, no inferred cause). Awaiting the user's own
+  review/approval (or a further Codex round the user runs themselves).
 - Implementation has not started. No code exists for this task yet.
 
 ## Review Thread
@@ -637,3 +636,76 @@ round.
 
 **Next action:** User reviews and approves or rejects the design
 (commit `fbd33a0`). If approved, invoke `superpowers:writing-plans`.
+
+### Round 10 — Codex check of Claude's round-9 incorporation (2026-08-09)
+
+**Reviewed commits:** `fbd33a0` (`docs(spec): resolve round 9's two
+non-blocking interface gaps`) and `905301c` (Claude's incorporation note).
+
+**Progress verified:** The first round-9 gap is resolved correctly.
+`_resolve_weak_labels(report_text: str) -> dict[str, LabelResolution]` is
+now a named interface, `extract_weak_labels` is explicitly its thin public
+projection, the notebook calls the resolver by name, and direct resolver
+tests are required. No implementation artifacts exist yet; the repository is
+still in design review.
+
+**Verdict: Focused revision required before user approval.** The second gap
+has a remaining semantic error. The new table correctly proves that a
+`resolution_signature` constrains the extractor's **output** and therefore
+the possible error direction: `unqualified_only` can yield a false positive,
+while signatures resolving to `0`/`None` can yield a false negative. It does
+not prove the **cause** of disagreement with the human label. For example,
+`negation_qualified` plus truth `1` could be a cue-scope error, a genuine
+report/label disagreement, or a mismatch between report wording and the
+competition target; the abstract signature alone cannot establish
+`negation_cue_misfire`. The same limitation applies to
+`normal_assertion_cue_misfire`, `mixed_qualification_miss`, and the other
+causal labels.
+
+Required correction:
+
+1. Keep `resolution_signature` as the mechanically derived taxonomy axis and
+   compute `prediction_error` directly from prediction versus truth.
+2. Rename `failure_cause` to a non-causal field such as
+   `diagnostic_interpretation` or remove it. Any displayed descriptions must
+   say what the resolver observed, not claim why the human label disagreed.
+3. Treat possible causes as hypotheses for follow-up, or use an
+   `unknown_cause` value for every mismatch unless a future approved manual/
+   semantic audit supplies additional evidence.
+4. Test only the real invariant (signature → resolver value / possible error
+   direction), not a signature → causal explanation mapping.
+
+**Next action:** Claude makes this narrow terminology/schema revision in the
+existing spec and returns it for Codex confirmation. Do not start
+`superpowers:writing-plans` or implementation before that confirmation and
+the user's approval.
+
+### Claude's incorporation of round 10 (2026-08-09, commit `aa69a98`)
+
+Agreed with round 10 in full — no pushback. Recognized it as the same
+overclaiming mistake already caught once before (round 6's orthographic
+buckets naming a language when the character evidence didn't support
+that specific a claim), recurring here in a new place: a
+`resolution_signature` is a real, mechanical, provable fact about which
+mention kinds the resolver observed, but naming its typical pairing
+`negation_cue_misfire` asserted a specific *cause* the signature alone
+cannot establish (could equally be a real report/label disagreement, or
+a report-wording/target-definition mismatch, not a cue bug at all).
+
+Resolution: took the "or remove it" branch of round 10's point 2 rather
+than renaming `failure_cause` to a neutral placeholder — a field that
+would just read `unknown_cause` on every row isn't informative. Taxonomy
+bucketing key is now `(label, orthographic_bucket, resolution_signature,
+prediction_error)`; `prediction_error` is computed directly from
+prediction-vs-truth (point 1), not derived through the signature, even
+though the two remain related by construction. The invariant test now
+only claims what's provable — signature constrains error *direction*,
+not error *cause* (point 4). Any causal hypothesis is explicitly
+relocated to `docs/4_experiments.md`'s prose write-up, hedged as
+unconfirmed (point 3).
+
+Per the user's stated preference, Claude did not invoke `codex` on this
+revision. Presented for the user's own review/Codex round.
+
+**Next action:** User reviews and approves or rejects the design
+(commit `aa69a98`). If approved, invoke `superpowers:writing-plans`.
