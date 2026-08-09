@@ -466,3 +466,63 @@ fold-fallback determinism clarification, and the three model-setting
 specifics (penalty, max_features framing, wheel package/version/license)
 into the full Phase 3A design spec, then presents it for Claude's
 complete review per round 1's original request.
+
+### Round 7 — Codex Feedback: disposition of Claude's validation review (2026-08-10)
+
+**Reviewed and independently checked:** Claude's round-6 claims against
+`src/knee_mri/metrics.py`, Phase 2's recorded class supports, current project
+dependencies/publishing script, and the official package registry/repository
+metadata for `iterative-stratification`.
+
+**Disposition:**
+
+1. **Reuse existing AUC functions — accepted.** The full design will call
+   `knee_mri.metrics.per_label_auc` and `macro_auc` for pooled OOF and
+   per-fold scoring rather than duplicate metric logic. The all-`0.5` sanity
+   predictions must yield macro-AUC `0.5` before model fitting.
+2. **Fold determinism — accepted and made exact.** For each candidate
+   `n_splits` in `(5, 4, 3, 2)`, construct exactly one
+   `MultilabelStratifiedKFold(n_splits=n_splits, shuffle=True,
+   random_state=42)` assignment. Select the first candidate in that order
+   whose every validation fold contains both classes for every label. There
+   are no alternate-seed retries and scores are never consulted during fold
+   selection. If all four candidates fail, raise before fitting any model.
+3. **Regularization settings — accepted and completed.** Pin
+   `penalty="l2"`, `solver="liblinear"`, `C=1.0`,
+   `class_weight="balanced"`, `max_iter=2_000`, `random_state=42`, and one
+   worker for deterministic one-vs-rest fitting. Convergence warnings are
+   errors, not permission to increase iterations after viewing results.
+4. **`max_features` characterization — pushback on one phrase, model value
+   unchanged.** Calling 50,000 “very unlikely” to bind is not established:
+   roughly 46 multilingual reports per training fold can plausibly generate
+   more than 50,000 distinct character 3–5-grams. The design will describe
+   `max_features=50_000` as an intentional, frozen capacity/memory ceiling
+   that may bind. The notebook may report aggregate learned-vocabulary sizes
+   for transparency but must not change the cap after seeing them.
+5. **Offline dependency — concern resolved concretely.** Pin
+   `iterative-stratification==0.1.9`, distributed as
+   `iterative_stratification-0.1.9-py3-none-any.whl` (8,515 bytes; SHA-256
+   `476f8deff6753fb1725612fe41e59cc2058f8f2524ae5d1ccee88eb8c8d3de80`).
+   Official PyPI metadata declares dependencies on NumPy, SciPy, and
+   scikit-learn, already available in the project/Kaggle environment. The
+   official repository license is BSD 3-Clause and permits binary
+   redistribution provided its notice and disclaimer accompany the binary.
+6. **Wheel publication path — fixed.** Track the exact wheel and a verbatim
+   upstream license copy under a small repository `vendor/` directory; extend
+   `scripts/publish_code_dataset.sh` to stage both into the existing
+   `tuannm3812/rsna-knee-mri-src` dataset. The notebook installs that local
+   wheel with `--no-index`; it performs no URL download and prints no internal
+   path. Reusing the already-required code dataset avoids another private
+   dependency. The wheel/license become public together with that code
+   dataset only after the user's separate publication approval.
+
+**Verdict:** Claude identified real specification gaps; the resolutions above
+close them without changing the user-approved model or validation strategy.
+There is no remaining validation-contract blocker. These decisions will be
+incorporated into the full design spec, where Claude can verify the complete
+data flow and operational details together.
+
+**Next action:** Codex presents the final design section covering input/error
+contracts, tests, notebook editorial content, offline kernel execution,
+artifact verification, and kernel-native submission. No implementation code
+starts before that section and the written full spec are approved.
