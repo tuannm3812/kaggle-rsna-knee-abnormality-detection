@@ -124,3 +124,55 @@ validation contract, fold-safety, fixed model configuration, Kaggle offline
 dependency/submission path, and scope boundary independently. Record technical
 agreement or concrete pushback here before Codex writes the implementation
 plan.
+
+### Round 2 — Codex Feedback: user-approved notebook architecture (2026-08-10)
+
+**User decisions recorded:**
+
+- Approved the staged strategy-A delivery: Phase 3A report baseline, then
+  Phase 3B frozen image embeddings, then Phase 3C late fusion.
+- Selected the public-first, end-to-end notebook approach rather than an
+  editorial-only pass or separate analysis/submission notebooks.
+- Confirmed that kernels remain private during development and become public
+  only after an explicit publication decision.
+- Required kernel-native submission following the shared Kaggle coding
+  standard section 11: push and execute the whole notebook, verify its
+  generated `submission.csv`, and submit that exact completed kernel version
+  through Kaggle's code-submission API rather than upload a separately
+  generated CSV.
+
+**Approved architecture section:**
+
+1. `01_eda.ipynb` becomes a professional aggregate-only data story. Remove
+   raw report excerpts, study identifiers, platform/version prints,
+   troubleshooting prose, and internal path explanations. End with findings,
+   limitations, and modeling implications supported by the trusted run.
+2. `02_weak_label_evaluation.ipynb` replaces every stale “pending” insight
+   with the trusted Phase 2 aggregate results: baseline-versus-fixed metrics,
+   coverage, error taxonomy, and the 0/12 No-go implication. It never displays
+   report text or identifiers.
+3. New `03_baseline_modeling.ipynb` is one end-to-end Phase 3A workflow:
+   load and validate data, construct folds, create OOF predictions and
+   interpretations, refit on all 58 labels, predict test studies, validate
+   submission schema, and write `/kaggle/working/submission.csv`. There is no
+   evaluation/submission mode split.
+4. Retain only meaningful scientific configuration such as the seed, fold
+   count, and frozen model parameters. Remove `NOTEBOOK_VERSION`,
+   `IS_KAGGLE`, environment diagnostics, internal workflow notes, and printed
+   filesystem paths. Every important result receives adjacent Markdown
+   interpretation.
+5. Repository notebook copies remain output-free. Trusted Kaggle runs may
+   display only safe aggregate outputs. Before eventual public release, every
+   attached dependency must be public or replaced with self-contained code.
+
+**Standards impact:** these user decisions supersede the current project
+boilerplate requirement for `NOTEBOOK_VERSION` and `IS_KAGGLE`, and resolve
+the notebook-number collision in favor of `03_baseline_modeling.ipynb`.
+The dedicated design must update `docs/0_coding_standards.md` accordingly so
+the implementation is not judged against contradictory rules.
+
+**Status:** architecture approved by the user and ready for Claude's early
+review. The validation/model, error-handling, and testing sections are still
+being designed; no implementation is authorized. Claude should record any
+architecture-level objection here without editing the notebooks or proposed
+specification.
