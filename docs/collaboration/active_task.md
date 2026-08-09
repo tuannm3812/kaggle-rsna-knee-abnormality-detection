@@ -32,12 +32,12 @@ before the next step starts.
 
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
-- Task: Weak-Label Evaluation — Design Review (no implementation yet)
-- Status: **Round 10's causal-labeling issue resolved in commit
-  `aa69a98`** — `failure_cause` removed; taxonomy is now purely
-  observational (`resolution_signature` × `prediction_error`, both
-  directly observed, no inferred cause). Awaiting the user's own
-  review/approval (or a further Codex round the user runs themselves).
+- Task: Weak-Label Evaluation — Design Review → Implementation Planning
+- Status: **APPROVED by user, 2026-08-09.** Round 11's non-blocking
+  wording cleanup (section 5's intro overclaimed "why extraction
+  failed"/"mechanically derivable explanation" vs. the corrected body
+  text) applied in the same pass. 11 review rounds total, no outstanding
+  findings. Next: `superpowers:writing-plans`.
 - Implementation has not started. No code exists for this task yet.
 
 ## Review Thread
@@ -709,3 +709,56 @@ revision. Presented for the user's own review/Codex round.
 
 **Next action:** User reviews and approves or rejects the design
 (commit `aa69a98`). If approved, invoke `superpowers:writing-plans`.
+
+### Round 11 — Codex confirmation of round-10 incorporation (2026-08-09)
+
+**Reviewed commits:** `aa69a98` (`docs(spec): remove causal failure_cause
+labels from error taxonomy`) and `ca3b9c8` (Claude's incorporation note).
+
+**Progress verified:** All four round-10 requirements are reflected in the
+spec. The taxonomy key is now `(label, orthographic_bucket,
+resolution_signature, prediction_error)`; prediction error is computed from
+prediction versus truth; causal `failure_cause` values are gone; possible
+causes are explicitly treated as unconfirmed follow-up hypotheses; and the
+required invariant test is limited to signature → resolver value / possible
+error direction. The named `_resolve_weak_labels` interface from round 9
+also remains intact. No implementation artifacts exist yet.
+
+**Verdict: Ready for user approval and `superpowers:writing-plans`.** The
+round-10 semantic issue is closed. One non-blocking editorial cleanup should
+be made when the spec is next touched: section 5's introductory paragraph
+still says the resolver can explain *why* extraction failed and makes that
+explanation mechanically derivable. The corrected text later in the same
+section accurately says the resolver only stratifies what it observed and
+cannot establish cause. Rephrase the introduction to say "how the resolver
+behaved on errors" rather than "why extraction failed" so the section is
+internally consistent. This wording does not alter an interface, metric,
+decision rule, or implementation task, so no additional review round is
+required solely for it.
+
+**Next action:** User approves or rejects the design. If approved, Claude
+may make the noted wording cleanup and then invoke
+`superpowers:writing-plans`; implementation begins only after that plan is
+reviewed.
+
+### Design approved (2026-08-09)
+
+User: "I have review the specs and approve that." No further discussion
+raised on round 11 (the wording cleanup is trivial and undisputed).
+Claude applied the cleanup directly (section 5's intro now says "how the
+resolver behaved on errors," matching the corrected body text, rather
+than "why extraction failed").
+
+**11 rounds of review, final state:** two named extractors resolving
+the before/after data-flow problem; a 3-state (positive/negative/
+abstain) `extract_weak_labels` contract with clause-scoped, bidirectional,
+word-bounded, three-category (negation/normal-assertion/uncertain) cue
+detection; a named `_resolve_weak_labels` internal resolver exposing
+mechanically-derivable diagnostics with zero raw-text retention; a
+per-label persisted allowlist (not a global boolean) gated on a Wilson
+lower-bound precision threshold calibrated to its own support
+requirement; and a purely observational error taxonomy that stops short
+of claiming causes it can't establish.
+
+**Next action:** Invoke `superpowers:writing-plans` to turn this
+approved design into an implementation plan.

@@ -1,13 +1,10 @@
 # Weak-Label Evaluation — Design
 
 Date: 2026-08-09
-Status: Revised after round 10 — the error taxonomy no longer attaches
-causal labels (e.g. `negation_cue_misfire`) to purely mechanical
-resolver facts; bucketing key is now `(label, orthographic_bucket,
-resolution_signature, prediction_error)`, both directly observed, no
-inferred cause. Pending the user's own review/Codex round (see
-`docs/collaboration/active_task.md`
-for the full review/discussion history)
+Status: **Approved by user (2026-08-09)** after 11 rounds of Codex
+review. Next step: `superpowers:writing-plans` (see
+`docs/collaboration/active_task.md` for the full review/discussion
+history)
 
 ## Problem
 
@@ -431,12 +428,14 @@ matters.
 
 **Why the taxonomy needs the internal resolver, not just
 `extract_weak_labels`'s public output:** aggregate precision/recall
-alone can't explain *why* extraction failed (negation miscue? wrong
-cue-vs-uncertain classification? no keyword at all?). Two ways to get
-that explanation were considered: (a) have the resolver expose its
-internal mention classification as a diagnostic structure, so the
-explanation is mechanically derivable with zero raw-text access ever
-needed, or (b) a bounded, explicitly-permitted human-in-the-loop
+alone can't show *how the resolver behaved* on the error cases (did it
+find no keyword at all? a negation cue? a cue it classified as
+uncertain?) — visibility this design needs even though (per below) it
+stops short of establishing *why* the human label disagrees. Two ways
+to get that behavioral visibility were considered: (a) have the
+resolver expose its internal mention classification as a diagnostic
+structure, so it's mechanically derivable with zero raw-text access
+ever needed, or (b) a bounded, explicitly-permitted human-in-the-loop
 Kaggle-only triage step (transient inspection of real text during the
 notebook session, only aggregate counts committed). Codex's
 recommendation (round 7): **(a)**, firmly rejecting (b) as
