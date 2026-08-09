@@ -32,16 +32,17 @@ before the next step starts.
 
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
-- Task: Weak-Label Evaluation — Post-Merge Review and Kaggle Execution
-- Status: **PR #1 merged; round 13's fix applied (commit `2d6f0f7`),
-  awaiting Codex's confirmation before the Kaggle run.** Remote `main`
-  contains merge commit `bfb2322`; local `main` was fast-forwarded to it
-  during Codex round 13, then advanced further by the fix and its
-  reconciliation merge (`5388b4e`). 57 tests passing, `ruff check .`
-  clean.
-- Not yet done: the notebook has not been run on Kaggle (requires
-  republishing `src/knee_mri` first); `docs/4_experiments.md` and
-  `docs/3_strategy.md`'s real-numbers entries remain part of this active
+- Task: Weak-Label Evaluation — complete, No-go verdict recorded
+- Status: **Done.** Kaggle run 2 (kernel v2, commit `39e955b`) completed
+  successfully; real results in `docs/4_experiments.md`; Phase 2 closed
+  with a **No-go** verdict in `docs/3_strategy.md`. 58 tests passing,
+  `ruff check .` clean. Awaiting Codex's review of the final state (the
+  true_df dtype fix + real run) before archiving this file per workflow
+  rule 7.
+- Remaining: archive this file to
+  `docs/collaboration/archive/2026-08-09-weak-label-evaluation.md` once
+  Codex confirms no further findings, and start a fresh `active_task.md`
+  for Phase 3.
   task and must wait until that run produces actual output.
 
 ## Review Thread
@@ -1065,3 +1066,38 @@ whole-branch reviewer) without anyone running it against the real CSV's
 actual dtype shape — a reminder that dtype-shape assumptions about
 `pandas.read_csv` output need checking against the real file, not just a
 hand-built test DataFrame with clean dtypes from the start.
+
+### Kaggle run 2 — succeeded, real results recorded (2026-08-09)
+
+Republished `rsna-knee-mri-src` from commit `39e955b` (the dtype fix
+above), pushed kernel version 2, ran to completion
+(`KernelWorkerStatus.COMPLETE`). Full numbers: `docs/4_experiments.md`.
+Strategy update: `docs/3_strategy.md` Phase 2.
+
+**Headline: 0/12 labels pass the allowlist gate.** Point-estimate
+precision improved substantially under the assertion-aware extractor for
+most labels (Medial Meniscus 0.545→0.750, Lateral Meniscus 0.524→0.769,
+Fracture 0.500→1.000), but every label's Wilson 95% lower bound stays
+below the 0.55 threshold at n≈10-20 support — closest miss Medial
+Meniscus at ci_low 0.505. **Verdict: No-go**, per Phase 2's own
+predefined decision rule (`docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`).
+Fork decision recorded in `docs/3_strategy.md`: Phase 3 trains on the 58
+human labels alone; the gate is not being loosened post hoc to force a
+pass, matching this project's own small-sample-sweep lesson from
+`kaggle-biohub-cell-tracking-during-development`.
+
+Orthographic-bucket comparison (labeled vs. all 4407 studies) came back
+close for every bucket (within ~2 points) — the labeled set's character
+mix plausibly generalizes, though that's not proof extraction accuracy
+generalizes the same way for non-English text.
+
+**This closes round 12 item 2 / round 13 item 2** (the Kaggle
+run + results-docs requirement). All of round 12's and round 13's items
+are now either Resolved, Operationally resolved, or intentionally
+deferred with reasoning recorded above — none remain silently open.
+
+**Status: implementation complete, real results recorded, Phase 2
+closed with a No-go verdict.** Per this file's own workflow rule 7, this
+active task is ready to move to `docs/collaboration/archive/` once Codex
+has had a chance to review this final state (the dtype fix + real run)
+and confirms no further findings.

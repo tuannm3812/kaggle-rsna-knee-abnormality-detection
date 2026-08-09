@@ -32,29 +32,37 @@ Kaggle CLI scripts. Full history:
 - Reports are genuinely multilingual (German, Turkish, Croatian, Greek,
   English observed in a small sample) — no single-language shortcut.
 
-## Phase 2 — Weak-Label Evaluation — in progress, target ~2026-08-16
+## Phase 2 — Weak-Label Evaluation — done 2026-08-09, verdict: No-go
 
-Measure `extract_weak_labels` against the 58 real labeled studies, fix
+Measured `extract_weak_labels` against the 58 real labeled studies, fixed
 the assertion-detection gap Codex's review identified (mentions an
-anatomy keyword is not the same as asserting an abnormality), and reach
-an explicit go/no-go verdict on whether regex-based weak labels are good
-enough to use, rather than iterating indefinitely.
+anatomy keyword is not the same as asserting an abnormality), and
+reached the predefined go/no-go verdict rather than iterating
+indefinitely.
 
 - Design: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
   (filename kept for history; content is titled "Weak-Label Evaluation").
-- Status: mid-review (3 rounds with Codex so far) — see
-  `docs/collaboration/active_task.md` for the full thread. Not yet
-  approved, not yet implemented.
-- **This phase's result is a real fork in the road, not a formality:**
-  - **Go** → Phase 3 trains against human labels (58) plus weak labels
-    (however many studies the extractor produces a confident,
-    high-precision label for).
-  - **No-go** → Phase 3 either trains against the 58 human labels alone
-    (likely too little data to be competitive) or Phase 2 gets a second,
-    different pass (multilingual assertion-extraction model, or
-    probabilistic weak supervision combining multiple labeling
-    functions) before Phase 3 starts. Recorded as a real decision point
-    when/if it happens, not assumed now.
+  Full review history (11 design rounds + 2 post-merge Codex rounds):
+  `docs/collaboration/active_task.md`. Real numbers:
+  `docs/4_experiments.md`.
+- **Verdict: No-go.** 0/12 labels clear the allowlist gate
+  (`MIN_SUPPORT=5`, `MIN_PRECISION_LOWER_BOUND=0.55`, Wilson lower
+  bound). The assertion-aware fix improved point-estimate precision
+  substantially for most labels (e.g. Medial Meniscus 0.545→0.750,
+  Fracture 0.500→1.000) — the mechanism is doing real work — but with
+  only 58 labeled studies, per-label support is small enough (n≈10-20
+  for most labels) that the 95% confidence interval stays below the
+  gate even where the point estimate clears it. Closest miss: Medial
+  Meniscus at ci_low 0.505 against a 0.55 threshold.
+- **Fork decision:** Phase 3 trains against the 58 human labels alone
+  for now — no weak-label expansion of the training set. This project's
+  own "don't trust small-sample sweeps" lesson
+  (`kaggle-biohub-cell-tracking-during-development`, Phase 4 below)
+  argues against lowering the gate thresholds post hoc to force a pass;
+  the honest read is that 58 labeled studies isn't enough evidence yet,
+  not that the extractor is wrong. If more human-labeled studies become
+  available before Phase 3 starts, re-run this evaluation rather than
+  assume the verdict is stable at a different sample size.
 
 ## Phase 3 — Baseline Modeling — target ~2026-09-06, shape depends on Phase 2
 
@@ -125,6 +133,6 @@ Informed directly by lessons pulled from this user's prior Kaggle repos
 
 | Doc | Phase | Status |
 |---|---|---|
-| `4_experiments.md` | 2+ | Stub — first entry lands when Phase 2's Kaggle run produces real numbers |
+| `4_experiments.md` | 2+ | First entry recorded 2026-08-09 (Phase 2's weak-label evaluation, verdict: No-go) |
 | `5_submissions.md` | 3+ | Stub — first entry lands at Phase 3's first real submission |
 | A future baseline-modeling doc (numbered when written) | 3 | Not created yet |
