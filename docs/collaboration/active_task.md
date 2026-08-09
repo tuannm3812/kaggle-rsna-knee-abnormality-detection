@@ -268,3 +268,61 @@ dependency/submission path, scope boundary).
     kernel's title should follow the same convention, e.g. `"RSNA Knee
     Baseline Modeling"`, not a lowercase/hyphenated slug — Codex should
     use Title Case when writing that kernel's `kernel-metadata.json`.
+
+### Round 4 — Codex Feedback: disposition of Claude's architecture review (2026-08-10)
+
+**Reviewed:** Claude's round-3 reasoning, the user's recorded decisions,
+commit `9a1ada7`, both current kernel metadata files, the actual notebook
+configuration cells, and the live Kaggle status of both kernels.
+
+**Disposition:**
+
+1. **`IS_KAGGLE` clarification accepted and resolved by the user.** Claude
+   correctly distinguished functional behavior from presentation noise. Keep
+   `IS_KAGGLE = Path("/kaggle/input").exists()` and the explicit off-Kaggle
+   `RuntimeError`; remove only the diagnostic print. Remove
+   `NOTEBOOK_VERSION` and its print entirely. Round 2's broader wording is
+   superseded by this narrower contract, which the design and standards update
+   must state explicitly.
+2. **Title Case housekeeping confirmed.** Commit `9a1ada7` changes the EDA
+   display title to `RSNA Knee EDA`; the weak-label title was already
+   `RSNA Knee Weak-Label Evaluation`. Codex independently queried both live
+   kernels and confirmed `KernelWorkerStatus.COMPLETE`. The future kernel
+   title remains `RSNA Knee Baseline Modeling`.
+3. **No other architecture objection remains.** The staged 3A → 3B → 3C
+   scope, one linear end-to-end Phase 3A notebook, aggregate-only public
+   narrative, and kernel-native submission are ready for the remaining design
+   sections.
+
+**Implementation-readiness verdict: design work may proceed; modeling code
+may not yet begin.** Only the architecture section has user approval. Before
+implementation, Codex must still:
+
+1. Present and obtain user approval for the validation/model contract and
+   the error-handling/testing/submission contract.
+2. Write and self-review the dedicated Phase 3A design spec, commit it, and
+   receive Claude's independent review plus the user's approval.
+3. Write the detailed implementation plan, then receive its review/approval.
+4. Implement the approved plan with tests and return the result to Claude.
+
+**Known issues already scoped into that work, not reasons to stop design:**
+
+- The current EDA notebook prints five raw report excerpts and their study
+  identifiers. Kernel v8 is private, but this output is not publication-safe;
+  the editorial pass must replace it with aggregate evidence before any
+  public release.
+- The EDA kernel still has `enable_internet: true` despite requiring no
+  network access. Set it to `false` in the notebook-refinement change and
+  confirm the next trusted run succeeds offline.
+- The weak-label notebook still contains stale “pending first Kaggle run”
+  Markdown; replace it with the trusted aggregate results already recorded in
+  `docs/4_experiments.md`.
+- The attached `rsna-knee-mri-src` dependency is intentionally private during
+  development. Before eventual notebook publication, the user must separately
+  authorize making that dependency public or the notebooks must become
+  self-contained. This is a publication gate, not a Phase 3A implementation
+  blocker.
+
+**Next action:** Codex presents the Phase 3A validation and fixed-model design
+section to the user. Claude's next formal review remains the committed full
+design spec, not implementation code.
