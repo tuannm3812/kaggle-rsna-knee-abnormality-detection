@@ -74,7 +74,13 @@ _NORMAL_ASSERTION_PATTERNS = [
 ]
 _UNCERTAIN_PATTERNS = [
     re.compile(pattern, re.IGNORECASE)
-    for pattern in [r"\brule out\b", r"\br/o\b", r"\bquestion of\b", r"\bpossible\b", r"\bcannot exclude\b"]
+    for pattern in [
+        r"\brule out\b",
+        r"\br/o\b",
+        r"\bquestion of\b",
+        r"\bpossible\b",
+        r"\bcannot exclude\b",
+    ]
 ]
 
 MentionKind = Literal[
