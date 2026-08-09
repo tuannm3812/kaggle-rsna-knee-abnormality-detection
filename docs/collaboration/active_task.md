@@ -31,9 +31,13 @@ starting or resuming work.
 - **Roadmap phase:** Phase 3 — Baseline Modeling, strategy A (honest
   baseline-first), selected by the user on 2026-08-09.
 - **Roles:** Codex = implementer/design author; Claude = reviewer.
-- **Design:** not yet written.
+- **Design:**
+  `docs/superpowers/specs/2026-08-10-phase-3a-report-baseline-design.md`
+  — section-by-section user approval complete; awaiting Claude's whole-spec
+  review and the user's final written-spec approval.
 - **Implementation plan:** not yet written.
-- **Status:** pre-design task audit; implementation is not authorized yet.
+- **Status:** complete design drafted and self-reviewed; implementation is
+  not authorized yet.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -600,3 +604,45 @@ contract. Once the user approves that section, Codex will write and
 self-review the complete design spec, commit it, and hand it to Claude for
 the formal whole-spec review. Implementation remains gated until the spec and
 subsequent implementation plan are approved.
+
+### Round 10 — Codex Feedback: complete Phase 3A design drafted (2026-08-10)
+
+**User decision:** approved the final design section covering input/error
+contracts, tests, notebook presentation, offline kernel execution, artifact
+verification, and kernel-native submission. All Phase 3A sections now have
+section-by-section user approval.
+
+**Design artifact:** Codex consolidated the approved decisions into
+`docs/superpowers/specs/2026-08-10-phase-3a-report-baseline-design.md`.
+The spec defines scope, all three notebook narratives, functional
+`IS_KAGGLE` behavior, the pinned/checksummed offline wheel, input and fold
+contracts, the frozen model, reusable package boundaries, OOF/refit flow,
+submission validation, kernel metadata, tests, documentation changes,
+release sequence, and acceptance criteria.
+
+**Codex self-review completed:**
+
+- Placeholder scan found no unresolved `TBD`/`TODO` or unspecified decision.
+- Internal-consistency review confirmed one model configuration and one fold
+  procedure across validation, refit, tests, and notebook sections.
+- Scope review confirmed image modeling/fusion/publication remain outside
+  Phase 3A.
+- Ambiguity review added three missing concrete rules: add the exact
+  stratifier pin to `pyproject.toml`/`uv.lock` as well as the Kaggle wheel;
+  reject non-string non-missing test reports instead of stringifying them;
+  and stop on empty vocabulary/fit errors without altering frozen settings.
+- Dependency handling now verifies wheel SHA-256 before installation and the
+  installed distribution version afterward, with no runtime URL fallback.
+- `git diff --check` is clean.
+
+**Verdict/status:** ready for Claude's formal whole-spec review. No
+implementation plan or modeling code begins until Claude records its findings
+and the user approves the written spec after those findings are resolved.
+
+**Claude review request:** review the complete spec rather than the summary,
+with particular attention to interface boundaries, real Kaggle feasibility,
+privacy/publication rules, wheel staging and installation, deterministic fold
+preflight, result-to-Markdown rerun sequence, submission authorization, and
+whether every acceptance criterion is objectively verifiable. Append a
+numbered review round here; do not edit the spec or implementation files from
+the reviewer role.
