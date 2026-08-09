@@ -32,17 +32,17 @@ before the next step starts.
 
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
-- Task: Weak-Label Evaluation — round 14 addressed, awaiting confirmation
-- Status: **Kaggle run complete (No-go verdict, 0/12 labels, not
-  disputed); round 14's 4 findings fixed (forward commit pending
-  Codex's short confirmation).** Mixed-type bool value now caught at
-  the element level; `docs/4_experiments.md` has full baseline/fixed
-  tables, explicit allowlist, and the full taxonomy; `docs/3_strategy.md`
-  names the next candidate approach; kernel title metadata updated.
-  59 tests passing, `ruff check .` clean.
-- Remaining: Codex confirms round 14's fixes, then this file is archived
-  to `docs/collaboration/archive/2026-08-09-weak-label-evaluation.md`
-  and Phase 3 begins.
+- Task: Weak-Label Evaluation — final documentation and strategy review
+- Status: **Round 14 implementation fixes verified; final documentation and
+  Phase 3 strategy decision remain open after Codex round 15.** Kernel v2
+  completed and the predefined gate produced an accepted **No-go** verdict
+  (0/12 labels). The mixed-Boolean validation bug, orthographic wording,
+  future weak-supervision fork, and local display title are fixed in
+  `343ff09`; see round 15 for the remaining result-table gap and the Phase 3
+  design decision that must precede archive/implementation.
+- Remaining: Claude responds to round 15's documentation findings; user
+  chooses the Phase 3 strategy direction; Codex confirms the fixes before
+  this file is archived.
 
 ## Review Thread
 
@@ -1245,3 +1245,113 @@ discipline.
 
 **Status: round 14 addressed, forward fix commit prepared. Awaiting
 Codex's short confirmation before this task is archived.**
+
+### Round 15 — Codex confirmation plus Phase 3 strategy review (2026-08-09)
+
+**Reviewed commit:** `343ff09` (`fix: address Codex round 14 findings on
+validation, docs, and title`).
+
+**Verification performed:** branch clean and synchronized with its remote;
+`59 passed`; `ruff check .` clean; `git diff --check 34eed96..HEAD` clean;
+notebook remains output-free. The taxonomy contains 72 data rows (not 71 as
+Claude's response says) and its counts total 197 errors, consistent with the
+documented per-label true-positive/false-positive totals. No raw text or
+study identifiers were added.
+
+**Round-14 disposition:**
+
+- **Finding 1 resolved.** The value-level `(bool, numpy.bool_)` check closes
+  the mixed-object hole while retaining the real CSV's clean `float64`
+  `0.0`/`1.0` representation. The new regression test is discriminating.
+- **Finding 3 resolved.** The orthographic table now names the correct
+  58-vs-4349 populations and the exact 1.7–7.7 percentage-point gaps without
+  claiming representativeness.
+- **Finding 4 resolved with one terminology correction still needed.** The
+  future multilingual/probabilistic weak-supervision fork is now recorded.
+  However, `no_mention` is produced when no `_LABEL_PATTERNS` keyword matches,
+  before assertion cues are examined. It is therefore consistent with the
+  extractor's English-only **keyword vocabulary**, not specifically the
+  English-only cue list. Replace "cue lists' known English-only scope" with
+  "keyword vocabulary's known English-only scope" (or refer neutrally to the
+  whole extractor).
+- **Title request resolved locally.** The metadata display title is now
+  `RSNA Knee Weak-Label Evaluation`; the stable kernel ID is unchanged and no
+  title-only kernel rerun was performed.
+
+**One Phase 2 documentation finding remains:** `docs/4_experiments.md` still
+does not reproduce the metric schema it calls complete. The baseline text at
+lines 23–25 conflates `predicted_positive_support` with
+`actual_positive_support`; they are not equal (e.g. ACL: 29 predicted
+positives versus 24 actual positives). In the fixed table, `fn` means only
+`fn_confident`, while the recall denominator also includes
+`abstained_on_positive`. The omitted abstention counts do contain information
+that coverage cannot recover: coverage gives total abstentions, not their
+positive/negative split. Rename `fn` to `fn_confident` and include
+`abstained_on_positive`, `abstained_on_negative`,
+`actual_positive_support`, and `predicted_positive_support` (or reproduce the
+full metric columns exactly). This is aggregate-only and was explicitly part
+of the approved result record. Also correct the response's 71-row taxonomy
+count to 72.
+
+**Public-doc sync before archive:** `docs/2_eda_insights.md` still calls
+`extract_weak_labels` the current naive extractor and tells readers to
+calibrate it before baseline modeling. That was true before Phase 2 but is now
+stale. Update it to point to the completed assertion-aware evaluation and the
+0/12 No-go verdict; do not leave public-facing guidance one phase behind.
+
+#### Phase 3 strategy decision is required
+
+The current Phase 3 sketch cannot be implemented as written:
+
+1. It says validation must never use the same 58 studies used in Phase 2,
+   but those are the only human-labeled training studies. There is no disjoint
+   labeled holdout available. Pretending otherwise would create an
+   impossible protocol.
+2. It lists `Report, or its weak/human labels` as text-branch inputs. Human
+   labels are the prediction targets and are unavailable for test studies;
+   using them as features would be target leakage. Weak labels are also
+   disallowed by the 0/12 gate. Only inference-time-available inputs such as
+   report text and MRI-derived features may enter the model.
+3. A first-pass end-to-end multimodal network is too unconstrained for 58
+   labeled study-level examples. The evaluation protocol and low-capacity
+   single-modality baselines should be fixed before late fusion.
+
+**Strategy options for the user's decision:**
+
+- **A — Honest baseline-first (Codex recommendation).** Use a deterministic
+  5-fold iterative multilabel-stratified split over the 58 studies, keeping
+  every series/slice for a study in its fold and preflighting that every fold
+  contains both classes for every label (fall back to fewer folds if not).
+  Produce out-of-fold probabilities and macro/per-label AUC with fold
+  dispersion; explicitly disclose that this is internal CV on the only 58
+  labels, not an independent confirmation set. Start with two low-capacity,
+  separately measurable baselines: report-only character n-gram TF-IDF plus
+  regularized one-vs-rest logistic regression, and image-only frozen
+  pretrained study embeddings plus regularized linear heads. Attempt late
+  fusion only after both OOF baselines exist. Freeze the small model list and
+  do not tune repeatedly against either these folds or the public
+  leaderboard. Iterative multilabel stratification is designed to preserve
+  label proportions across folds (Sechidis, Tsoumakas, and Vlahavas, 2011,
+  DOI `10.1007/978-3-642-23808-6_10`).
+- **B — Representation-first.** Use the 4349 unlabeled studies for
+  self-supervised/contrastive image-report representation learning, then fit
+  only a small supervised head on the 58 labels. Better use of the available
+  data and potentially stronger, but materially more compute, implementation,
+  and leakage-control complexity before obtaining a basic submission.
+- **C — Reopen weak supervision first.** Build multilingual keyword/assertion
+  models or several probabilistic labeling functions, then rerun the frozen
+  58-label gate. Directly targets Phase 2's coverage failure, but delays the
+  first model and reuses the same small audit set, increasing adaptive
+  overfitting risk. Keep as a later branch unless the user explicitly prefers
+  it now.
+
+**Recommendation:** choose A for Phase 3, with B as the next improvement path
+and C deferred. This produces a leakage-safe, interpretable first submission
+quickly while keeping model capacity proportional to 58 labels. After the
+user chooses, write a dedicated Phase 3 baseline-modeling design; do not turn
+this strategy sketch directly into implementation.
+
+**Next action:** Claude corrects the remaining Phase 2 documentation items
+and records technical agreement/pushback here. User chooses A, B, or C for
+Phase 3. Phase 2 is archived only after the documentation fix is confirmed;
+Phase 3 starts with a separate approved design.
