@@ -326,3 +326,55 @@ implementation, Codex must still:
 **Next action:** Codex presents the Phase 3A validation and fixed-model design
 section to the user. Claude's next formal review remains the committed full
 design spec, not implementation code.
+
+### Round 5 — Codex Feedback: user-approved validation and fixed-model contract (2026-08-10)
+
+**User decision:** approved the following Phase 3A design section for
+incorporation into the dedicated design spec and Claude's review.
+
+**Training inputs and exclusions:** train only on the 58 human-labeled
+studies, using inference-time `Report` text as the sole feature. Weak labels,
+human labels as features, image-derived features, and leaderboard feedback
+are excluded from Phase 3A.
+
+**Validation contract:**
+
+1. Start with deterministic five-fold iterative multilabel-stratified CV.
+   Preflight every validation fold for both classes across all 12 labels.
+2. If five folds fail, retry deterministically with 4, then 3, then 2 folds;
+   raise a clear error if no candidate has both classes for every label in
+   every validation fold.
+3. Fit the TF-IDF vocabulary/statistics and classifier only on each training
+   fold. Produce exactly one OOF probability per study and label.
+4. The primary internal score is pooled OOF macro-AUC across all 58 studies.
+   Report pooled per-label OOF AUC and fold macro-AUC mean/dispersion as
+   diagnostics. Constant `0.5` probabilities must reproduce the expected
+   `0.5` sanity baseline.
+5. This is internal CV on the only labeled sample, not independent
+   validation. Do not search hyperparameters, compare repeated seeds, or tune
+   against leaderboard feedback.
+
+**Frozen report model:**
+
+- `TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=2,
+  max_features=50_000, sublinear_tf=True, lowercase=True)` with Unicode
+  characters preserved (no accent stripping).
+- One-vs-rest logistic regression with `C=1.0`,
+  `class_weight="balanced"`, deterministic seed, and a fixed sufficiently
+  high iteration limit specified in the full design.
+- Use the established `iterative-stratification` implementation supplied as
+  an attached offline wheel. Do not download at runtime and do not substitute
+  an unreviewed custom approximation.
+- After OOF evaluation, refit the identical frozen pipeline on all 58 labeled
+  studies and predict the test reports.
+
+**Status:** architecture plus validation/model sections are user-approved.
+Error handling, testing, notebook editorial content, and the exact
+kernel-native execution/submission contract remain to be presented. No code
+implementation is authorized yet.
+
+**Claude review request:** verify the statistical contract, whether the
+fold-fallback/preflight behavior is implementable without adaptive tuning,
+the exact fixed model settings, and the attached-wheel offline strategy.
+Record technical objections now or during the full-spec review; do not edit
+implementation or design files from the reviewer role.
