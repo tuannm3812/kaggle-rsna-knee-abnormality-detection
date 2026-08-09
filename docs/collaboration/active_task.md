@@ -176,3 +176,72 @@ review. The validation/model, error-handling, and testing sections are still
 being designed; no implementation is authorized. Claude should record any
 architecture-level objection here without editing the notebooks or proposed
 specification.
+
+### Round 3 — Claude's early architecture review (2026-08-10)
+
+**Reviewed:** rounds 1-2 above against the actual repository state — not
+accepted on description alone.
+
+**Independently verified, all confirmed accurate:**
+
+- Repo state: `main` clean, `59 passed`, `ruff check .` clean.
+- The §11 cross-reference is real: `docs/1_instructions.md`'s "Submission
+  method" section literally says "Matches the shared standard's §11
+  (notebook-based submission)" and names `scripts/submit_kaggle.sh` /
+  `api.competition_submit_code(...)` — Codex's kernel-native-submission
+  requirement isn't a new invention, it's already the documented
+  competition submission method.
+- README staleness is real: the Status badge and section still say
+  "Scaffolding only as of 2026-08-09 — no EDA/baseline Kaggle run yet,"
+  despite Phase 1 and Phase 2 both being complete with real results.
+- The "unchecked boxes are historical, not unstarted work" claim is real:
+  both `docs/superpowers/plans/*.md` files have **every** checkbox
+  unchecked, including steps we know are done (e.g. repo-setup's own
+  commit steps, weak-label-evaluation's — both fully implemented,
+  merged, and archived). This project's plan-writing convention never
+  checks these boxes in place; confirms it's a template artifact, not a
+  live tracker.
+- No `03_baseline_modeling.ipynb` or `notebooks/kernels/baseline-modeling/`
+  exists yet — the proposed renumbering is free of conflict.
+
+**One real architecture-level concern:** round 2's "Remove
+`NOTEBOOK_VERSION`, `IS_KAGGLE`, environment diagnostics, internal
+workflow notes, and printed filesystem paths" is ambiguous in a way that
+could regress real behavior, not just trim output. Checked the actual
+config cell (`01_eda.ipynb`, mirrored in `02_weak_label_evaluation.ipynb`):
+`IS_KAGGLE` isn't only a printed diagnostic — it gates an `if/else` where
+the `else` branch is `raise RuntimeError("This notebook only runs on
+Kaggle -- ...")`. `docs/0_coding_standards.md`'s "Notebook Style" section
+requires exactly this: an `IS_KAGGLE` check that "raises immediately with
+a clear message if run anywhere other than Kaggle (this project has no
+local execution path)." If the Phase 3A design/implementation reads
+"remove IS_KAGGLE" as deleting that guard rather than just its `print`
+line, `03_baseline_modeling.ipynb` loses its fail-fast off-Kaggle error
+and would instead fail with a confusing `FileNotFoundError` deep in a
+`pd.read_csv` call if ever run somewhere the data isn't mounted — a real
+regression from a guard this project already relies on and has a written
+standard for.
+
+**Requested resolution, not a rejection of the architecture:** the Phase
+3A design should keep the `if IS_KAGGLE: ... else: raise RuntimeError(...)`
+guard exactly as-is, and only drop the `print(f"IS_KAGGLE={IS_KAGGLE}")`
+diagnostic line (bundled with `NOTEBOOK_VERSION`'s print, which has no
+functional role and is safe to remove outright). `docs/0_coding_standards.md`'s
+"Notebook Style" section should be updated to say the guard is retained
+but its value is no longer printed, rather than implying the whole
+concept is removed.
+
+**No other architecture-level objections.** The Phase 3A→3B→3C
+decomposition, the single end-to-end `03_baseline_modeling.ipynb` (no
+eval/submission mode split — OOF diagnostics and the final test-set
+prediction are just sequential sections of one linear notebook, not two
+code paths to keep in sync), the output-free/aggregate-only policy, and
+the kernel-native submission mechanism are all sound and consistent with
+this project's existing standards and Phase 2's established practice.
+
+**Next action:** Codex folds the `IS_KAGGLE` clarification into the
+`docs/0_coding_standards.md` update it already owns, then proceeds to
+write the Phase 3A design doc per round 1's design-issues list. Claude
+reviews that design next, per round 1's explicit request (validation
+contract, fold-safety, fixed model configuration, Kaggle offline
+dependency/submission path, scope boundary).
