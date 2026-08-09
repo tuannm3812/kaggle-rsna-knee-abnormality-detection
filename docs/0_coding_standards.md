@@ -69,10 +69,12 @@ too large/slow to run as a single kernel.
 Each notebook should include:
 
 - Purpose statement.
-- Configuration cell near the top, with an `IS_KAGGLE` check resolving
-  `/kaggle/input/competitions/rsna-knee-abnormality-detection/` for Kaggle
-  execution vs. local development, a deterministic seed, and a
-  `NOTEBOOK_VERSION` string printed by the first code cell.
+- Configuration cell near the top, with an `IS_KAGGLE` check that resolves
+  the competition data mount and `src/knee_mri`'s dataset mount, and raises
+  immediately with a clear message if run anywhere other than Kaggle (this
+  project has no local execution path — see "Data & Compute" below), plus
+  a deterministic seed and a `NOTEBOOK_VERSION` string printed by the first
+  code cell.
 - Markdown insight cells after every important plot or metric.
 - Numbered sections with clear reader-facing headers.
 
@@ -121,16 +123,24 @@ right kernel folder first, so the two never drift.
 `scripts/publish_code_dataset.sh <create|version "message">` — **not** a
 plain `kaggle datasets create/version -p .` from the repo root, which
 biohub confirmed does not honor `.kaggleignore` for directory uploads and
-can upload `.venv/`/`.git/` by accident. The script stages `src/knee_mri`
-(as `knee_mri/`, so it lands at the dataset root rather than nested under
-`src/`), `README.md`, `LICENSE`, `pyproject.toml`, and
+can upload `.venv/`/`.git/` by accident. The script stages `src/`
+(unflattened — see below), `README.md`, `LICENSE`, `pyproject.toml`, and
 `dataset-metadata.json` in a clean temp directory, and passes `-r zip` —
-the Kaggle CLI's default
-`--dir-mode` is `"skip"`, which silently omits directories (including
-`knee_mri/` itself) from the upload if omitted. A kernel that mounts the
-dataset should add `<dataset-mount>/` (not `<dataset-mount>/src/`) to
-`sys.path` to import `knee_mri`; `01_eda.ipynb`'s config cell checks both
-locations so it self-corrects if this ever changes.
+the Kaggle CLI's default `--dir-mode` is `"skip"`, which silently omits
+directories (including `src/` itself) from the upload if omitted.
+
+The exact mounted layout (`<dataset-mount>/src/knee_mri/` vs.
+`<dataset-mount>/knee_mri/`) depends on Kaggle's own zip-extraction
+behavior, unverified until the first real publish + kernel run — staging
+`src/` rather than flattening to `knee_mri/` directly keeps `knee_mri` as
+the zip's one top-level entry either way (flattening would upload
+`knee_mri`'s individual files with no enclosing directory at all, since
+`shutil.make_archive` zips a directory's *contents*, not the directory
+itself). `01_eda.ipynb`'s config cell checks both
+`<dataset-mount>/src/knee_mri` and `<dataset-mount>/knee_mri` before
+importing, and record the real observed layout in
+`docs/6_kaggle_troubleshooting.md` after the first publish so this stops
+being a guess.
 
 Submit with `scripts/submit_kaggle.sh`, which wraps
 `api.competition_submit_code(...)` against a completed kernel version —
