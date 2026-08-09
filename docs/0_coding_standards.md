@@ -54,13 +54,15 @@ biohub's, so there's nothing to usefully keep in a local `data/` folder.
 
 `docs/collaboration/active_task.md` is the shared handoff and review
 channel for whatever task is currently in progress — design discussion,
-Codex review rounds, implementation reports, and Claude's own review, all
-in one place, in chronological order. Same pattern as
+Codex rounds, implementation reports, and independent review, all in one
+place, in chronological order. Same pattern as
 `kaggle-s6e8-predicting-smartphone-addiction`'s (pre-Cursor)
-`docs/collaboration/`: Claude implements/drafts, Codex reviews
+`docs/collaboration/`: one side implements/drafts, the other reviews
 independently, findings get resolved there before the next step starts.
-Read it (and the relevant design spec or plan) before starting or
-resuming any task.
+**Roles are assigned per task, not fixed** — either Claude or Codex may
+be the implementer, with the other as reviewer; the active task's status
+section states which is which for the current task. Read it (and the
+relevant design spec or plan) before starting or resuming any task.
 
 When a task is fully accepted — spec approved and, once implemented, both
 reviews closed — move `active_task.md`'s record to
@@ -72,25 +74,26 @@ project's first design review, now migrated into
 scales better once the project has many sequential tasks, rather than one
 document that grows without bound across the whole project.
 
-## Codex Review
+## Codex Collaboration
 
-At major milestones (a new design spec, a completed implementation
-phase), get an independent second opinion from the Codex CLI (`codex
-review` / `codex exec -s read-only`) alongside Claude's own review
-process — matches the manual, no-automation workflow already used in
-`kaggriculture` and `kaggle-s6e8-predicting-smartphone-addiction`: run it
-by hand, record findings in `docs/collaboration/active_task.md`, and
-treat it as a collaboration input, not an approved decision by itself. No
-CI/hook wiring — this is a workflow habit, not a config artifact.
+**The user runs the Codex CLI (`codex exec` / `codex review`) directly —
+Claude does not invoke it.** At major milestones (a new design spec, a
+completed implementation phase), the user gets an independent pass from
+Codex, run by hand — matches the manual, no-automation workflow already
+used in `kaggriculture` and `kaggle-s6e8-predicting-smartphone-addiction`.
+No CI/hook wiring, and no Claude-initiated `codex` subprocess calls —
+this is a workflow habit the user drives, not a config artifact or an
+automation Claude triggers.
 
-Every subsequent Codex evaluation of Claude's response, disposition, or
-revision must also be appended to `docs/collaboration/active_task.md`; do
-not leave feedback only in the chat transcript. Each round records the
-date, reviewed commit or artifact, verdict (`approved`, `revision
-required`, or `blocked on user decision`), resolved findings, remaining
-findings with concrete evidence, and the next required action. Record the
-entry before asking Claude for the next revision so the full exchange
-remains reconstructable from the repository alone.
+Whichever side is reviewing in a given task, its evaluation of the
+implementer's response, disposition, or revision must be appended to
+`docs/collaboration/active_task.md`; do not leave feedback only in the
+chat transcript. Each round records the date, reviewed commit or
+artifact, verdict (`approved`, `revision required`, or `blocked on user
+decision`), resolved findings, remaining findings with concrete evidence,
+and the next required action. Record the entry before the next revision
+starts so the full exchange remains reconstructable from the repository
+alone.
 
 Notebook naming: `01_eda.ipynb`, `02_baseline_modeling.ipynb`, ... —
 zero-padded, matching the sibling repos. Prefer a new config flag inside

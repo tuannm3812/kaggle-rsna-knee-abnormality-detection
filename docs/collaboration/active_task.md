@@ -4,28 +4,37 @@ This tracked file is the shared handoff and review channel for the current
 task. Claude and Codex must read it before starting work and append
 concise, evidence-based updates. Same pattern as
 `kaggle-s6e8-predicting-smartphone-addiction`'s early (pre-Cursor) setup:
-Claude implements, Codex reviews independently, findings get resolved here
-before the next step starts.
+one side implements, the other reviews independently, findings get
+resolved here before the next step starts.
 
 ## Workflow Rules
 
 1. Work from the shared `main` checkout. Use a worktree
    (`superpowers:using-git-worktrees`) for a bounded implementation pass
    once a spec is approved — not for docs-only design/review iteration.
+   The user has stated a standing preference to work without worktrees
+   (solo project, no need for parallel branches) — only use one if the
+   user asks for it.
 2. Before acting, read `git status`, recent `git log`, the relevant design
    spec or plan, and this file.
-3. Claude drafts/revises the design (or implements the approved plan) and
-   commits one coherent change.
-4. Codex reviews project artifacts independently (`codex exec -s read-only`
-   / `codex review`) without changing implementation, specification, or
-   result files; the permitted review-side write is this collaboration log.
-   **Every Codex review or feedback pass—including a clean confirmation with
-   no findings—must be appended here as a clearly labeled, numbered Codex
-   round and committed to the current task branch before handoff.** Feedback
-   must never exist only in the chat transcript or as an uncommitted local
-   change that Claude cannot discover from git history.
-5. Claude addresses accepted findings in a separate fix/revision commit;
-   never amend or rewrite a commit Codex already reviewed.
+3. **Roles are assigned per task, stated explicitly in "Current Task"
+   below.** The assigned implementer drafts/revises the design (or
+   implements the approved plan) and commits one coherent change; the
+   assigned reviewer reviews independently without changing
+   implementation, specification, or result files (the permitted
+   review-side write is this collaboration log).
+4. **The user runs the Codex CLI (`codex exec` / `codex review`)
+   themselves — Claude does not invoke it.** When Codex is the reviewer,
+   the user runs it and reports findings back (or Codex appends them
+   directly); when Codex is the implementer, the user drives that work
+   session and Claude reviews the resulting commits. **Every review or
+   feedback pass — including a clean confirmation with no findings — must
+   be appended here as a clearly labeled, numbered round and committed to
+   the current task branch before handoff.** Feedback must never exist
+   only in the chat transcript or as an uncommitted local change the other
+   side cannot discover from git history.
+5. The implementer addresses accepted findings in a separate fix/revision
+   commit; never amend or rewrite a commit the reviewer already reviewed.
 6. Do not begin implementation while findings or the user's approval
    decision remain unresolved.
 7. When a task is fully accepted (spec approved and, once implemented,
@@ -48,7 +57,15 @@ before the next step starts.
   standing preference that they run subsequent Codex passes themselves.
   Once confirmed, archive this file to
   `docs/collaboration/archive/2026-08-09-weak-label-evaluation.md` and
-  start a fresh `active_task.md` for the Phase 3 baseline-modeling design.
+  start a fresh `active_task.md` for the Phase 3 baseline-modeling task.
+
+**Role reversal for the next task (2026-08-10):** the user is handing
+Phase 3 baseline-modeling implementation to **Codex as implementer**,
+with **Claude as reviewer** — the reverse of Phase 2's arrangement. The
+user runs Codex directly (per workflow rule 4, updated above); Claude's
+role is to review Codex's design/implementation commits independently
+and record findings here, not to draft or implement Phase 3 itself
+unless asked.
 
 ## Review Thread
 
