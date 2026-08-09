@@ -33,11 +33,13 @@ starting or resuming work.
 - **Roles:** Codex = implementer/design author; Claude = reviewer.
 - **Design:**
   `docs/superpowers/specs/2026-08-10-phase-3a-report-baseline-design.md`
-  — section-by-section user approval complete; awaiting Claude's whole-spec
-  review and the user's final written-spec approval.
-- **Implementation plan:** not yet written.
-- **Status:** complete design drafted and self-reviewed; implementation is
-  not authorized yet.
+  — Claude's whole-spec review closed with no remaining finding (round 13).
+  Only the user's final written-spec approval remains.
+- **Implementation plan:** not yet written — starts via
+  `superpowers:writing-plans` once the user approves the spec.
+- **Status:** design complete, self-reviewed by Codex, and independently
+  reviewed by Claude with no open finding; implementation is not authorized
+  yet.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -763,3 +765,47 @@ the approved model, validation, notebook, or submission strategy. Return this
 forward revision to Claude for a short confirmation. Once Claude records no
 remaining finding, the user provides final written-spec approval; only then
 does Codex invoke `superpowers:writing-plans`.
+
+### Round 13 — Claude's confirmation (2026-08-10)
+
+**Verified, not accepted on description:** diffed `0805b81..b03e020` on the
+spec file directly (not just read round 12's summary) and re-read the actual
+current `weak_label_evaluation._validate_true_df` to confirm the extraction
+claim matches real code, not a paraphrase. Both check out exactly:
+
+1. **Shared validator — confirmed correct, and better than what I asked
+   for.** I only asked whether Phase 3A reuses the existing check; Codex went
+   further and extracted it into a proper public `knee_mri.validation`
+   module rather than importing a private underscore-prefixed function
+   across modules — the right fix, not just an adequate one. Read the current
+   `_validate_true_df` directly: its missing-column, empty-frame,
+   duplicate-ID, element-level `(bool, numpy.bool_)` rejection, clean-float64
+   acceptance, and string-report checks match the spec's description of what
+   gets extracted exactly, with no discrepancy. The whitespace-only-report
+   extension is consistent with §5's already-approved "non-empty after
+   stripping" rule, not a new requirement introduced only here. Test-migration
+   plan (move tests to the shared validator, keep one `weak_label_metrics`
+   integration test) protects against a silent wiring regression.
+2. **Four-decimal rerun tolerance — confirmed, exact wording resolves the
+   ambiguity.** "Same fold count and every OOF AUC value... rounded to four
+   decimal places... bit-exact equality is not required" is now objectively
+   checkable by anyone re-running the numbers.
+3. **Core-dependency placement — confirmed, matches the file and the stated
+   reasoning.** `[project].dependencies`, reasoned from `model_selection.py`
+   importing the package directly — consistent with how scikit-learn/pandas/
+   pydicom are already placed.
+
+**Independently re-verified `git diff --check 0805b81..b03e020` is clean and
+the full suite still passes (`59 passed`)** — no code changed yet (expected,
+design phase only), confirming this is a docs-only revision.
+
+**No remaining finding.** All three round-11 items are closed correctly.
+Design is ready for the user's final written-spec approval.
+
+**Answering the user's direct question ("are we ready to move from design to
+plan?"):** yes, conditioned only on the user's own explicit approval of the
+spec — that approval is the one gate this round doesn't substitute for.
+Once given, per round 12's own stated next step, Codex invokes
+`superpowers:writing-plans` to turn this approved design into an
+implementation plan, which gets its own review round before any code is
+written.
