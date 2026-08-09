@@ -106,14 +106,31 @@ def test_extract_weak_labels_window_edge_does_not_cut_a_word_in_half():
     # slice boundary itself act as a fake word boundary: "abnormal"
     # cut at the window edge left a bare "normal" that matched the
     # \bnormal\b cue, and "cannot"/"nodular"/"notable" similarly
-    # leaked "not"/"no" cues when the far edge fell mid-word. None of
+    # leaked "not"/"no" cues when the edge fell mid-word. None of
     # these words are real cues and must never qualify the mention.
-    for trap_word in ("abnormal", "cannot", "nodular", "notable"):
-        report = f"{trap_word} " + "x" * 33 + "effusion is present"
+    #
+    # Swept across a range of paddings (rather than one fixed offset)
+    # on both sides of the keyword, since exactly where the slice edge
+    # lands inside each trap word depends on the word's own length and
+    # which end gets cut -- a single offset was verified to only
+    # actually exercise the bug for one of the four words. This
+    # range (0..39) was checked to reproduce the bug for all four
+    # trap words, in both placements, against the pre-fix logic.
+    trap_words = ("abnormal", "cannot", "nodular", "notable")
+    for trap_word in trap_words:
+        for pad_len in range(40):
+            padding = "x" * pad_len
+            leading = f"{trap_word} {padding}effusion is present"
+            trailing = f"effusion is present {padding} {trap_word}"
 
-        labels = extract_weak_labels(report)
-
-        assert labels["Effusion"] == 1, f"trap word {trap_word!r} incorrectly qualified the mention"
+            assert extract_weak_labels(leading)["Effusion"] == 1, (
+                f"leading placement: trap word {trap_word!r} at pad={pad_len} "
+                "incorrectly qualified the mention"
+            )
+            assert extract_weak_labels(trailing)["Effusion"] == 1, (
+                f"trailing placement: trap word {trap_word!r} at pad={pad_len} "
+                "incorrectly qualified the mention"
+            )
 
 
 def test_extract_weak_labels_cue_does_not_leak_across_clause_boundary():
