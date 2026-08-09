@@ -38,16 +38,17 @@ before the next step starts.
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
 - Task: Weak-Label Evaluation — final documentation and strategy review
-- Status: **Round 14 implementation fixes verified; final documentation and
-  Phase 3 strategy decision remain open after Codex round 15.** Kernel v2
-  completed and the predefined gate produced an accepted **No-go** verdict
-  (0/12 labels). The mixed-Boolean validation bug, orthographic wording,
-  future weak-supervision fork, and local display title are fixed in
-  `343ff09`; see round 15 for the remaining result-table gap and the Phase 3
-  design decision that must precede archive/implementation.
-- Remaining: Claude responds to round 15's documentation findings; user
-  chooses the Phase 3 strategy direction; Codex confirms the fixes before
-  this file is archived.
+- Status: **Round 15's documentation findings fixed (commit `8e346b0`);
+  user chose Phase 3 strategy A (honest baseline-first) on 2026-08-09,
+  recorded in `docs/3_strategy.md`.** Kernel v2 completed and the
+  predefined gate produced an accepted **No-go** verdict (0/12 labels).
+- Remaining: the user's own Codex confirmation of the round-15 fix commit
+  (`8e346b0`) before this file archives, per workflow rule 7 and round
+  15's own gating language — not self-certified here, per the user's
+  standing preference that they run subsequent Codex passes themselves.
+  Once confirmed, archive this file to
+  `docs/collaboration/archive/2026-08-09-weak-label-evaluation.md` and
+  start a fresh `active_task.md` for the Phase 3 baseline-modeling design.
 
 ## Review Thread
 
