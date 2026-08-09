@@ -39,11 +39,13 @@ def _write_synthetic_slice(path: Path, instance_number: int, fill_value: int) ->
 def test_load_series_stacks_slices_in_instance_number_order(tmp_path: Path):
     series_dir = tmp_path / "series_1"
     series_dir.mkdir()
-    # Written out of InstanceNumber order to prove sorting, not filesystem
-    # order, controls the stack.
-    _write_synthetic_slice(series_dir / "b.dcm", instance_number=2, fill_value=20)
-    _write_synthetic_slice(series_dir / "a.dcm", instance_number=1, fill_value=10)
-    _write_synthetic_slice(series_dir / "c.dcm", instance_number=3, fill_value=30)
+    # Filenames deliberately sort alphabetically (a, b, c) in the opposite
+    # order of their InstanceNumbers, so the assertions below only pass if
+    # load_series sorts by InstanceNumber rather than trusting glob/filesystem
+    # order.
+    _write_synthetic_slice(series_dir / "a.dcm", instance_number=3, fill_value=30)
+    _write_synthetic_slice(series_dir / "b.dcm", instance_number=1, fill_value=10)
+    _write_synthetic_slice(series_dir / "c.dcm", instance_number=2, fill_value=20)
 
     volume = load_series(series_dir)
 
