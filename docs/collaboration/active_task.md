@@ -16,9 +16,14 @@ before the next step starts.
    spec or plan, and this file.
 3. Claude drafts/revises the design (or implements the approved plan) and
    commits one coherent change.
-4. Codex reviews independently (`codex exec -s read-only` / `codex
-   review`) without changing any files. Findings and evidence are recorded
-   here, not left only in the chat transcript.
+4. Codex reviews project artifacts independently (`codex exec -s read-only`
+   / `codex review`) without changing implementation, specification, or
+   result files; the permitted review-side write is this collaboration log.
+   **Every Codex review or feedback pass—including a clean confirmation with
+   no findings—must be appended here as a clearly labeled, numbered Codex
+   round and committed to the current task branch before handoff.** Feedback
+   must never exist only in the chat transcript or as an uncommitted local
+   change that Claude cannot discover from git history.
 5. Claude addresses accepted findings in a separate fix/revision commit;
    never amend or rewrite a commit Codex already reviewed.
 6. Do not begin implementation while findings or the user's approval
