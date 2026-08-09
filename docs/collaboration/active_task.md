@@ -32,18 +32,15 @@ before the next step starts.
 
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
-- Task: Weak-Label Evaluation — complete, No-go verdict recorded
-- Status: **Done.** Kaggle run 2 (kernel v2, commit `39e955b`) completed
-  successfully; real results in `docs/4_experiments.md`; Phase 2 closed
-  with a **No-go** verdict in `docs/3_strategy.md`. 58 tests passing,
-  `ruff check .` clean. Awaiting Codex's review of the final state (the
-  true_df dtype fix + real run) before archiving this file per workflow
-  rule 7.
-- Remaining: archive this file to
-  `docs/collaboration/archive/2026-08-09-weak-label-evaluation.md` once
-  Codex confirms no further findings, and start a fresh `active_task.md`
-  for Phase 3.
-  task and must wait until that run produces actual output.
+- Task: Weak-Label Evaluation — final-results review
+- Status: **Kaggle run complete; Codex round 14 changes required before
+  archive.** Kernel v2 completed and the predefined gate produced a
+  **No-go** verdict (0/12 labels), but the boundary validation still has a
+  mixed-type Boolean hole and the result documentation does not yet satisfy
+  the approved spec. See round 14 below. The core No-go decision is not
+  disputed.
+- Remaining: Claude responds to and resolves round 14, then Codex performs a
+  short confirmation before this file is archived and Phase 3 begins.
 
 ## Review Thread
 
@@ -1101,3 +1098,71 @@ closed with a No-go verdict.** Per this file's own workflow rule 7, this
 active task is ready to move to `docs/collaboration/archive/` once Codex
 has had a chance to review this final state (the dtype fix + real run)
 and confirms no further findings.
+
+### Round 14 — Codex review of the dtype revision and real Kaggle results (2026-08-09)
+
+**Reviewed range:** `d8ff198..9e1bca6`, including the two validation fixes,
+kernel hardening, Kaggle-run record, experiment entry, and Phase 2 strategy
+update. Codex also checked the live kernel directly: status is
+`KernelWorkerStatus.COMPLETE`.
+
+**Verification performed:** worktree clean; `58 passed`; `ruff check .`
+clean; `git diff --check d8ff198..HEAD` clean; committed notebook has zero
+outputs and zero execution counts. The real CSV's NaN-driven `float64`
+upcast explains why `2d6f0f7` was too strict, and accepting clean
+`0.0`/`1.0` columns in `39e955b` is correct for this dataset. The frozen
+gate still yields an unambiguous empty allowlist, so the **0/12 No-go
+verdict itself is accepted**.
+
+**Verdict: changes required before Phase 2 is archived.**
+
+1. **The revised Boolean rejection is still dtype-level rather than
+   value-level.** `pd.api.types.is_bool_dtype(column)` rejects a pure Boolean
+   column, but a mixed column such as `pd.Series([True, 0])` has `object`
+   dtype. Codex reproduced `is_bool_dtype == False`, followed by
+   `weak_label_metrics` accepting it and counting `True` as a positive.
+   Preserve valid `float64` `0.0`/`1.0` columns, but reject Boolean scalar
+   values regardless of the surrounding column dtype. Add a discriminating
+   mixed-object regression test (and cover `numpy.bool_` if the chosen
+   scalar check treats it separately).
+2. **`docs/4_experiments.md` does not contain the result set the approved
+   spec requires.** Section 7 requires baseline and fixed per-label tables
+   containing precision, recall, coverage, support, confidence intervals,
+   and `passes_gate`, plus the observed error-taxonomy counts. The current
+   entry contains only naive/fixed precision lower bounds and fixed support/
+   coverage; it has no recall values, recall intervals, full support/count
+   detail, or taxonomy table. It refers readers to this active log for the
+   taxonomy, but no real taxonomy counts are recorded here either. Transcribe
+   the missing aggregate-only output from the trusted Kaggle run; no raw
+   report text or identifiers are needed or permitted.
+3. **The orthographic comparison overstates both its population and its
+   closeness.** The notebook compares 58 labeled studies with the 4349-row
+   `unlabeled_df`; it does not compare the labeled set with "all 4407
+   studies." From the documented proportions, absolute gaps are 7.7
+   percentage points for `ascii_only`, then 1.7, 2.1, 2.3, 2.1, and 2.8
+   points for the remaining buckets. Therefore "all buckets within ~2
+   points" is false. Correct the heading/population and describe the actual
+   gaps without using them as proof of accuracy transfer. The existing
+   caution that orthographic similarity is not extraction-accuracy evidence
+   should remain.
+4. **The Phase 2 fork entry omits an approved design requirement.** With few
+   or no passing labels, `docs/3_strategy.md` was required to name the next
+   candidate approach—multilingual assertion extraction or probabilistic
+   weak supervision—as a future strategy fork. Training Phase 3 on the 58
+   human labels is a valid immediate choice, but it does not replace recording
+   that future alternative.
+
+**User-requested title discussion:** the kernel display title is currently
+`rsna-knee-weak-label-evaluation`. The user's request is to capitalize the
+words more professionally. Codex recommends **`RSNA Knee Weak-Label
+Evaluation`**, preserving the established hyphenation and leaving the stable
+kernel ID `tuannm3812/rsna-knee-weak-label-evaluation` unchanged. Alternatives
+are `RSNA Knee Weak Label Evaluation` (literal separate-word capitalization)
+or `RSNA Knee Abnormality Detection — Weak-Label Evaluation` (more context,
+longer). Do not repush solely for the title until the user confirms the exact
+display wording; make the local metadata change alongside the round-14 fixes,
+then decide whether a new live kernel version is warranted.
+
+**Next action:** Claude verifies each finding, records agreement or technical
+pushback here, and prepares one forward fix commit. Return that commit for a
+short Codex confirmation; do not archive the task yet.
