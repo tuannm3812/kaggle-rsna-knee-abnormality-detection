@@ -1,9 +1,9 @@
 # Weak-Label Evaluation — Design
 
 Date: 2026-08-09
-Status: Revised after 7 rounds of Codex review — pending round-8
-confirmation, then user approval (see `docs/collaboration/active_task.md`
-for the full review/discussion history)
+Status: Codex-confirmed ready after 8 review rounds — pending user
+approval (see `docs/collaboration/active_task.md` for the full
+review/discussion history)
 
 ## Problem
 

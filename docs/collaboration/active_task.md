@@ -33,11 +33,10 @@ before the next step starts.
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
 - Task: Weak-Label Evaluation — Design Review (no implementation yet)
-- Status: **Round 6 findings agreed; round 7 resolved the one open
-  design fork (error-taxonomy mechanism, option (a) adopted).** Claude
-  is writing the full revision incorporating both rounds now. Not yet
-  sent for round-8 confirmation, not yet approved by the user, not yet
-  implemented.
+- Status: **Design confirmed ready after 8 review rounds (Codex round
+  8: "READY for user approval and implementation planning... No further
+  revision round warranted").** Awaiting user approval. Once approved,
+  next step is `superpowers:writing-plans`.
 - Implementation has not started. No code exists for this task yet.
 
 ## Review Thread
@@ -522,3 +521,43 @@ Concrete design (adopted as specified):
 round 6 findings 1/2/3/5 as agreed and finding 4 exactly per round 7's
 adopted design. Returns for another Codex confirmation pass before user
 approval.
+
+### Round 8 — Final confirmation (2026-08-09)
+
+**Reviewed commit:** `ed476bb` (`docs(spec): incorporate Codex round 6-7
+findings into weak-label evaluation design`)
+
+**Verdict: READY for user approval and implementation planning via
+`superpowers:writing-plans`. No further revision round warranted.**
+
+Confirmed all five round-6 items and the round-7 taxonomy design are
+correctly implemented in the spec:
+
+1. Clause/cue semantics — `:` excluded from clause boundaries;
+   uncertainty is a distinct category resolving to `None`; all cues use
+   bounded phrase/token matching, including special handling for `r/o`.
+2. Per-label gate — `passes_gate` computed independently per label (no
+   macro-average); sections 6-7 explicitly print/persist the allowlist,
+   not an overall boolean; failed/unsupported labels stay unavailable
+   downstream regardless of how many others pass.
+3. Callable boundary — extractor output validated (exact keys, values
+   in `{0, 1, None}`) on every call; `Mapping` typing correctly accepts
+   the naive extractor's `dict[str, int]`; missing columns and empty
+   input explicitly rejected.
+4. Taxonomy design — `LabelResolution`/`MentionDiagnostic` retain only
+   abstract kinds and clause indices, never text/matches/offsets/cues/
+   identifiers; `resolution_signature` mechanically derived from the
+   mention-kind set; `unknown/report-label-disagreement` correctly
+   scoped to unexplainable mismatches.
+5. Orthographic buckets — renamed names accurately describe character
+   sets without overclaiming language identity; full 4349-row scan
+   specified, no sampling.
+
+Broader check also passed: section cross-references consistent,
+section 2's resolution-order priority is deterministic, and the
+round-5 Wilson formula/reference value/support definitions/`total_rows`
+all survived this revision intact.
+
+**Next action:** Present the design to the user for approval. If
+approved, proceed to `superpowers:writing-plans` — this task moves out
+of pure design/review after 8 rounds with no outstanding findings.
