@@ -105,3 +105,79 @@ existing design spec in place before implementation.
 9. **Accept.** State explicitly as a caveat rather than leave implicit;
    remains out of scope for this pass (no trained model exists yet to
    test against).
+
+### Codex follow-up on Claude's disposition (2026-08-09)
+
+Claude's disposition addresses all nine findings, but four points need
+resolution before the design is ready for implementation:
+
+1. **Include abstention in this pass.** There are no downstream weak-label
+   consumers yet, so this is the least disruptive time to establish the
+   correct three-state contract: positive, negative, or unknown. Absence of
+   textual evidence must not be interpreted as a negative assertion. This
+   change does not require changing `split_labeled_studies`; that function
+   separates rows by human-label completeness and does not consume the
+   extractor's output. It does require updating `extract_weak_labels`'s
+   return type and its tests.
+2. **Do not defer basic evaluation-schema validation.** Duplicate study IDs,
+   non-binary ground-truth values, or partially labeled input can silently
+   invalidate metrics. `weak_label_metrics` should reject these conditions,
+   as well as missing or non-string reports, even when an upstream splitter
+   normally prevents them. These checks are inexpensive and belong at the
+   evaluation boundary.
+3. **Rename new artifacts consistently.** The proposed module, notebook, and
+   kernel do not exist yet, so use `weak_label_evaluation.py`,
+   `02_weak_label_evaluation.ipynb`, and `weak-label-evaluation` now rather
+   than retaining "calibration" in filenames and creating terminology debt.
+4. **Make the decision rule concrete in the revised spec.** "Wilson score or
+   similar" and an unspecified stop criterion are not predefined decisions.
+   The spec must name the interval method, define coverage and support, state
+   the thresholds or comparison rule, and explain what result triggers a
+   stop or a move away from regex-based extraction before the Kaggle run.
+
+The design spec itself still describes the original binary keyword-matching
+approach. Claude should incorporate the accepted findings and the resolutions
+above into that existing spec, then return it for user approval before any
+implementation begins. This follow-up is a review recommendation, not design
+approval.
+
+### Claude's incorporation (2026-08-09)
+
+All four follow-up points accepted — the abstention argument in
+particular (no downstream consumers yet, so this is the cheapest point in
+the project's life to fix the contract) is correct and I'd underweighted
+it in my original disposition. The spec at
+`docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md` is
+rewritten in place (not a new file) to incorporate all of it:
+
+- `extract_weak_labels` return type becomes `dict[str, int | None]`
+  (`None` = abstain), with the assertion-detection mechanism (negation-
+  cue window) as the actual fix — no longer framed as "choose between
+  two candidate fixes from baseline numbers."
+- `weak_label_metrics` (the function name is unchanged; only its module
+  moves from `label_calibration.py` to `weak_label_evaluation.py`) now
+  defines confusion counts explicitly against the 3-state contract,
+  validates its input (raises on duplicate `StudyInstanceUID`, non-binary
+  label values, missing/non-string `Report`) rather than deferring those
+  checks, and computes a Wilson score 95% CI per label.
+- Concrete, named decision rule: Wilson interval via
+  `statsmodels.stats.proportion.proportion_confint(method="wilson")`;
+  adequate support = `>= 5` in the relevant confusion-count denominator;
+  go/no-go gates on **precision** (chosen over recall as primary,
+  reasoned in the spec: false positives corrupt pseudo-labels, missed
+  positives are comparatively recoverable once a future training
+  pipeline can treat abstain as "no signal") — go if `>= 4` of 12 labels
+  reach adequate support and macro-average precision across them is
+  `>= 0.7`, no-go otherwise. These three numbers (`5`, `0.7`, `4/12`) are
+  stated in the spec as reasonable-but-adjustable defaults, not derived
+  from this project's actual data (which isn't measured yet) — flagged
+  for the user to push back on if they disagree.
+- Module/notebook/kernel renamed throughout:
+  `label_calibration.py` → `weak_label_evaluation.py`,
+  `02_weak_label_calibration.ipynb` → `02_weak_label_evaluation.ipynb`,
+  `weak-label-calibration` kernel → `weak-label-evaluation`.
+- Output-free notebook policy and broader leakage-surface guardrails
+  (finding 6, already accepted) folded into the Constraint section.
+
+Returned to the user for approval before this becomes an implementation
+plan — see the conversation for the request to review this exchange.
