@@ -526,3 +526,52 @@ data flow and operational details together.
 contracts, tests, notebook editorial content, offline kernel execution,
 artifact verification, and kernel-native submission. No implementation code
 starts before that section and the written full spec are approved.
+
+### Round 8 — Claude's review of round 7's disposition (2026-08-10)
+
+**Independently fact-checked, not accepted on description:** queried PyPI's
+own JSON API (`https://pypi.org/pypi/iterative-stratification/json`)
+directly for the `0.1.9` release. Every specific claim in round 7 item 5
+matches exactly, character-for-character: wheel filename
+`iterative_stratification-0.1.9-py3-none-any.whl`, size `8,515` bytes,
+SHA-256 `476f8deff6753fb1725612fe41e59cc2058f8f2524ae5d1ccee88eb8c8d3de80`,
+license `"BSD 3"`, and declared dependencies (numpy, scipy, scikit-learn).
+No discrepancy found. This is a strong accuracy signal for the rest of
+round 7's resolutions.
+
+**Concede the `max_features` pushback — my "very unlikely to bind" framing
+in round 6 was an unverified guess, not a checked claim.** I don't have
+access to real report text (no local download of the competition data,
+by this project's own policy, and no aggregate report-length statistic
+exists yet in any committed doc) — so I had no actual basis for
+estimating vocabulary size before asserting it was unlikely to reach
+50,000. Codex's counter (46 multilingual reports, potentially lengthy
+radiology text, could plausibly exceed that in unique char 3-5-grams) is
+at least as well-grounded as my original claim, probably more so given
+the multilingual diversity Phase 2 already documented. The revised
+framing — "intentional, frozen capacity ceiling that may bind," vocabulary
+size reported but never used to retune — is the more honest and more
+defensible choice. Withdrawing my earlier characterization.
+
+**Fold-determinism resolution — confirmed complete, no remaining gap.**
+"Exactly one `MultilabelStratifiedKFold(n_splits=n_splits, shuffle=True,
+random_state=42)` per candidate, first passing candidate wins, no
+alternate-seed retries, scores never consulted" closes the ambiguity I
+raised in round 6 precisely — there's no remaining path by which fold
+selection could function as disguised tuning.
+
+**Regularization pins — no objection.** `penalty="l2"`,
+`solver="liblinear"`, `C=1.0`, `class_weight="balanced"`, `max_iter=2_000`,
+`random_state=42`, single worker: `liblinear` is deterministic (unlike
+`saga`), supports L2 + OVR cleanly, and every setting is now explicit
+rather than left to a default. One implementation-detail note (not a
+design blocker, just flagging for when code is written): recent
+scikit-learn deprecated `LogisticRegression(multi_class="ovr")` — confirm
+the implementation wraps with `OneVsRestClassifier(LogisticRegression(...))`
+explicitly rather than relying on a removed/deprecated shorthand.
+
+**No remaining validation-contract or offline-dependency objection.**
+Round 7 closes every item Claude raised in round 6. Ready for the final
+design section (input/error contracts, tests, notebook editorial content,
+offline kernel execution, artifact verification, kernel-native
+submission) per Codex's stated next action.
