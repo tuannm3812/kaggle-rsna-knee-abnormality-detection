@@ -121,9 +121,16 @@ right kernel folder first, so the two never drift.
 `scripts/publish_code_dataset.sh <create|version "message">` — **not** a
 plain `kaggle datasets create/version -p .` from the repo root, which
 biohub confirmed does not honor `.kaggleignore` for directory uploads and
-can upload `.venv/`/`.git/` by accident. The script stages only `src/`,
-`README.md`, `pyproject.toml`, and `dataset-metadata.json` in a clean temp
-directory first.
+can upload `.venv/`/`.git/` by accident. The script stages `src/knee_mri`
+(as `knee_mri/`, so it lands at the dataset root rather than nested under
+`src/`), `README.md`, `LICENSE`, `pyproject.toml`, and
+`dataset-metadata.json` in a clean temp directory, and passes `-r zip` —
+the Kaggle CLI's default
+`--dir-mode` is `"skip"`, which silently omits directories (including
+`knee_mri/` itself) from the upload if omitted. A kernel that mounts the
+dataset should add `<dataset-mount>/` (not `<dataset-mount>/src/`) to
+`sys.path` to import `knee_mri`; `01_eda.ipynb`'s config cell checks both
+locations so it self-corrects if this ever changes.
 
 Submit with `scripts/submit_kaggle.sh`, which wraps
 `api.competition_submit_code(...)` against a completed kernel version —

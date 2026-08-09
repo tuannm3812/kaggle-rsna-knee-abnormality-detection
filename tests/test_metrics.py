@@ -34,7 +34,9 @@ def test_per_label_auc_returns_one_score_per_label_column():
     scores = per_label_auc(y_true, y_pred)
 
     assert set(scores.keys()) == set(LABEL_COLUMNS)
-    assert all(0.0 <= score <= 1.0 for score in scores.values())
+    # Both positives (0.7, 0.6) outrank both negatives (0.2, 0.3) in every
+    # (identical) column, so every label's AUC is exactly 1.0.
+    assert all(score == pytest.approx(1.0) for score in scores.values())
 
 
 def test_macro_auc_raises_on_single_class_column():
