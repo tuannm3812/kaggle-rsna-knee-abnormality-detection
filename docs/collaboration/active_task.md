@@ -32,17 +32,17 @@ before the next step starts.
 
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
-- Task: Weak-Label Evaluation — Design Review → Implementation Planning
-- Status: **IMPLEMENTED, PR open, awaiting Codex review.** Design
-  approved 2026-08-09 (11 rounds, see below). Implemented via
-  `superpowers:subagent-driven-development` in worktree
-  `worktree-weak-label-evaluation` (4 tasks, each independently
-  reviewed) plus a final whole-branch review that found and fixed one
-  real bug. PR: https://github.com/tuannm3812/kaggle-rsna-knee-abnormality-detection/pull/1
+- Task: Weak-Label Evaluation — Post-Merge Review and Kaggle Execution
+- Status: **PR #1 merged; one Codex follow-up fix required before the
+  Kaggle run.** Remote `main` contains merge commit `bfb2322`; local
+  `main` was fast-forwarded to it during Codex round 13. The implementation
+  is otherwise locally verified. Fix the ground-truth type-validation gap
+  below, rerun local checks, then proceed to the still-pending operational
+  phase.
 - Not yet done: the notebook has not been run on Kaggle (requires
   republishing `src/knee_mri` first); `docs/4_experiments.md` and
-  `docs/3_strategy.md`'s real-numbers entries are deferred until that
-  run produces actual output.
+  `docs/3_strategy.md`'s real-numbers entries remain part of this active
+  task and must wait until that run produces actual output.
 
 ## Review Thread
 
@@ -859,3 +859,82 @@ composition tests; the lax bool/float validation.
   internally consistent, but prints as a confident zero rather than
   "undefined" in the metrics table. Not a bug, but a live UX judgment
   call for however the eventual results table gets presented.
+
+### Round 12 — Codex review of the implementation plan (2026-08-09; recovered after merge)
+
+This review was performed against plan commit `279810c` before Claude's
+implementation, but it existed only as an uncommitted change in the shared
+`main` checkout and therefore was not visible inside Claude's linked
+worktree. It is restored here so the audit trail includes every Codex
+feedback round and so the apparent chronology in the two worktrees is
+explicit rather than silently rewritten.
+
+**Findings and their eventual disposition:**
+
+1. The planned Turkish-character regex used Unicode `re.IGNORECASE`, which
+   makes dotted-capital `İ` case-fold to ordinary ASCII `i/I`. Codex
+   reproduced misclassification of both `"Normal knee MRI"` and
+   `"plain ascii"`. Claude independently encountered the same failure during
+   implementation and fixed it in `d2db2f0` with explicit case variants and
+   no `IGNORECASE`. **Resolved.**
+2. The plan stopped at notebook scaffolding and excluded the approved
+   Kaggle run plus the required `docs/4_experiments.md` and
+   `docs/3_strategy.md` result entries. Claude's merged discussion now
+   acknowledges these as pending, but they have not happened. They remain
+   required within this active task. **Open.**
+3. The plan's intermediate test counts and final history assertion were
+   internally inconsistent. The progress ledger records the actual counts
+   and commit history; the historical plan itself still contains stale
+   expectations. **Operationally resolved; historical-plan drift retained.**
+4. The plan expected an empty shared-worktree status even though `.claude/`
+   was already present. Claude used a clean linked worktree; Codex preserved
+   `.claude/`, which is the linked-worktree container, and did not add or
+   remove it. **Resolved by execution context.**
+5. Codex requested an independent implementation-review checkpoint before
+   publishing or running on Kaggle. PR #1 was merged before that Codex
+   review occurred, but round 13 below now supplies the missing review before
+   any Kaggle publication/run. **Closed late; no history rewrite required.**
+
+Non-blocking hardening recommendation from round 12 remains open: the
+private evaluation kernel processes report text and has no network
+dependency, so prefer `enable_internet: false` unless a concrete need is
+identified.
+
+### Round 13 — Codex post-merge implementation review (2026-08-09)
+
+**Reviewed range:** plan commit `279810c` through implementation head
+`6f51b0b`, as merged by PR #1 in `bfb2322`.
+
+**Verification performed:** confirmed `6f51b0b` is an ancestor of remote
+`main`; fast-forwarded local `main` to the merge; ran the full suite (`55
+passed`), `ruff check .` (clean), `git diff --check 279810c..6f51b0b`
+(clean), and an explicit notebook check confirming zero outputs and zero
+execution counts. Claude's window-edge fix, real-extractor composition
+tests, strict extractor-output validation, and Turkish-regex correction are
+present and behave as documented.
+
+**Verdict: one narrow fix required before publishing/running on Kaggle.**
+
+1. **`true_df` does not enforce its documented exact integer-0/1
+   contract.** `_validate_true_df` uses `Series.isin([0, 1])`; Python/Pandas
+   equality semantics therefore accept `True` and `False`, as well as
+   `1.0` and `0.0`. Codex reproduced both a `True` ground-truth value and a
+   `1.0` ground-truth value passing validation and being scored. This is the
+   same input-boundary class Claude correctly fixed for extractor outputs,
+   but the ground-truth side was missed. Validate integer-like scalar types
+   explicitly while excluding booleans and floats, and add regression tests
+   for at least `True` and `1.0`. Preserve compatibility with the integer
+   scalar type produced by `pandas.read_csv`.
+2. **The implementation PR is not the completed approved task.** The
+   notebook has not run on the 58 labeled studies, so no real metrics,
+   taxonomy, bucket comparison, or allowlist exists yet. After item 1 and
+   local re-verification, publish the tested source dataset once, set the
+   private kernel's internet flag to false unless justified, push/run it,
+   inspect aggregate-only output, and record the results in
+   `docs/4_experiments.md` and `docs/3_strategy.md`. Do not mark/archive the
+   active task at notebook scaffolding.
+
+No rollback of PR #1 is recommended: the implemented behavior is otherwise
+consistent with the approved design and locally clean. Address item 1 in a
+forward fix commit and return it for a short Codex confirmation before the
+Kaggle operational phase.
