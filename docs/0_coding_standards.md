@@ -138,9 +138,11 @@ the zip's one top-level entry either way (flattening would upload
 `shutil.make_archive` zips a directory's *contents*, not the directory
 itself). `01_eda.ipynb`'s config cell checks both
 `<dataset-mount>/src/knee_mri` and `<dataset-mount>/knee_mri` before
-importing, and record the real observed layout in
-`docs/6_kaggle_troubleshooting.md` after the first publish so this stops
-being a guess.
+importing, and raises a clear error (rather than an opaque
+`ModuleNotFoundError`) if neither exists — including the case where the
+zip is left unextracted at the mount root. Record the real observed
+layout in `docs/6_kaggle_troubleshooting.md` after the first publish so
+this stops being a guess.
 
 Submit with `scripts/submit_kaggle.sh`, which wraps
 `api.competition_submit_code(...)` against a completed kernel version —
