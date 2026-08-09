@@ -47,6 +47,21 @@ biohub's, so there's nothing to usefully keep in a local `data/` folder.
   progress record. Append-only.
 - `6_kaggle_troubleshooting.md` — reusable diagnosis for Kaggle CLI/API
   friction. Append-only.
+- `7_codex_review_log.md` — independent Codex CLI review of design specs,
+  plans, and milestones, same pattern as `kaggriculture` and
+  `kaggle-s6e8-predicting-smartphone-addiction`. Append-only; one entry
+  per review, cited by section/date from the plan or spec it reviewed.
+
+## Codex Review
+
+At major milestones (a new design spec, a completed implementation
+phase), get an independent second opinion from the Codex CLI (`codex
+review` / `codex exec -s read-only`) alongside Claude's own review
+process — matches the manual, no-automation workflow already used in
+`kaggriculture` and `kaggle-s6e8-predicting-smartphone-addiction`: run it
+by hand, record findings in `docs/7_codex_review_log.md`, and treat it as
+a collaboration input, not an approved decision by itself. No CI/hook
+wiring — this is a workflow habit, not a config artifact.
 
 Notebook naming: `01_eda.ipynb`, `02_baseline_modeling.ipynb`, ... —
 zero-padded, matching the sibling repos. Prefer a new config flag inside
