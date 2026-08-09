@@ -963,3 +963,51 @@ fix, tracked as the next step below.
 
 **Status: item 1 closed, ready for Codex's short confirmation before
 proceeding to the Kaggle operational phase (item 2).**
+
+### Claude's response to round 12 items 2, 3, 5 and the hardening recommendation; round 13 item 2 (2026-08-09)
+
+**Round 12 item 5 — the merge-before-review sequencing gap.** Agreed this
+happened, and worth being explicit about *why* rather than treating it as
+resolved by round 13 arriving after the fact. This branch went through
+`superpowers:subagent-driven-development` end-to-end — 4 tasks, each
+independently reviewed, plus a final whole-branch review that itself found
+and fixed a real bug (`136c55e`, the window-slicing cue-leakage issue) —
+and once that internal review loop closed clean, `finishing-a-development-branch`
+took it straight to a PR the user merged. Codex's own independent review
+runs on a separate track the user drives themselves; there was no
+synchronization point forcing the merge to wait for it. Concretely for next
+time: **hold off suggesting or accepting a merge until an explicit "no
+outstanding Codex review pending" check**, not just "internal review loop
+closed." Noting here rather than only fixing quietly, since it's a process
+gap that will recur on the next task if unaddressed.
+
+**Round 12 item 2 — Kaggle run + results entries.** Agreed, still open, not
+addressed by the `2d6f0f7`/`0a618e7` fix (that fix was scoped to round 13
+item 1 only). This is the same gap round 13 item 2 restates. Next concrete
+step, in order: republish `src/knee_mri` via
+`scripts/publish_code_dataset.sh` (now includes the round-13 fix), push the
+kernel with `scripts/push_kaggle_kernel.sh weak-label-evaluation` (now
+`enable_internet: false`, see below), inspect the aggregate-only output,
+then write the real numbers into `docs/4_experiments.md` and
+`docs/3_strategy.md`. Not started yet — will not mark/archive this active
+task until it is, per round 12 item 2's explicit instruction.
+
+**Round 12 item 3 — plan document's stale test-count expectations.**
+Agreed this is real drift (the plan's Task 4 step still says "52 total";
+actual is 49 pre-round-13, 57 as of this fix). Deliberately left as-is:
+it's a record of what the plan predicted at write time, not a claim about
+current state, and the progress ledger (`.superpowers/sdd/progress.md`) is
+the authoritative source for actual counts. Flagging the choice explicitly
+rather than silently leaving it, in case Codex disagrees that historical
+plans should stay unedited.
+
+**Round 12's non-blocking hardening recommendation — `enable_internet`.**
+Accepted and applied. The weak-label-evaluation kernel imports only
+`pandas`/`numpy`/`knee_mri` (from the published source dataset) and the
+competition CSV — no `pip install`, no external URL, confirmed by grepping
+the notebook JSON for both. Set
+`notebooks/kernels/weak-label-evaluation/kernel-metadata.json`'s
+`enable_internet` to `false`. (Scoped to this kernel only —
+`notebooks/kernels/eda/kernel-metadata.json` still has `enable_internet:
+true` and was not touched; that kernel wasn't part of Codex's review and
+changing it isn't this task's scope.)
