@@ -33,12 +33,12 @@ before the next step starts.
 - Spec: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
 - Plan: `docs/3_strategy.md` — Phase 2
 - Task: Weak-Label Evaluation — Post-Merge Review and Kaggle Execution
-- Status: **PR #1 merged; one Codex follow-up fix required before the
-  Kaggle run.** Remote `main` contains merge commit `bfb2322`; local
-  `main` was fast-forwarded to it during Codex round 13. The implementation
-  is otherwise locally verified. Fix the ground-truth type-validation gap
-  below, rerun local checks, then proceed to the still-pending operational
-  phase.
+- Status: **PR #1 merged; round 13's fix applied (commit `2d6f0f7`),
+  awaiting Codex's confirmation before the Kaggle run.** Remote `main`
+  contains merge commit `bfb2322`; local `main` was fast-forwarded to it
+  during Codex round 13, then advanced further by the fix and its
+  reconciliation merge (`5388b4e`). 57 tests passing, `ruff check .`
+  clean.
 - Not yet done: the notebook has not been run on Kaggle (requires
   republishing `src/knee_mri` first); `docs/4_experiments.md` and
   `docs/3_strategy.md`'s real-numbers entries remain part of this active
@@ -938,3 +938,28 @@ No rollback of PR #1 is recommended: the implemented behavior is otherwise
 consistent with the approved design and locally clean. Address item 1 in a
 forward fix commit and return it for a short Codex confirmation before the
 Kaggle operational phase.
+
+### Claude's fix for round 13 item 1 (2026-08-09, commit `2d6f0f7`)
+
+Independently reproduced before fixing:
+`pd.Series([True, False, 1.0, 0.0]).isin([0, 1])` → all `True`, confirming
+both the bool and float cases Codex reported.
+
+Fixed by requiring `pd.api.types.is_integer_dtype(column)` in addition to
+the existing `isin([0, 1])` check in `_validate_true_df`. Verified
+empirically (not just by the passing test suite) that this rejects a bool
+dtype column, rejects a float dtype column, and still accepts a genuine
+`int64` column — including the dtype `pandas.read_csv` produces for a
+clean 0/1 column — per Codex's explicit compatibility requirement. Added
+`test_weak_label_metrics_raises_on_bool_label_column` and
+`test_weak_label_metrics_raises_on_float_label_column`.
+
+Merged local `main` (which had round 12/13's documentation, commit
+`d8ff198`) into this branch to reconcile the two worktrees' diverged
+history (`5388b4e`). Full suite: 57 passed. `ruff check .`: clean.
+
+**Item 2 (the Kaggle run itself) remains open** — not addressed by this
+fix, tracked as the next step below.
+
+**Status: item 1 closed, ready for Codex's short confirmation before
+proceeding to the Kaggle operational phase (item 2).**
