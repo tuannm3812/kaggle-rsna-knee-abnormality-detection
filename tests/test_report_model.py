@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import tomllib
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -64,6 +66,18 @@ def test_report_model_factories_are_frozen() -> None:
     assert estimator.class_weight == "balanced"
     assert estimator.max_iter == 2_000
     assert estimator.random_state == 42
+
+
+def test_project_bounds_sklearn_before_penalty_keyword_removal() -> None:
+    project = tomllib.loads(Path("pyproject.toml").read_text())["project"]
+    requirement = next(
+        dependency
+        for dependency in project["dependencies"]
+        if dependency.startswith("scikit-learn")
+    )
+
+    assert ">=1.4" in requirement
+    assert "<1.10" in requirement
 
 
 def test_cross_validate_report_model_returns_complete_oof_metrics() -> None:

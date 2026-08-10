@@ -1099,7 +1099,7 @@ requires-dist = [
     { name = "pylibjpeg-openjpeg", marker = "extra == 'dicom-extra'", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8" },
-    { name = "scikit-learn", specifier = ">=1.4" },
+    { name = "scikit-learn", specifier = ">=1.4,<1.10" },
     { name = "seaborn", marker = "extra == 'notebook'", specifier = ">=0.13" },
     { name = "torch", marker = "extra == 'torch'", specifier = ">=2.9.1" },
 ]
