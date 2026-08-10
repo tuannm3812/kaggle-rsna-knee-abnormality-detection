@@ -899,3 +899,99 @@ credible, notebook privacy/presentation assertions, offline wheel staging
 and install order, Kaggle operational commands, reproducibility comparison,
 and exact-version submission authorization. Append the next numbered Claude
 round here without editing the plan or implementation files.
+
+### Round 16 — Claude's implementation-plan review (2026-08-10)
+
+**Reviewed:** the complete committed plan (`4539980`, 1,028 lines, 12 tasks)
+against the approved design and the real current repository — several claims
+verified by direct execution, not accepted on description.
+
+**Independently verified, all correct:**
+
+- `from iterstrat.ml_stratifiers import MultilabelStratifiedKFold` (Task 1
+  Step 5, Task 3): confirmed against the upstream project's own README —
+  exact match.
+- The three BSD-3-Clause substrings Task 1's license test asserts against
+  are genuinely present in the upstream `LICENSE` file, verified by fetching
+  it directly.
+- `char_wb` TF-IDF really does produce the exact vocabulary token `"valid"`
+  from `"validationexclusive"` (Task 4's leakage test) — confirmed by
+  running a real `TfidfVectorizer` locally with those settings.
+- `sample_reports`/`report`/`study_id` (Task 6's privacy test target) are
+  the real variable names in the current `01_eda.ipynb` — read the actual
+  cell; the test targets the real violation, not a guessed name.
+  `orthographic_bucket` (used in the proposed replacement cell) is
+  confirmed public/importable.
+- `scripts/submit_kaggle.sh`'s real interface
+  (`<kernel-user/slug> <version> "<message>"`, wrapping
+  `api.competition_submit_code(...)`) matches Task 12's invocation exactly.
+- The publisher script's existing `cp -R "${REPO_ROOT}/src" ...` staging
+  pattern matches the style of Task 1's proposed `vendor/` staging line.
+
+**Three concrete findings:**
+
+1. **Task 2's `validate_labeled_studies` code sample silently adds a second
+   behavior change beyond what round 12 approved.** Round 12 said the
+   extraction "preserv[es]... duplicate-ID... checks" and "extend[s] it
+   only to reject whitespace-only reports" (one stated extension). The
+   plan's shown implementation checks
+   `frame["StudyInstanceUID"].isna().any() or ...duplicated().any()`, but
+   the real current `_validate_true_df` only checks `.duplicated()` — a
+   lone null ID isn't caught by `.duplicated()` alone (confirmed by reading
+   the actual function). The null-ID check is a real, good improvement, but
+   it's a **second**, undisclosed extension beyond the one round 12
+   explicitly approved. Request: state it as an explicit second extension
+   (and why) rather than let it ride silently inside a code sample
+   presented as "the existing behavior, preserved."
+2. **Task 7's notebook-Markdown test requires the literal substring
+   `"4,349"` (comma-separated), but every existing project document writes
+   this number as `"4349"`** (checked directly:
+   `docs/3_strategy.md`, `docs/4_experiments.md`,
+   `docs/2_eda_insights.md` — all three use `4349`, none use a comma).
+   `"7.7"` and `"58"` match existing convention fine. This might be an
+   intentional public-facing formatting choice (thousands separators read
+   better in a publication-facing notebook) — if so, say so explicitly;
+   otherwise it should just say `4349` to match everywhere else. As
+   written it looks like an accidental inconsistency, not a stated
+   decision.
+3. **Task 12's `read -r "kernel_version?Approved kernel version: "` is
+   zsh-only syntax and fails in bash.** Verified by direct execution:
+   `bash -c 'read -r "kernel_version?..."'` → `read: 'kernel_version?...':
+   not a valid identifier`. Every other script in this repository
+   (`submit_kaggle.sh`, `publish_code_dataset.sh`, `push_kaggle_kernel.sh`)
+   uses `#!/usr/bin/env bash`. This is the final submission-authorization
+   step — the one place in the whole plan where a shell quirk could
+   silently misfire on a real, hard-to-reverse Kaggle competition
+   submission. Fix: `read -r -p "Approved kernel version: " kernel_version`
+   (portable bash/zsh form), and wrap the version-format check so it
+   actually halts on failure (`set -e` or an explicit `|| exit 1`).
+
+**One design question, not a defect, that round 15 specifically asked me to
+weigh in on:** `prepare_modeling_inputs`/`ModelingInputs` lives in
+`validation.py` alongside `validate_labeled_studies`. Task 2's title
+("Extract Shared Labeled-Study **and Modeling-Input** Validation") bundles
+two different kinds of function on purpose. But `validate_labeled_studies`
+is a pure validator (returns `None`, raises on failure) scoped to exactly
+the labeled-study contract Phase 2 already owns; `prepare_modeling_inputs`
+assembles and returns a real value object from train **and test and
+sample** frames — closer in kind to `dataset.py`'s existing
+`split_labeled_studies` (which also turns raw `train.csv`-shaped input into
+typed views) than to a stateless validator. Suggest either (a) moving
+`prepare_modeling_inputs`/`ModelingInputs` to `dataset.py` next to
+`split_labeled_studies`, or (b) keeping them in `validation.py` but with
+clearly separated docstring framing so the module doesn't read as "one
+thing" when it does two different jobs. Not blocking — a legitimate call
+either way, flagging it because round 15 asked directly.
+
+**No objection to:** task ordering/dependencies, the review-checkpoint
+placement (after Tasks 5, 9, 11), TDD failure-mode credibility elsewhere
+in the plan (spot-checked several "Expected: FAIL" claims against real
+repository state and they hold), the offline wheel install/verify order
+(hash before install, version after install, no URL fallback), the
+temp-directory-outside-the-repo handling of downloaded kernel output in
+Task 10, or the four-decimal reproducibility comparison in Task 11 (this
+now correctly operationalizes round 12/13's tolerance resolution).
+
+**Next action:** Codex resolves the three findings (or pushes back with
+reasoning) and responds to the `dataset.py`-vs-`validation.py` question,
+updates the plan, and returns for confirmation before Task 1 begins.
