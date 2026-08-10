@@ -1245,3 +1245,79 @@ single-pass/no-score semantics, OOF leakage and coverage, the narrow warning
 filter, metric reuse, refit equivalence, and submission mutation/schema
 safety. Record findings or a clean confirmation as the next numbered round;
 do not edit implementation files from the reviewer role.
+
+### Round 21 — Claude's review of implementation Tasks 1–5 (2026-08-10)
+
+**Reviewed:** the complete diff `123e8fc..e6e2f35`, ran the full suite and
+lint myself, and independently executed several pieces of logic directly
+rather than trusting descriptions or the "113 passed" report alone.
+
+**Independently verified, all correct:**
+
+- `uv run pytest -q` → `113 passed`; `uv run ruff check .` → clean (matches
+  round 20's report).
+- Vendor wheel: `shasum -a 256` and `wc -c` on the actual tracked file give
+  exactly `476f8deff6753fb1725612fe41e59cc2058f8f2524ae5d1ccee88eb8c8d3de80`
+  and `8515` bytes — matches every prior verification in this thread.
+  License file: read it directly — exact BSD 3-Clause text, correct
+  copyright holder (Trent J. Bradberry), all three required substrings
+  present.
+- `scripts/publish_code_dataset.sh` really does stage `vendor/` now (read
+  the diff directly), and `test_code_dataset_publisher_stages_vendor_directory`
+  is a genuine improvement over the round-1 plan draft I'd have flagged:
+  it actually executes the real script with a fake `uv` shim and asserts
+  the real staged output, not a source-text grep.
+- `validate_labeled_studies`, `select_multilabel_folds`, and
+  `build_submission`: read all three in full: each matches the
+  plan/design exactly, including the two disclosed extensions (null-ID,
+  whitespace-only report) in the validator and the no-seed-retry,
+  single-instantiation-per-candidate fold selection.
+- `prepare_modeling_inputs`/`ModelingInputs` in `dataset.py`: correctly
+  calls `split_labeled_studies` and `validate_labeled_studies` rather than
+  re-deriving their logic; identifier-uniqueness checks run against the
+  full train/test/sample frames (not just the labeled subset), matching
+  the design's actual stated scope; blank/missing test-report
+  normalization and the non-string-non-missing rejection are both
+  correctly implemented.
+- OOF mechanics in `report_model.py`: `_validate_oof_coverage` correctly
+  asserts every row covered exactly once; each fold builds a fresh
+  vectorizer/classifier and fits the vectorizer on training indices only.
+  Ran the fold-local-vocabulary leakage test's core assumption myself
+  (`TfidfVectorizer(analyzer="char_wb", ngram_range=(3,5))` really does
+  produce the exact token `"valid"` from `"validationexclusive"`) —
+  confirmed by direct execution, and the test structure (token added to
+  the first 6 rows, asserted absent from fold 0's vocabulary and present
+  in folds 1-3's) is a real, well-constructed leakage check.
+- The narrow `FutureWarning` filter in `_fit_classifier`: ran it directly
+  three ways — a normal fit produces zero captured warnings (suppression
+  works), an unrelated `FutureWarning` raised before the call is *not*
+  swallowed (the filter is message-scoped, not category-blanket), and a
+  forced non-convergence case still raises `ConvergenceWarning` as a hard
+  error despite the coexisting suppression filter. All three behave
+  exactly as claimed.
+
+**One substantive finding, going beyond what round 20 flagged:** the
+`FutureWarning` being suppressed isn't cosmetic — I ran the exact frozen
+classifier config directly under `warnings.simplefilter("always")` and
+scikit-learn 1.9.0 emits: *"'penalty' was deprecated in version 1.8 and
+will be removed in 1.10... Use l1_ratio=0 instead of penalty='l2'..."*
+**`pyproject.toml`'s `"scikit-learn>=1.4"` has no upper bound.** A future
+`uv sync`/`uv lock --upgrade` that picks up scikit-learn 1.10 would very
+likely make `build_report_classifier()` raise a hard `TypeError` for an
+unexpected `penalty` keyword, breaking the frozen model this project spent
+several rounds (6-9) explicitly reviewing and pinning down — the exact
+`penalty="l2"` I originally asked to be stated explicitly rather than left
+implicit is the parameter now on a deprecation path. The project already
+has precedent for exactly this kind of guard:
+`"pydicom>=2.4,<3.0"` in the same dependency list. Request: add an upper
+bound, e.g. `"scikit-learn>=1.4,<1.10"`, so the frozen model's stability
+doesn't depend on nobody refreshing the lockfile before this phase (or any
+later phase reusing this module) finishes — rather than only suppressing
+the symptom while the underlying breaking-change risk stays live.
+
+**No objection to:** the rest of the implementation, task boundaries, or
+test coverage. This is a well-verified, well-tested batch.
+
+**Next action:** Codex adds the scikit-learn upper bound (or provides
+reasoning against it) and returns for a short confirmation before Task 6
+(notebook work) begins.
