@@ -155,91 +155,22 @@ def test_weak_label_metrics_passes_gate_false_when_precision_lower_bound_too_low
     assert metrics.loc["ACL", "precision_ci_low"] < MIN_PRECISION_LOWER_BOUND
 
 
-# -- weak_label_metrics: true_df schema validation --
+# -- weak_label_metrics: shared validation integration --
 
 
-def test_weak_label_metrics_raises_on_missing_column():
-    true_df = pd.DataFrame([{"StudyInstanceUID": "s1", "Report": "r"}])
+def test_weak_label_metrics_uses_shared_labeled_study_validator(monkeypatch):
+    calls = []
 
-    with pytest.raises(ValueError, match="missing required columns"):
-        weak_label_metrics(true_df, _constant_extractor(None))
+    def spy(frame: pd.DataFrame) -> None:
+        calls.append(frame)
 
-
-def test_weak_label_metrics_raises_on_empty_input():
-    true_df = pd.DataFrame(columns=["StudyInstanceUID", "Report", *LABEL_COLUMNS])
-
-    with pytest.raises(ValueError, match="zero rows"):
-        weak_label_metrics(true_df, _constant_extractor(None))
-
-
-def test_weak_label_metrics_raises_on_duplicate_study_id():
-    true_df = _true_df([_row("s1", "report a"), _row("s1", "report b")])
-
-    with pytest.raises(ValueError, match="duplicate StudyInstanceUID"):
-        weak_label_metrics(true_df, _constant_extractor(None))
-
-
-def test_weak_label_metrics_raises_on_non_binary_label_value():
+    monkeypatch.setattr("knee_mri.weak_label_evaluation.validate_labeled_studies", spy)
     true_df = _true_df([_row("s1", "report")])
-    true_df.loc[0, "ACL"] = 2
 
-    with pytest.raises(ValueError, match="outside"):
-        weak_label_metrics(true_df, _constant_extractor(None))
+    weak_label_metrics(true_df, _constant_extractor(None))
 
-
-def test_weak_label_metrics_raises_on_bool_label_column():
-    # bool is isin([0, 1])-equal to 0/1 (True == 1, False == 0), so this
-    # must be checked via a per-element type check, not just isin.
-    true_df = _true_df([_row("s1", "report")])
-    true_df["ACL"] = true_df["ACL"].astype(bool)
-
-    with pytest.raises(ValueError, match="outside"):
-        weak_label_metrics(true_df, _constant_extractor(None))
-
-
-def test_weak_label_metrics_raises_on_mixed_object_column_with_bool_value():
-    # A column with a smuggled True mixed among plain ints has dtype
-    # "object", not "bool" -- Codex round 14 found a dtype-only check
-    # (pd.api.types.is_bool_dtype) misses this, since is_bool_dtype is
-    # False for an object-dtype column even when one of its values is a
-    # real bool. Must be caught at the element level instead.
-    true_df = _true_df([_row("s1", "report"), _row("s2", "report2")])
-    true_df["ACL"] = pd.Series([True, 0], dtype=object)
-
-    with pytest.raises(ValueError, match="outside"):
-        weak_label_metrics(true_df, _constant_extractor(None))
-
-
-def test_weak_label_metrics_accepts_float_label_column_with_clean_0_1_values():
-    # pandas.read_csv upcasts a column to float64 whenever it contains
-    # NaN anywhere in the full column -- train.csv's label columns are
-    # NaN for the unlabeled studies, and that float64 dtype survives
-    # filtering down to only the labeled, non-NaN subset. A clean
-    # 0.0/1.0 float column is this dataset's actual normal ground-truth
-    # shape and must be accepted, not rejected.
-    true_df = _true_df([_row("s1", "report", ACL=1), _row("s2", "report2", ACL=0)])
-    true_df["ACL"] = true_df["ACL"].astype(float)
-
-    metrics = weak_label_metrics(true_df, _constant_extractor(None))
-
-    assert metrics.loc["ACL", "actual_positive_support"] == 1
-
-
-def test_weak_label_metrics_raises_on_fractional_label_value():
-    true_df = _true_df([_row("s1", "report")])
-    true_df["ACL"] = true_df["ACL"].astype(float)
-    true_df.loc[0, "ACL"] = 0.5
-
-    with pytest.raises(ValueError, match="outside"):
-        weak_label_metrics(true_df, _constant_extractor(None))
-
-
-def test_weak_label_metrics_raises_on_missing_report():
-    true_df = _true_df([_row("s1", "report")])
-    true_df.loc[0, "Report"] = None
-
-    with pytest.raises(ValueError, match="missing or non-string Report"):
-        weak_label_metrics(true_df, _constant_extractor(None))
+    assert len(calls) == 1
+    assert calls[0] is true_df
 
 
 # -- weak_label_metrics: extractor output validation --

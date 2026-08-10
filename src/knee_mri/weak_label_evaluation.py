@@ -14,10 +14,10 @@ import math
 import re
 from collections.abc import Callable, Mapping
 
-import numpy as np
 import pandas as pd
 
 from knee_mri.labels import LABEL_COLUMNS
+from knee_mri.validation import validate_labeled_studies
 
 # Frozen decision-rule constants -- set before any real result was
 # viewed (see the design spec's "Decision rule" section for the
@@ -50,39 +50,6 @@ def _wilson_interval(k: int, n: int) -> tuple[float, float]:
     center = (p_hat + _Z**2 / (2 * n)) / denom
     margin = (_Z / denom) * math.sqrt(p_hat * (1 - p_hat) / n + _Z**2 / (4 * n**2))
     return center - margin, center + margin
-
-
-def _validate_true_df(true_df: pd.DataFrame) -> None:
-    required_columns = {"StudyInstanceUID", "Report", *LABEL_COLUMNS}
-    missing = required_columns - set(true_df.columns)
-    if missing:
-        raise ValueError(f"true_df is missing required columns: {sorted(missing)}")
-    if len(true_df) == 0:
-        raise ValueError("true_df has zero rows")
-    if true_df["StudyInstanceUID"].duplicated().any():
-        raise ValueError("true_df has duplicate StudyInstanceUID values")
-    for label in LABEL_COLUMNS:
-        column = true_df[label]
-        # Reject any bool value at the element level (Python bool or
-        # numpy.bool_), not just bool dtype -- a mixed-type column (e.g.
-        # pd.Series([True, 0]), dtype "object") is *not* bool dtype, so
-        # a dtype-only check misses a True value smuggled in there.
-        # True/False are isin([0, 1])-equal to 1/0 via `==`, so without
-        # this a boolean value passed by mistake would otherwise
-        # silently score as a valid label. Deliberately NOT requiring
-        # integer dtype: pandas.read_csv upcasts a column to float64
-        # whenever it contains NaN anywhere in the full column
-        # (train.csv's label columns are NaN for the 4349 unlabeled
-        # studies), and that float64 dtype survives filtering down to
-        # only the labeled, non-NaN subset -- rejecting float dtype here
-        # would reject the actual normal shape of this dataset's
-        # ground truth, not just malformed input.
-        has_bool_value = column.apply(lambda value: isinstance(value, (bool, np.bool_))).any()
-        if has_bool_value or not column.isin([0, 1]).all():
-            raise ValueError(f"true_df column '{label}' has values outside {{0, 1}}")
-    is_string = true_df["Report"].apply(lambda value: isinstance(value, str))
-    if true_df["Report"].isna().any() or not is_string.all():
-        raise ValueError("true_df has a missing or non-string Report value")
 
 
 def _validate_extractor_output(prediction_map: Mapping[str, int | None]) -> None:
@@ -146,9 +113,9 @@ def weak_label_metrics(
       - true_df missing StudyInstanceUID, Report, or any LABEL_COLUMNS
         column
       - true_df has zero rows
-      - a duplicate StudyInstanceUID
+      - a null or duplicate StudyInstanceUID
       - any LABEL_COLUMNS value that isn't exactly 0 or 1 (including NaN)
-      - a missing or non-string Report value
+      - a missing, non-string, or whitespace-only Report value
     Also validates `extractor`'s output on every call: raises ValueError
     if the returned mapping's keys are not exactly LABEL_COLUMNS, or if
     any value is not in {0, 1, None}.
@@ -175,7 +142,7 @@ def weak_label_metrics(
         ValueError: On any of the schema violations above, for either
             true_df or the extractor's output.
     """
-    _validate_true_df(true_df)
+    validate_labeled_studies(true_df)
 
     counts = {
         label: {
