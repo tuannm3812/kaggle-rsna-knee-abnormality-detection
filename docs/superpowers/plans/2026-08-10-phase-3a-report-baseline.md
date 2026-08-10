@@ -212,7 +212,12 @@ def test_validate_labeled_studies_rejects_null_study_id() -> None:
 
 Run: `uv run pytest tests/test_validation.py tests/test_dataset.py tests/test_weak_label_evaluation.py -q`
 
-Expected: collection FAIL with `ModuleNotFoundError: No module named 'knee_mri.validation'`.
+Expected: collection FAIL for both missing interfaces:
+
+- `ModuleNotFoundError: No module named 'knee_mri.validation'` from the new
+  validation tests.
+- `ImportError: cannot import name 'prepare_modeling_inputs' from
+  'knee_mri.dataset'` from the expanded dataset tests.
 
 - [ ] **Step 4: Implement the shared validator without weakening Phase 2 behavior**
 
