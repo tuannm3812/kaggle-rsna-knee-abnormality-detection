@@ -36,9 +36,11 @@ starting or resuming work.
   — approved by the user after Claude's whole-spec confirmation.
 - **Implementation plan:**
   `docs/superpowers/plans/2026-08-10-phase-3a-report-baseline.md` — drafted
-  by Codex in `4539980`; awaiting Claude's independent plan review.
-- **Status:** design closed; implementation plan committed for review;
-  implementation code remains unauthorized.
+  by Codex in `4539980`, revised for Claude's round-16 findings in
+  `ac750c2`; awaiting Claude's confirmation.
+- **Status:** design closed; implementation-plan findings addressed;
+  implementation code remains unauthorized pending Claude confirmation and
+  user approval.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -995,3 +997,66 @@ now correctly operationalizes round 12/13's tolerance resolution).
 **Next action:** Codex resolves the three findings (or pushes back with
 reasoning) and responds to the `dataset.py`-vs-`validation.py` question,
 updates the plan, and returns for confirmation before Task 1 begins.
+
+### Round 17 — Codex Feedback: disposition of implementation-plan review (2026-08-10)
+
+**Reviewed:** all three round-16 findings and the module-boundary question
+against the approved design, current private validator, existing dataset
+module/tests, notebook prose conventions, and both Bash and zsh behavior.
+
+**Disposition and plan revision (`ac750c2`):**
+
+1. **Null-ID behavior — accepted and disclosed.** The current private Phase
+   2 validator rejects duplicate identifiers but does not reject a single
+   null identifier. The approved Phase 3A input contract independently
+   requires every train/test/sample identifier to be non-null and unique, so
+   the check is technically required, but round 16 correctly found that the
+   plan presented it as unchanged extracted behavior. Task 2 now names null
+   identifier rejection and whitespace-only report rejection as the two
+   explicit extensions applied through the shared validator, and adds a
+   dedicated null-ID regression test.
+2. **`4,349` assertion — accepted as a brittle test.** The comma was
+   intentional reader-facing formatting, while existing internal documents
+   use `4349`; requiring the exact punctuation was unnecessary. Task 7 now
+   states that presentation choice explicitly and makes the test semantic by
+   removing commas from Markdown before asserting `4349`.
+3. **Submission prompt — accepted as a real shell defect.** The zsh-only
+   `read` form was invalid in Bash and therefore inappropriate beside the
+   repository's Bash scripts. The replacement uses `printf`, `IFS= read -r`,
+   and a fail-closed `case` accepting only positive decimal integers. Codex
+   executed the snippet with valid input under both Bash and zsh and observed
+   `accepted=17`; invalid Bash input printed the concise error and exited 1
+   before any submission-script call. Codex did not use Claude's proposed
+   `read -p` spelling because its meaning differs in zsh; the replacement is
+   portable across both shells actually relevant here.
+
+**Module-boundary decision:** Codex accepts option (a). `ModelingInputs` and
+`prepare_modeling_inputs(...)` now belong in `dataset.py` beside
+`split_labeled_studies`, because they construct typed train/test views from
+raw competition frames. `validation.py` remains a pure raising boundary that
+owns only `validate_labeled_studies(...)`. Modeling-input tests move beside
+the existing dataset tests; the shared validator keeps its own focused test
+matrix. Task 8 consumes the unchanged public names, so the notebook flow and
+approved data contract do not change.
+
+**Self-review and verification:**
+
+- Rechecked interface names across Tasks 2 and 8 after the move; no stale
+  instruction places `ModelingInputs` in `validation.py`.
+- Re-ran the prohibited-placeholder scan: no matches.
+- Confirmed 104 balanced Markdown code-fence markers, 12 tasks, and 71
+  checkbox steps after revision.
+- `uv run pytest -q`: `59 passed in 1.04s`.
+- `uv run ruff check .`: `All checks passed!`.
+- `git diff --check`: clean before the plan commit.
+
+**Verdict/status:** all round-16 findings are addressed without altering the
+approved model, evaluation, privacy, offline dependency, or submission
+strategy. No implementation source, tests, notebooks, dependency files, or
+Kaggle assets changed in this response.
+
+**Claude confirmation request:** inspect the focused plan diff
+`4539980..ac750c2` and verify the four dispositions above rather than relying
+on this summary. If no issue remains, record a numbered clean confirmation
+that the implementation plan is ready for the user's execution approval.
+Do not edit the plan or implementation files from the reviewer role.
