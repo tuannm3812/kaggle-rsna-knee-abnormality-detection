@@ -37,10 +37,10 @@ starting or resuming work.
 - **Implementation plan:**
   `docs/superpowers/plans/2026-08-10-phase-3a-report-baseline.md` — drafted
   by Codex in `4539980`, revised for Claude's round-16 findings in
-  `ac750c2`; awaiting Claude's confirmation.
-- **Status:** design closed; implementation-plan findings addressed;
-  implementation code remains unauthorized pending Claude confirmation and
-  user approval.
+  `ac750c2`, confirmed clean by Claude in round 18.
+- **Status:** design and implementation plan both closed with no remaining
+  finding; implementation code (Task 1) remains unauthorized pending the
+  user's explicit execution approval.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -1060,3 +1060,63 @@ Kaggle assets changed in this response.
 on this summary. If no issue remains, record a numbered clean confirmation
 that the implementation plan is ready for the user's execution approval.
 Do not edit the plan or implementation files from the reviewer role.
+
+### Round 18 — Claude's confirmation (2026-08-10)
+
+**Verified, not accepted on description:** diffed `4539980..ac750c2`
+directly and independently re-executed the shell fix rather than trusting
+round 17's own test claim.
+
+1. **Null-ID disclosure — confirmed correct.** The revised Task 2 now
+   states both extensions explicitly ("The null-ID rejection is an
+   explicit Phase 3A input-contract extension... whitespace-only report
+   rejection is the other extension") and adds a dedicated
+   `test_validate_labeled_studies_rejects_null_study_id` regression test.
+   No longer presented as unchanged extracted behavior.
+2. **`4,349`/`4349` — confirmed correct, and a better fix than what I
+   proposed.** Rather than picking one convention, the revised test
+   strips commas before comparing (`"4349" in markdown.replace(",", "")`)
+   and the plan states the public-facing comma formatting is an
+   intentional reader-facing choice, distinct from internal docs' `4349`.
+   The test is now robust to either representation instead of coupled to
+   punctuation.
+3. **Shell fix — independently re-ran it in both bash and zsh myself,
+   not just trusted round 17's report.** `printf 'Approved kernel
+   version: '` + `IFS= read -r kernel_version` + a fail-closed `case`
+   pattern: valid input `17` → `accepted=17`, exit 0, in both shells;
+   invalid input `0` and `abc` → the concise error, exit 1, before
+   reaching `submit_kaggle.sh`, in both shells. Confirmed exactly as
+   claimed. This is also a better fix than my own suggested `read -p`
+   spelling — Codex correctly identified that `read -p`'s behavior isn't
+   identical between bash and zsh, which I hadn't considered; the
+   `printf`+`read` combination sidesteps that difference entirely rather
+   than picking one shell's idiom.
+4. **Module boundary — confirmed correct and consistently applied.**
+   `ModelingInputs`/`prepare_modeling_inputs` now live in `dataset.py`
+   beside `split_labeled_studies`; `validation.py` is left as a pure
+   raising boundary holding only `validate_labeled_studies`. Grepped the
+   full plan for every remaining reference to both names — no stale
+   instruction places them in the wrong module, and Task 8's notebook
+   flow imports are consistent with the new placement.
+
+**One trivial, non-blocking nitpick found while re-checking TDD
+credibility (introduced fresh by this exact revision, not present in the
+plan I reviewed in round 16):** Task 2's Step 3 still says "Expected:
+collection FAIL with `ModuleNotFoundError: No module named
+'knee_mri.validation'`" for a `pytest` run that now also includes
+`tests/test_dataset.py`. Verified directly: importing
+`prepare_modeling_inputs` from the already-existing `knee_mri.dataset`
+module raises a *different* error
+(`ImportError: cannot import name 'prepare_modeling_inputs' from
+'knee_mri.dataset'`), not `ModuleNotFoundError` — because the module
+itself already exists, only the name is missing. The plan's stated
+expectation only names one of the two collection failures that run would
+actually produce. Doesn't change any behavior or require a design
+decision — purely a precision nit in the "Expected" text, safe to fix in
+passing during Task 2 or leave as understood shorthand.
+
+**Verdict: no remaining blocking finding. The implementation plan is
+ready for the user's execution approval.** All three round-16 findings
+and the module-boundary question are correctly and verifiably resolved.
+Per this project's process, implementation Task 1 may begin once the
+user explicitly authorizes execution.
