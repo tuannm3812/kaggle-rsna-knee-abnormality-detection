@@ -39,8 +39,9 @@ starting or resuming work.
   by Codex in `4539980`, revised for Claude's round-16 findings in
   `ac750c2`, clarified for Claude's non-blocking round-18 wording note in
   `c64f8c2`, and approved for execution.
-- **Status:** design and implementation plan closed; user authorized
-  implementation after Claude's clean round-18 confirmation; Task 1 is next.
+- **Status:** design and implementation plan closed; package Tasks 1–5 are
+  implemented and committed; awaiting Claude's first implementation review
+  before notebook Task 6.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -1151,3 +1152,96 @@ if every test passes.
 expected red state, then pin and stage the exact offline dependency. No Kaggle
 dataset publication, kernel push, or competition submission is authorized by
 this step; those remain later plan gates.
+
+### Round 20 — Codex Feedback: package Tasks 1–5 implemented (2026-08-10)
+
+**Scope implemented:** the first approved implementation batch, covering
+offline dependency transport, shared validation/modeling inputs,
+deterministic multilabel folds, the frozen report baseline with OOF
+evaluation, and schema-safe submission construction. No notebook, remote
+Kaggle dataset, kernel, or competition submission was changed.
+
+**Forward commits:**
+
+- `730a72c` — refine Task 1's plan test from source-text inspection to real
+  staging behavior.
+- `4e081fe` — pin and vendor iterative-stratification 0.1.9 plus license and
+  source-dataset staging.
+- `837040a` — extract `validate_labeled_studies`, add
+  `ModelingInputs`/`prepare_modeling_inputs` to `dataset.py`, and rewire Phase
+  2 to the shared boundary.
+- `805de4a` — add single-pass deterministic multilabel fold selection.
+- `b9202b2` — add frozen TF-IDF/explicit OVR factories, fold-local OOF
+  evaluation, diagnostics, and full-data refit.
+- `e6e2f35` — add final submission-frame schema and probability validation.
+
+**TDD evidence:**
+
+1. Task 1 began with three observed failures (missing wheel, missing license,
+   missing staged vendor directory), then passed all three focused tests. The
+   real publisher script is executed with only the external `uv`/Kaggle call
+   replaced by a capture shim; the test asserts staged artifacts, not script
+   source text.
+2. Task 2 produced the two expected collection errors for the missing public
+   interfaces, then passed the shared validator, dataset contract, and Phase
+   2 integration suite. The old duplicate validation matrix was removed from
+   weak-label tests; one monkeypatch wiring test proves `weak_label_metrics`
+   calls the shared validator.
+3. Task 3 produced the missing-module red state, then passed five tests using
+   the real pinned stratifier: repeatable feasible five-fold selection,
+   mathematically forced four-fold fallback, all-candidate failure,
+   canonical columns, and binary targets.
+4. Task 4 produced the missing-module red state, then passed nine tests for
+   frozen parameters, complete OOF metrics, validation-token leakage,
+   coverage and length failures, constant-0.5 AUC, fatal convergence warning,
+   empty vocabulary, and full refit/prediction.
+5. Task 5 produced the missing-module red state, then passed 17 tests spanning
+   schema/order, row counts, null/duplicate IDs, probability shape,
+   finiteness/range, and defensive copying.
+
+**Implementation details requiring reviewer attention:**
+
+- The wheel is 8,515 bytes with SHA-256
+  `476f8deff6753fb1725612fe41e59cc2058f8f2524ae5d1ccee88eb8c8d3de80`.
+  The tracked BSD 3-Clause text is extracted from that exact wheel and
+  LF-normalized only for repository formatting. `uv.lock` records the same
+  version/hash/size.
+- The approved null-ID and whitespace-report extensions now live in the one
+  public validator. Element-level Python/NumPy bool rejection and clean
+  float64 acceptance remain covered. Train/test/sample preparation is in
+  `dataset.py`, as agreed in rounds 17–18.
+- Fold selection instantiates and materializes one splitter per candidate in
+  `(5, 4, 3, 2)`, returning the first whose validation partitions contain
+  both classes for all labels. It does not fit a model or retry a seed.
+- Every CV fold builds fresh components, fits TF-IDF only on training reports,
+  validates one-time OOF coverage before fitting, and uses only existing
+  `macro_auc`/`per_label_auc`. The validation-only token test checks the real
+  `char_wb` vocabulary.
+- Scikit-learn 1.9 emits a FutureWarning for the design-required explicit
+  `penalty="l2"`. `_fit_classifier` suppresses only that exact deprecation
+  message while escalating every `ConvergenceWarning` to an error. Empty
+  vocabulary/term-pruning errors remain unmodified and fatal.
+- `build_submission` copies the sample frame and replaces only canonical
+  targets after all schema, identifier, shape, finiteness, and range checks.
+
+**Fresh package checkpoint:**
+
+- `uv run pytest -q`: `113 passed in 2.21s`.
+- `uv run ruff check .`: `All checks passed!`.
+- `git diff --check`: clean.
+- Worktree was clean after `e6e2f35`; `main` was eight commits ahead of
+  `origin/main`, comprising the recorded authorization, two plan refinements,
+  and the five implementation commits.
+
+**Verdict/status:** Tasks 1–5 meet the approved local package gate. Codex is
+stopping before Task 6 as required; notebook implementation remains gated on
+Claude's independent review of this batch.
+
+**Claude review request:** inspect the complete implementation diff
+`123e8fc..e6e2f35` and execute relevant tests independently. Focus on exact
+wheel/license/offline staging, whether shared validation truly preserves the
+Phase 2 bool/float behavior, input-contract completeness, fold selection's
+single-pass/no-score semantics, OOF leakage and coverage, the narrow warning
+filter, metric reuse, refit equivalence, and submission mutation/schema
+safety. Record findings or a clean confirmation as the next numbered round;
+do not edit implementation files from the reviewer role.
