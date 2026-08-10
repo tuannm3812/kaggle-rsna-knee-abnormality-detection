@@ -133,12 +133,15 @@ git commit -m "build(deps): vendor iterative stratification for offline kernels"
 **Files:**
 - Create: `src/knee_mri/validation.py`
 - Create: `tests/test_validation.py`
+- Modify: `src/knee_mri/dataset.py`
+- Modify: `tests/test_dataset.py`
 - Modify: `src/knee_mri/weak_label_evaluation.py`
 - Modify: `tests/test_weak_label_evaluation.py`
 
 **Interfaces:**
 - Consumes: `split_labeled_studies(train_df) -> tuple[pd.DataFrame, pd.DataFrame]` and `LABEL_COLUMNS`.
-- Produces: `validate_labeled_studies(frame: pd.DataFrame) -> None`, immutable `ModelingInputs`, and `prepare_modeling_inputs(train_df: pd.DataFrame, test_df: pd.DataFrame, sample_df: pd.DataFrame, expected_labeled_count: int = 58) -> ModelingInputs`.
+- Produces from `validation.py`: the pure raising boundary `validate_labeled_studies(frame: pd.DataFrame) -> None`.
+- Produces from `dataset.py`: immutable `ModelingInputs` and `prepare_modeling_inputs(train_df: pd.DataFrame, test_df: pd.DataFrame, sample_df: pd.DataFrame, expected_labeled_count: int = 58) -> ModelingInputs`, alongside the existing dataset-view constructor `split_labeled_studies`.
 
 - [ ] **Step 1: Move the hardened validation matrix to the new public boundary**
 
@@ -169,9 +172,9 @@ def test_weak_label_metrics_uses_shared_labeled_study_validator(monkeypatch) -> 
     assert calls == [true_df]
 ```
 
-- [ ] **Step 2: Write modeling-input contract tests**
+- [ ] **Step 2: Write modeling-input contract tests beside the existing dataset tests**
 
-Use a helper that builds 58 rows with every label alternating `0.0/1.0`, plus two test/sample rows. Add tests proving the returned labeled frame has 58 rows, empty test reports normalize to `""`, the missing/empty aggregate count is correct, and these failures raise `ValueError`: wrong labeled count, missing required train/test/sample columns, duplicate IDs in each frame, sample/test ID order mismatch, one-class labels, missing labeled reports, and non-string non-missing test reports.
+Add these cases to `tests/test_dataset.py` and import `prepare_modeling_inputs` from `knee_mri.dataset`. Use a helper that builds 58 rows with every label alternating `0.0/1.0`, plus two test/sample rows. Add tests proving the returned labeled frame has 58 rows, empty test reports normalize to `""`, the missing/empty aggregate count is correct, and these failures raise `ValueError`: wrong labeled count, missing required train/test/sample columns, null or duplicate IDs in each frame, sample/test ID order mismatch, one-class labels, missing labeled reports, and non-string non-missing test reports.
 
 ```python
 def test_prepare_modeling_inputs_normalizes_empty_test_reports() -> None:
@@ -193,26 +196,29 @@ def test_prepare_modeling_inputs_rejects_sample_id_reordering() -> None:
         prepare_modeling_inputs(train_df, test_df, sample_df)
 ```
 
+Add this regression to `tests/test_validation.py` so the design-mandated
+non-null identifier rule is visible rather than hidden inside implementation:
+
+```python
+def test_validate_labeled_studies_rejects_null_study_id() -> None:
+    frame = _true_df([_row("s1", "report")])
+    frame.loc[0, "StudyInstanceUID"] = None
+
+    with pytest.raises(ValueError, match="null or duplicate StudyInstanceUID"):
+        validate_labeled_studies(frame)
+```
+
 - [ ] **Step 3: Run tests and confirm the public module is missing**
 
-Run: `uv run pytest tests/test_validation.py tests/test_weak_label_evaluation.py -q`
+Run: `uv run pytest tests/test_validation.py tests/test_dataset.py tests/test_weak_label_evaluation.py -q`
 
 Expected: collection FAIL with `ModuleNotFoundError: No module named 'knee_mri.validation'`.
 
 - [ ] **Step 4: Implement the shared validator without weakening Phase 2 behavior**
 
-Create `validation.py` with Google-style docstrings and this shape:
+Create `validation.py` with Google-style docstrings and this shape. The null-ID rejection is an explicit Phase 3A input-contract extension to the extracted Phase 2 behavior; whitespace-only report rejection is the other extension. Both now apply consistently to every caller of the shared public validator:
 
 ```python
-@dataclass(frozen=True)
-class ModelingInputs:
-    """Validated train/test frames for Phase 3A modeling."""
-
-    labeled_studies: pd.DataFrame
-    test_studies: pd.DataFrame
-    missing_test_report_count: int
-
-
 def validate_labeled_studies(frame: pd.DataFrame) -> None:
     required = {"StudyInstanceUID", "Report", *LABEL_COLUMNS}
     missing = required - set(frame.columns)
@@ -234,9 +240,23 @@ def validate_labeled_studies(frame: pd.DataFrame) -> None:
         raise ValueError("labeled studies have a Report empty after stripping")
 ```
 
-Implement `prepare_modeling_inputs` to validate exact schemas, null/duplicate IDs, sample/test ID equality in row order, the exact labeled count, both classes for every target, test report types, and empty normalization. Copy returned frames so caller mutations cannot alter inputs.
+- [ ] **Step 5: Implement modeling-input assembly in `dataset.py`**
 
-- [ ] **Step 5: Rewire Phase 2 to the public validator**
+Define the immutable value object beside `split_labeled_studies`:
+
+```python
+@dataclass(frozen=True)
+class ModelingInputs:
+    """Validated train/test views for Phase 3A modeling."""
+
+    labeled_studies: pd.DataFrame
+    test_studies: pd.DataFrame
+    missing_test_report_count: int
+```
+
+Implement `prepare_modeling_inputs` with the exact signature in this task's Interfaces block. The function calls `split_labeled_studies` and `validate_labeled_studies`, then validates exact train/test/sample schemas, null/duplicate IDs, sample/test ID equality in row order, the exact labeled count, both classes for every target, test report types, and empty normalization. Copy returned frames so caller mutations cannot alter inputs. This keeps `validation.py` a pure raising boundary and `dataset.py` responsible for constructing typed views from raw competition frames.
+
+- [ ] **Step 6: Rewire Phase 2 to the public validator**
 
 Delete `_validate_true_df`, import `validate_labeled_studies`, and replace its call inside `weak_label_metrics`:
 
@@ -244,16 +264,16 @@ Delete `_validate_true_df`, import `validate_labeled_studies`, and replace its c
 validate_labeled_studies(true_df)
 ```
 
-- [ ] **Step 6: Run the validation and Phase 2 regression suite**
+- [ ] **Step 7: Run the validation, dataset, and Phase 2 regression suite**
 
-Run: `uv run pytest tests/test_validation.py tests/test_weak_label_evaluation.py -q`
+Run: `uv run pytest tests/test_validation.py tests/test_dataset.py tests/test_weak_label_evaluation.py -q`
 
 Expected: PASS, including clean `float64` labels and element-level bool rejection.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/knee_mri/validation.py src/knee_mri/weak_label_evaluation.py tests/test_validation.py tests/test_weak_label_evaluation.py
+git add src/knee_mri/validation.py src/knee_mri/dataset.py src/knee_mri/weak_label_evaluation.py tests/test_validation.py tests/test_dataset.py tests/test_weak_label_evaluation.py
 git commit -m "refactor(validation): share hardened labeled-study checks"
 ```
 
@@ -655,7 +675,12 @@ git commit -m "docs(notebook): polish aggregate EDA narrative"
 
 - [ ] **Step 1: Extend notebook policy tests to the weak-label notebook**
 
-Parameterize the generic output/guard/version/privacy checks across `01_eda.ipynb` and `02_weak_label_evaluation.ipynb`. Add assertions that weak-label Markdown contains `0/12`, `No-go`, `58`, `4,349`, and `7.7`, contains no form of `pending`, and code does not display report text, identifiers, or row-level extractor output.
+Parameterize the generic output/guard/version/privacy checks across `01_eda.ipynb` and `02_weak_label_evaluation.ipynb`. Add assertions that weak-label Markdown contains `0/12`, `No-go`, `58`, and `7.7`, contains no form of `pending`, and code does not display report text, identifiers, or row-level extractor output. Public-facing prose intentionally renders the unlabeled-study count as `4,349` for readability while existing internal docs retain `4349`; keep the test semantic rather than coupling it to punctuation:
+
+```python
+markdown = _markdown_source(_load_notebook("notebooks/02_weak_label_evaluation.ipynb"))
+assert "4349" in markdown.replace(",", "")
+```
 
 - [ ] **Step 2: Run the focused test and confirm stale narrative remains**
 
@@ -988,12 +1013,16 @@ Do not submit. Claude must record no unresolved implementation finding, then the
 Run:
 
 ```bash
-read -r "kernel_version?Approved kernel version: "
-[[ "${kernel_version}" =~ ^[1-9][0-9]*$ ]]
+printf 'Approved kernel version: '
+IFS= read -r kernel_version
+case "${kernel_version}" in
+  [1-9]|[1-9][0-9]*) ;;
+  *) echo "Kernel version must be a positive integer." >&2; exit 1 ;;
+esac
 scripts/submit_kaggle.sh tuannm3812/rsna-knee-baseline-modeling "${kernel_version}" "Phase 3A frozen report baseline"
 ```
 
-Enter only the integer explicitly named in the user's approval and re-read it aloud in the execution handoff. Do not upload a separately generated CSV.
+This `printf` plus `IFS= read -r` prompt works in both Bash and zsh, and the `case` statement exits before the submission script for empty, zero, negative, or nonnumeric input. Enter only the integer explicitly named in the user's approval and re-read it aloud in the execution handoff. Do not upload a separately generated CSV.
 
 - [ ] **Step 2: Verify submission status and score**
 
