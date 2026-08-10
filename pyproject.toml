@@ -19,6 +19,7 @@ dependencies = [
     "pandas>=2.2",
     "numpy>=1.26",
     "scikit-learn>=1.4",
+    "iterative-stratification==0.1.9",
     "pydicom>=2.4,<3.0",
 ]
 

@@ -12,6 +12,7 @@ STAGE_DIR="$(mktemp -d)"
 trap 'rm -rf "${STAGE_DIR}"' EXIT
 
 cp -R "${REPO_ROOT}/src" "${STAGE_DIR}/src"
+cp -R "${REPO_ROOT}/vendor" "${STAGE_DIR}/vendor"
 cp "${REPO_ROOT}/pyproject.toml" "${STAGE_DIR}/pyproject.toml"
 cp "${REPO_ROOT}/README.md" "${STAGE_DIR}/README.md"
 cp "${REPO_ROOT}/LICENSE" "${STAGE_DIR}/LICENSE"
