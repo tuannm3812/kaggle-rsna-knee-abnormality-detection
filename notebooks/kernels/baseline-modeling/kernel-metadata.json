@@ -1,0 +1,14 @@
+{
+  "id": "tuannm3812/rsna-knee-baseline-modeling",
+  "title": "RSNA Knee Abnormality Detection — Report Baseline",
+  "code_file": "03_baseline_modeling.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "dataset_sources": ["tuannm3812/rsna-knee-mri-src"],
+  "competition_sources": ["rsna-knee-abnormality-detection"],
+  "kernel_sources": []
+}

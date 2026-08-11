@@ -11,6 +11,7 @@ REPO_ROOT = Path(__file__).parents[1]
 NOTEBOOK_PATHS = (
     "notebooks/01_eda.ipynb",
     "notebooks/02_weak_label_evaluation.ipynb",
+    "notebooks/03_baseline_modeling.ipynb",
 )
 
 
@@ -282,3 +283,113 @@ def test_weak_label_kernel_metadata_is_private_cpu_and_offline() -> None:
     assert metadata["enable_gpu"] is False
     assert metadata["enable_tpu"] is False
     assert metadata["enable_internet"] is False
+
+
+# -- Baseline-modeling-specific checks --
+
+
+def test_baseline_notebook_displays_only_aggregate_objects() -> None:
+    notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
+    code = _code_source(notebook)
+    tree = ast.parse(code)
+    displayed_names = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if node.func.id == "display" and len(node.args) == 1:
+                argument = node.args[0]
+                if isinstance(argument, ast.Name):
+                    displayed_names.append(argument.id)
+
+    assert displayed_names
+    assert set(displayed_names) <= {
+        "frozen_contract",
+        "data_summary",
+        "selected_fold_summary",
+        "fold_sizes",
+        "fold_validation_positive_counts",
+        "sanity_check",
+        "fold_diagnostics",
+        "pooled_summary",
+        "per_label_summary",
+        "test_probability_summary",
+        "submission_summary",
+    }
+
+
+def test_baseline_notebook_imports_every_package_boundary() -> None:
+    notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
+    code = _code_source(notebook)
+
+    for interface in (
+        "prepare_modeling_inputs",
+        "select_multilabel_folds",
+        "build_report_vectorizer",
+        "build_report_classifier",
+        "cross_validate_report_model",
+        "fit_report_model",
+        "build_submission",
+    ):
+        assert interface in code
+
+
+def test_baseline_notebook_verifies_wheel_before_import() -> None:
+    notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
+    code = _code_source(notebook)
+
+    assert "iterative_stratification-0.1.9-py3-none-any.whl" in code
+    assert (
+        "476f8deff6753fb1725612fe41e59cc2058f8f2524ae5d1ccee88eb8c8d3de80" in code
+    )
+    assert 'importlib.metadata.version("iterative-stratification")' in code
+    assert "--no-index" in code
+    assert "http://" not in code and "https://" not in code
+
+
+def test_baseline_notebook_has_constant_sanity_assertion() -> None:
+    notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
+    code = _code_source(notebook)
+
+    assert "pd.DataFrame(0.5, index=y.index, columns=LABEL_COLUMNS)" in code
+    assert "assert macro_auc(y, constant_predictions) == 0.5" in code
+
+
+def test_baseline_notebook_writes_exactly_one_submission_path() -> None:
+    notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
+    code = _code_source(notebook)
+
+    assert code.count("to_csv(") == 1
+    assert '"/kaggle/working/submission.csv"' in code
+
+
+def test_baseline_notebook_uses_only_frozen_settings() -> None:
+    notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
+    code = _code_source(notebook)
+
+    # No inline hyperparameter that could silently diverge from the
+    # frozen build_report_vectorizer()/build_report_classifier() factories
+    # or the frozen (5, 4, 3, 2) fold candidates.
+    assert "TfidfVectorizer(" not in code
+    assert "LogisticRegression(" not in code
+    assert "candidate_splits=" not in code
+
+
+def test_baseline_notebook_asserts_no_result_before_the_trusted_run() -> None:
+    notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
+    markdown = _markdown_source(notebook)
+
+    assert "computed live" in markdown
+    assert "none is asserted here in advance" in markdown
+
+
+def test_baseline_kernel_metadata_is_private_cpu_and_offline() -> None:
+    metadata = _load_json("notebooks/kernels/baseline-modeling/kernel-metadata.json")
+
+    assert metadata["id"] == "tuannm3812/rsna-knee-baseline-modeling"
+    assert metadata["title"] == "RSNA Knee Abnormality Detection — Report Baseline"
+    assert metadata["code_file"] == "03_baseline_modeling.ipynb"
+    assert metadata["is_private"] is True
+    assert metadata["enable_gpu"] is False
+    assert metadata["enable_tpu"] is False
+    assert metadata["enable_internet"] is False
+    assert metadata["dataset_sources"] == ["tuannm3812/rsna-knee-mri-src"]
+    assert metadata["competition_sources"] == ["rsna-knee-abnormality-detection"]
