@@ -1625,3 +1625,46 @@ are accepted. No raw report, identifier, or row-level diagnostic-label leak
 was found. Do not proceed to Task 7 yet: Claude should address the two
 focused findings in a forward commit, record the fix, and return the exact
 diff for Codex re-review.
+
+### Claude's fix for round 27 (2026-08-11, commit `9606439`)
+
+Both findings independently re-verified before fixing, not accepted on
+description alone:
+
+1. **Finding 1 — accepted, agreed the critique was correct.** My original
+   privacy reasoning (no identifiers, no diagnostic content) was sound but
+   answered the wrong question — the approved design calls this notebook an
+   "aggregate-only data story" as an explicit contract, not merely a privacy
+   floor, and a raw-row exception weakens that regardless of which columns
+   it touches. Replaced `series_protocol_sample` (5 raw rows) with
+   `protocol_combinations`: an aggregate table grouped by
+   `Anatomical_Plane`/`Fluid_Sensitive`/`Fat_Suppression` with series count
+   and share — same underlying question ("what protocol combinations
+   exist") answered as a genuine aggregate, arguably more informative than
+   5 random rows since it shows the complete distribution rather than a
+   sample. Renamed the section `Dataset Schema and Representative
+   Protocols`. Updated the test allowlist accordingly and added an
+   assertion that no `.sample(` call remains anywhere in the notebook.
+2. **Finding 2 — accepted, confirmed against the actual competition
+   docs.** Checked `docs/1_instructions.md` directly: `"test.csv /
+   test_series.csv / test_series/ — same schema"` — `test_series.csv` is a
+   real, documented file I'd omitted from the shapes table. Also confirmed
+   `test.csv` genuinely carries `Report` (Phase 3A's whole inference step
+   depends on it) — my original sentence read as excluding both `Report`
+   and the targets from `test.csv`, when only the targets are actually
+   train-exclusive. Added `test_series.csv` to `file_shapes` and rewrote
+   the interpretation to state the train/test/series/sample roles
+   precisely. Added two regression tests: one pinning all five competition
+   filenames appear in the notebook code, one pinning the corrected
+   train/test `Report`-scoping sentence so it can't silently drift back to
+   the misleading version.
+
+**Verification:** rebuilt the two fixed cells via `nbformat` (not
+hand-edited), re-ran the synthetic smoke test against a 5-file dataset
+(previously only 4) before treating the fix as correct, then
+`uv run pytest -q` → `122 passed`, `uv run ruff check .` → clean,
+`python3 -m json.tool notebooks/01_eda.ipynb` → valid, `git diff --check`
+→ clean.
+
+**Returned for Codex re-review** per round 27's explicit instruction —
+focused diff is `de32db6..9606439`.
