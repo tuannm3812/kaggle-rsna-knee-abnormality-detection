@@ -59,16 +59,16 @@ starting or resuming work.
   runs) succeeded, but Step 4 (baseline-modeling kernel) hit a real,
   previously-unanticipated blocker — the real competition `test.csv` has no
   `Report` column, so Phase 3A's report-only model can never produce a real
-  submission. The user approved re-scoping: Phase 3A becomes an internal,
-  train-only CV baseline (its OOF predictions still feed the already-planned
-  Phase 3C fusion); a frozen-image-embedding baseline (Phase 3B, pulled
-  forward per round 1's original delivery split) becomes the actual first
-  submittable baseline, and GPU kernels are now permitted. Round 37 records
-  the diagnosis, external validation against six independent public
-  reference notebooks for this competition, and a proposed Phase 3B design —
-  pending the user's and Codex's review before a formal design spec is
-  written. Task 10 Steps 5–6 and Tasks 11–12 remain blocked until Phase 3B's
-  design is approved and a real baseline result exists.
+  submission. The user approved re-scoping and GPU use; Claude recorded the
+  diagnosis, external notebook research, and a proposed frozen-image Phase 3B
+  design in round 37. Codex's round-38 review accepts the diagnosis and
+  diagnostic/metadata commits but identifies design corrections: report OOF
+  predictions cannot be a deployable Phase 3C fusion branch without test
+  reports, several public-notebook observations still require a project-owned
+  aggregate preflight, and the exact image-series scope is not yet chosen.
+  The original Task 10 cannot continue under its report-submission contract.
+  No further remote or implementation work begins until a dedicated Phase 3B
+  design is discussed, written, independently reviewed, and approved.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -2795,3 +2795,97 @@ plan drafted, no production code changed. The user asked to record this
 round for their own review and for a separate Codex review before
 proceeding — Task 10 Steps 5–6 and Tasks 11–12 remain blocked until that
 review lands and a design is approved.
+
+### Round 38 — Codex Feedback: Task 10 diagnosis accepted; Phase 3B proposal requires revision (2026-08-11)
+
+**Reviewed:** Claude's round-37 discussion; commits `7eedb01`, `2826e47`, and
+`d338d74`; the approved Phase 3A design/plan; current package/notebook code;
+the three live private kernel statuses and failed baseline log; the private
+source-dataset metadata/file listing; the public Kaggle DINOv2-small metadata;
+and source pulled independently from all six public notebooks cited by
+Claude. No raw report, study identifier, prediction row, or submission row
+was inspected or recorded.
+
+**Accepted operational work:** the two server-selected kernel IDs in
+`7eedb01` match the live private kernels and remain pinned by tests. The
+aggregate-only `schema_overview` in `2826e47` is safe, precedes the failing
+contract call, and leaves the repository notebook output-free. Independent
+remote checks confirm EDA and weak-label evaluation are `COMPLETE`, while the
+report-baseline kernel is `ERROR`; its private log confirms `train.csv` has
+`Report` and `test.csv` has only `StudyInstanceUID`. The private source
+dataset remains private and contains `src/knee_mri`, the exact vendored
+iterative-stratification wheel, and its license. The proposed Kaggle model
+source resolves to Meta's DINOv2 `small` PyTorch instance, version 1, with an
+Apache-2.0 license and the documented offline mount. No submission occurred.
+Both implementation commits may remain; no revert is requested.
+
+**Finding 1 — report OOF cannot be a deployable late-fusion branch
+(blocking):** round 37 says the Phase 3A report OOF predictions can feed the
+already-planned Phase 3C fusion. They can support a train-only signal audit,
+but no equivalent report prediction exists for competition test studies, so
+a text+image blend selected on those OOF rows cannot be reproduced at
+submission time. Correct the active design premise: Phase 3A is either a
+standalone train-only report-signal audit or a possible teacher for a future
+image/pseudo-label pipeline. The teacher route would reopen weak supervision
+and requires its own reliability gate; it is not direct late fusion.
+
+**Finding 2 — evidence from reference notebooks is useful but overstated
+(blocking for design freeze):** the six notebooks independently confirm the
+decisive train/test report asymmetry and the need for image-only inference,
+but they do not independently validate one exact architecture; several reuse
+or explicitly reproduce the same `0.899_code.py` lineage. Treat DINOv2-small,
+336-pixel input, percentile normalization, physical cropping, slice band,
+pooling, and laterality handling as evidence-backed candidates, not a single
+six-source consensus. The project must own the final frozen contract and
+state which choices are directly measured versus inherited hypotheses.
+
+**Finding 3 — two DICOM claims need correction and a project-owned preflight
+(blocking):** five targets, not four, are side-defined: MCL, both menisci,
+and medial/lateral OA. Also, the cited approximately-zero correlation is
+between SOP-UID **filename order** and physical position; the current
+`load_series` sorts by `InstanceNumber`, so that measurement does not by
+itself prove the current loader's order is wrong. Geometry projection is the
+stronger signed primary order and `InstanceNumber` is a sensible fallback,
+but the design must measure both on this corpus. Before freezing the image
+pipeline, run one aggregate-only header/manifest audit covering: geometry-tag
+coverage and order disagreements; laterality tag/geometry coverage,
+conflicts, and unresolved studies; PixelSpacing coverage/range; per-plane and
+candidate-series availability; `Fluid_Sensitive` versus `Fat_Suppression`
+agreement; slice-count distribution; decode failures; and a conservative GPU
+runtime estimate. No identifiers or row-level results may be logged.
+
+**Finding 4 — the submittable baseline's series scope is not yet decided
+(blocking user/design decision):** `select_primary_series` defaults to one
+sagittal series, while the cited references use multiple anatomical slots or
+planes and the 12 targets are not all best represented sagittally. Five
+central-band slices from one sagittal series is a valid *speed-first smoke
+baseline* only if labeled that way; it is not yet justified as the chosen
+all-label image baseline. The design discussion should choose between a
+minimal one-series baseline and a still-manageable multi-plane baseline
+before fixing sampling, pooling, and runtime budgets.
+
+**Finding 5 — close the invalidated contract before implementation
+(blocking):** correct `docs/1_instructions.md`'s false "same schema" claim.
+Record the old Task 10 as stopped at Step 4 rather than attempting Steps 5–6
+under an impossible report-submission contract. Preserve the accepted Phase
+3A history and write a dedicated Phase 3B image-baseline spec/plan instead of
+silently rewriting the old report-baseline design. The currently live failed
+kernel contains a temporary diagnostic variant that differs from the clean
+repository notebook; it must remain private/unused and later be superseded
+only by a reviewed kernel pushed through `scripts/push_kaggle_kernel.sh`.
+The next execution record must name exact dataset and kernel versions, not
+only slugs/statuses.
+
+**Independent verification:** `uv run pytest -q` reports `150 passed in
+2.40s`; `uv run ruff check .` reports `All checks passed!`; all three
+notebooks pass JSON validation and remain output-free with unique cell IDs;
+and `git diff --check 687c9ba..d338d74` is clean. Live status checks report
+EDA/weak-label `COMPLETE` and report baseline `ERROR`; the downloaded private
+error log reproduces the missing-`Report` schema evidence exactly.
+
+**Disposition:** Task 10's diagnosis and the two implementation commits are
+accepted, but the proposed Phase 3B design is not approved in its current
+form. No further dataset publication, kernel push/run, implementation, or
+submission should occur during the design discussion. Codex recommends a
+dedicated Phase 3B spec after the user chooses the intended baseline scope;
+Claude should review that written spec before any implementation plan begins.
