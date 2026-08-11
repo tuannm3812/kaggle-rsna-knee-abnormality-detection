@@ -54,7 +54,21 @@ starting or resuming work.
   three substantive findings and is accepted in round 35. Claude's narrow
   strategy closeout `de41222` is independently accepted by Codex in round 36,
   closing Task 9 and the Tasks 6–9 checkpoint. Task 10 (private Kaggle
-  execution) is next but remains gated on the user's explicit approval.
+  execution) began at the user's explicit approval and is recorded in
+  round 37: Steps 1–3 (clean state, dataset publish, EDA/weak-label kernel
+  runs) succeeded, but Step 4 (baseline-modeling kernel) hit a real,
+  previously-unanticipated blocker — the real competition `test.csv` has no
+  `Report` column, so Phase 3A's report-only model can never produce a real
+  submission. The user approved re-scoping: Phase 3A becomes an internal,
+  train-only CV baseline (its OOF predictions still feed the already-planned
+  Phase 3C fusion); a frozen-image-embedding baseline (Phase 3B, pulled
+  forward per round 1's original delivery split) becomes the actual first
+  submittable baseline, and GPU kernels are now permitted. Round 37 records
+  the diagnosis, external validation against six independent public
+  reference notebooks for this competition, and a proposed Phase 3B design —
+  pending the user's and Codex's review before a formal design spec is
+  written. Task 10 Steps 5–6 and Tasks 11–12 remain blocked until Phase 3B's
+  design is approved and a real baseline result exists.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -2605,3 +2619,179 @@ dataset version and running the three private kernels still require the
 user's explicit approval. Task 10 will inspect aggregate outputs and the
 generated submission's schema/shape/range only; it will not submit to the
 competition. Exact-version submission remains separately gated in Task 12.
+
+### Round 37 — Claude: Task 10 execution, a real blocking finding, and a Phase 3B design proposal (2026-08-11)
+
+**User authorization:** "yes help me to proceed now" — explicit approval to
+execute Task 10 per the approved plan
+(`docs/superpowers/plans/2026-08-10-phase-3a-report-baseline.md` lines
+932–1006).
+
+**Steps 1–3 — succeeded.** Clean local state verified and synced (one
+unpushed commit pushed first); new private `rsna-knee-mri-src` dataset
+version published and `src/`/`vendor/` contents confirmed present via
+`kaggle datasets files`; EDA and weak-label-evaluation kernels both pushed
+and completed (`KernelWorkerStatus.COMPLETE`, confirmed again just now via
+`kaggle kernels status`). Both kernels' Kaggle-assigned slugs were
+discovered to differ from the `id` declared in their `kernel-metadata.json`
+— Kaggle silently reassigns a kernel's id to one derived from its `title`
+when the two don't already resolve to the same slug on first push, a
+previously undocumented platform behavior. Reconciled by pulling the live
+slug (`kaggle kernels pull <slug> -m`) and updating both
+`kernel-metadata.json` files and their corresponding test assertions —
+`tuannm3812/rsna-knee-eda` → `tuannm3812/rsna-knee-abnormality-detection-eda`,
+`tuannm3812/rsna-knee-baseline-modeling` →
+`tuannm3812/rsna-knee-abnormality-detection-report-baseline` (commit
+`7eedb01`).
+
+**Step 4 — a real, previously unanticipated blocker.** The baseline-modeling
+kernel's first run failed: `KernelWorkerStatus.ERROR`, traceback ending in
+`ValueError: test is missing required columns: ['Report']`, raised from
+`_require_columns` inside `prepare_modeling_inputs`
+(`src/knee_mri/dataset.py`). Per systematic-debugging discipline, root cause
+was investigated before any fix was attempted:
+
+- Added a privacy-safe diagnostic (`schema_overview` — row counts and
+  column *names* only, no row content; matches the project's established
+  "schema is safe to display" precedent) ahead of the contract check
+  (commit `2826e47`, kept — this is a real, permanent improvement, not
+  throwaway).
+- Two follow-up attempts to push a stronger, throwaway diagnostic
+  (uncommitted `print`/`raise RuntimeError` variants embedding the actual
+  column lists in the traceback, since Kaggle's plain-text kernel log only
+  captures stderr/traceback text, not `display()` or `print()` output) were
+  pushed directly via `kaggle kernels push` and produced byte-identical logs
+  to the original failure — a self-caused tooling error: the project's own
+  `scripts/push_kaggle_kernel.sh` copies
+  `notebooks/03_baseline_modeling.ipynb` into
+  `notebooks/kernels/baseline-modeling/` before pushing, and calling
+  `kaggle kernels push` directly instead skips that sync, silently re-running
+  the stale pre-diagnostic notebook. Wasted two kernel runs before the byte-
+  identical logs were noticed and the real script used correctly.
+- The corrected push (kernel version 5, via `scripts/push_kaggle_kernel.sh
+  baseline-modeling`) confirmed the real evidence directly in the traceback:
+  `train=['StudyInstanceUID', 'Report', 'ACL', ... 'Fracture']` (12 labels,
+  matches documented schema), **`test=['StudyInstanceUID']` — no `Report`
+  column at all**, `sample=['StudyInstanceUID', 'ACL', ... 'Fracture']`
+  (matches documented schema). The throwaway diagnostic was never committed;
+  the working tree was restored to commit `2826e47` afterward (`uv run
+  pytest -q` → `150 passed`, confirmed clean).
+
+This directly contradicts `docs/1_instructions.md`'s current text: "`test.csv`
+/ `test_series.csv` / `test_series/` — same schema" as train. That line is
+wrong and needs correcting — a genuine documentation error, not a code bug,
+and not something any of the 33+ prior design/plan/implementation review
+rounds could have caught, since the real competition data was never
+available locally (per project policy) until this Kaggle run.
+
+**External validation — six independent public reference notebooks.** The
+user asked Claude to review six public Kaggle notebooks for this exact
+competition before proposing a fix, rather than guessing:
+`romanrozen/rsna-knee-data-structure-eda-baseline`,
+`kaiwalyaatulraut/rsna-knee-solution`,
+`anhadmahajan06/rsna-knee-take-care-of-your-knee`,
+`pilkwang/rsna-knee-baseline-v1`,
+`prvsiyan/rsna-knee-read-the-report-then-the-knee`,
+`wguesdon/rsna-knee-dinov2-at-meniscus-resolution`. All six were pulled via
+`kaggle kernels pull` (real source, not just titles — a direct WebFetch
+against the Kaggle pages returned only page titles, since the notebook UI is
+client-rendered) and reviewed in parallel by six research subagents. Every
+notebook that addresses the question independently confirms the missing
+`Report` column (e.g. `baseline-v1`, verbatim: "the decisive fact is in the
+schemas rather than the prose: `train.csv` has a `Report` column and
+`test.csv` does not... that rules out a fusion model with a text branch — at
+inference it would have nothing to read"), and all converge on the same
+shape of solution: **report text used only to derive graded/weak training
+labels, never as a model input; a pure-imaging model for inference.**
+Strong, independently-arrived-at architectural consensus (two notebooks
+explicitly say they're replicating one known strong reference,
+"0.899_code.py"):
+
+- **Frozen `facebook/dinov2-small`** (ViT-S/14) via HuggingFace `AutoModel`,
+  vendored offline through a Kaggle *Model* mount
+  (`local_files_only=True`) — independently verified against the live
+  Kaggle API in this round: `metaresearch/dinov2` is a real, Apache-2.0,
+  Meta-published Kaggle Model with a `small` variant (88MB,
+  `model_sources: ["metaresearch/dinov2/PyTorch/small"]`, mounts at
+  `/kaggle/input/dinov2/pytorch/small/1/`) — satisfies the competition's
+  "freely & publicly available external...pretrained models allowed" rule.
+  The DINOv2 notebook's own stated reason to freeze rather than fine-tune
+  applies even more strongly to this project (only 58 gold labels, no
+  weak-label expansion per Phase 2's no-go verdict): "fine-tuning a
+  22M-parameter ViT against noisy pseudo-labels mostly teaches it the
+  noise."
+- Slice order must come from DICOM geometry (`ImagePositionPatient`
+  projected onto the orientation-derived slice normal), not filename /
+  `InstanceNumber` — multiple notebooks independently measured ~0
+  correlation between file order and true anatomical order on this same
+  dataset. The project's existing `src/knee_mri/dicom_io.py::load_series`
+  currently sorts by `InstanceNumber` — flagged as needing correction, not
+  yet changed.
+- Laterality correction is required (DICOM `Laterality` tag missing on ~half
+  of studies, vendor-correlated not random; 4 of 12 labels are
+  medial/lateral-specific).
+- Percentile (1st–99th) intensity normalization, not min/max; physical-mm-
+  based cropping, not fixed-pixel (`PixelSpacing` varies ~3.4× across the
+  corpus).
+- One claim worth verifying against this project's own data before reuse:
+  the DINOv2 notebook reports `Fluid_Sensitive`/`Fat_Suppression` identical
+  on all 24,371 `train_series.csv` rows in this same competition — if true
+  here too, `select_primary_series`'s `prefer_fluid_sensitive` branch never
+  actually discriminates between candidate series.
+- Every reference notebook writes a trivial all-0.5 `submission.csv` first,
+  before any real computation, so a crash never leaves zero output.
+
+**User's decision:** approved the re-scoping (Report-based modeling
+train-only/CV-diagnostic; a real submittable baseline built on image/series
+features) and explicitly authorized GPU kernels. Also requested a
+persistent, appendable markdown "insights" document for this baseline-
+modeling work, to accumulate findings across future experiment versions —
+not yet created.
+
+**Proposed Phase 3B design (presented to the user, not yet written as a
+formal spec, not yet reviewed by Codex):**
+
+1. Reframe Phase 3A as an internal, CV-only baseline whose pooled OOF
+   predictions on the 58 labeled studies remain a valid future input to the
+   already-planned Phase 3C late fusion — it is not abandoned, just never
+   submitted standalone.
+2. Data pipeline: reuse `select_primary_series` (pending the
+   `Fluid_Sensitive`/`Fat_Suppression` degeneracy check above; fall back to a
+   `SeriesDescription`/`SequenceName` regex classifier if degenerate); fix
+   `load_series` slice ordering to true DICOM geometry; sample a small
+   central-band set of slices (e.g. 5, over the middle 60–80% of the ordered
+   stack); percentile-normalize intensity; physical-mm crop; resize to 336px
+   (DINOv2 patch-size-divisible, evidence-backed over smaller sizes for
+   small lesions in the reference notebooks); laterality correction.
+3. Model: frozen `facebook/dinov2-small` via the vendored Kaggle Model
+   above; per-slice embedding = CLS token + mean-pooled patch tokens;
+   per-study embedding = mean across sampled slices. No fine-tuning.
+4. Classifier head: reuse the exact frozen contract already built and tested
+   in Phase 3A (`OneVsRestClassifier(LogisticRegression(penalty="l2",
+   solver="liblinear", C=1.0, class_weight="balanced", max_iter=2000,
+   random_state=42))`) on image embeddings instead of TF-IDF features, and
+   the same pooled-OOF macro-AUC scoring methodology, evaluated on the
+   *exact same* 58-study folds Phase 3A already selected
+   (`select_multilabel_folds`) — reused unchanged.
+5. Submission safety: write a trivial all-0.5 `submission.csv` first, before
+   any real computation.
+6. New insights doc: `docs/7_image_baseline_insights.md` (next number after
+   `6_kaggle_troubleshooting.md`; already anticipated as an unnamed
+   placeholder in `docs/3_strategy.md`'s "Planned docs" table), following
+   the existing `4_experiments.md` append-only convention, recording
+   architecture/config, aggregate CV results, and concrete lessons per
+   experiment version.
+7. Kernel config: `enable_gpu: true`, `enable_internet: false` (unchanged),
+   new `model_sources: ["metaresearch/dinov2/PyTorch/small"]`.
+8. Correct `docs/1_instructions.md`'s wrong "same schema" claim about
+   `test.csv`.
+
+**Verification (this round only touched the collaboration log):** `uv run
+pytest -q` → `150 passed`; `uv run ruff check .` → clean; `git status` →
+clean at commit `2826e47` before this log entry.
+
+**Not yet done, explicitly:** no design spec file written, no implementation
+plan drafted, no production code changed. The user asked to record this
+round for their own review and for a separate Codex review before
+proceeding — Task 10 Steps 5–6 and Tasks 11–12 remain blocked until that
+review lands and a design is approved.
