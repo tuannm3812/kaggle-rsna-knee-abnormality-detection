@@ -12,6 +12,7 @@ NOTEBOOK_PATHS = (
     "notebooks/01_eda.ipynb",
     "notebooks/02_weak_label_evaluation.ipynb",
     "notebooks/03_baseline_modeling.ipynb",
+    "notebooks/04_image_baseline_preflight.ipynb",
 )
 
 
@@ -490,3 +491,60 @@ def test_baseline_kernel_metadata_is_private_cpu_and_offline() -> None:
     assert metadata["enable_internet"] is False
     assert metadata["dataset_sources"] == ["tuannm3812/rsna-knee-mri-src"]
     assert metadata["competition_sources"] == ["rsna-knee-abnormality-detection"]
+
+
+# -- Image-baseline-preflight-specific checks --
+
+
+def test_preflight_notebook_displays_only_aggregate_objects() -> None:
+    notebook = _load_json("notebooks/04_image_baseline_preflight.ipynb")
+    code_source = _code_source(notebook)
+    tree = ast.parse(code_source)
+    displayed_names = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if node.func.id == "display" and len(node.args) == 1:
+                argument = node.args[0]
+                if isinstance(argument, ast.Name):
+                    displayed_names.append(argument.id)
+
+    assert displayed_names
+    assert set(displayed_names) <= {
+        "agreement_summary",
+        "plane_coverage_summary",
+        "codec_availability",
+        "geometry_summary",
+        "pixel_spacing_summary",
+        "slice_count_summary",
+        "environment_summary",
+        "timing_summary",
+    }
+
+
+def test_preflight_notebook_never_stores_study_or_series_identifiers() -> None:
+    notebook = _load_json("notebooks/04_image_baseline_preflight.ipynb")
+    code_source = _code_source(notebook)
+
+    # audit_rows/audit_df must only ever collect the aggregate SeriesAudit
+    # fields, never a StudyInstanceUID/SeriesInstanceUID/path column.
+    assert "StudyInstanceUID\":" not in code_source
+    assert "SeriesInstanceUID\":" not in code_source
+    assert "study_id\":" not in code_source
+    assert "series_dir\":" not in code_source
+
+
+def test_preflight_kernel_metadata_is_private_gpu_offline_with_dinov2() -> None:
+    metadata = _load_json("notebooks/kernels/image-baseline-preflight/kernel-metadata.json")
+
+    assert metadata["id"] == "tuannm3812/rsna-knee-abnormality-detection-image-preflight-audit"
+    assert (
+        metadata["title"] == "RSNA Knee Abnormality Detection — Image Baseline Preflight Audit"
+    )
+    assert metadata["code_file"] == "04_image_baseline_preflight.ipynb"
+    assert metadata["is_private"] is True
+    assert metadata["enable_gpu"] is True
+    assert metadata["enable_tpu"] is False
+    assert metadata["enable_internet"] is False
+    assert metadata["dataset_sources"] == ["tuannm3812/rsna-knee-mri-src"]
+    assert metadata["competition_sources"] == ["rsna-knee-abnormality-detection"]
+    assert metadata["model_sources"] == ["metaresearch/dinov2/PyTorch/small"]

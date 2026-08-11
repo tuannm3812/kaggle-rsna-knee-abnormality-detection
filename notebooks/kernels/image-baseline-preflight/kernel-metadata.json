@@ -1,0 +1,15 @@
+{
+  "id": "tuannm3812/rsna-knee-abnormality-detection-image-preflight-audit",
+  "title": "RSNA Knee Abnormality Detection — Image Baseline Preflight Audit",
+  "code_file": "04_image_baseline_preflight.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "dataset_sources": ["tuannm3812/rsna-knee-mri-src"],
+  "competition_sources": ["rsna-knee-abnormality-detection"],
+  "kernel_sources": [],
+  "model_sources": ["metaresearch/dinov2/PyTorch/small"]
+}
