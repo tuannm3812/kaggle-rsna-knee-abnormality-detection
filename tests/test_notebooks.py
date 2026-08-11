@@ -92,17 +92,12 @@ def test_eda_notebook_displays_only_aggregate_objects() -> None:
                     displayed_names.append(argument.id)
 
     assert displayed_names
-    # series_protocol_sample is the one deliberate exception to "aggregate
-    # only": five raw rows of Anatomical_Plane/Fluid_Sensitive/
-    # Fat_Suppression, which carry no patient/diagnostic/identifying
-    # content (StudyInstanceUID and SeriesInstanceUID are excluded from the
-    # slice) -- everything else here is a computed aggregate.
     assert set(displayed_names) <= {
         "overview",
         "file_shapes",
         "train_schema",
         "column_glossary",
-        "series_protocol_sample",
+        "protocol_combinations",
         "prevalence_table",
         "series_summary",
         "plane_counts",
@@ -114,6 +109,32 @@ def test_eda_notebook_displays_only_aggregate_objects() -> None:
     assert "sample_reports" not in code
     assert "PatientSex" not in code
     assert "head" not in _called_names(code)
+    assert "sample" not in _called_names(code)
+
+
+def test_eda_notebook_schema_section_covers_all_five_competition_files() -> None:
+    notebook = _load_json("notebooks/01_eda.ipynb")
+    code = _code_source(notebook)
+
+    for filename in (
+        "train.csv",
+        "test.csv",
+        "sample_submission.csv",
+        "train_series.csv",
+        "test_series.csv",
+    ):
+        assert filename in code
+
+
+def test_eda_notebook_correctly_scopes_report_column_to_train_and_test() -> None:
+    notebook = _load_json("notebooks/01_eda.ipynb")
+    markdown = _markdown_source(notebook)
+
+    # Report exists in both train.csv and test.csv; only the 12 targets are
+    # train-only. Pin the corrected sentence so this distinction can't
+    # silently regress back to implying Report is train-exclusive too.
+    assert "`test.csv` shares the same" in markdown
+    assert "never carries targets" in markdown
 
 
 def test_eda_notebook_interprets_each_aggregate_result() -> None:
