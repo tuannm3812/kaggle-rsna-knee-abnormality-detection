@@ -349,12 +349,27 @@ def test_baseline_notebook_wheel_setup_precedes_every_knee_mri_import() -> None:
     notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
     code = _code_source(notebook)
 
-    wheel_install_index = code.index("subprocess.run(")
+    # Full required order: checksum -> install -> return-code check ->
+    # installed-version check -> sys.path.insert -> first knee_mri import.
+    # Checking only the endpoints would still pass if, say, the version
+    # check silently moved after the package import.
+    checksum_index = code.index("hashlib.sha256(wheel_path.read_bytes())")
+    install_index = code.index("subprocess.run(")
+    returncode_index = code.index("install_result.returncode != 0")
+    version_check_index = code.index(
+        'importlib.metadata.version("iterative-stratification")'
+    )
     sys_path_index = code.index("sys.path.insert(")
     first_knee_mri_import_index = code.index("from knee_mri")
 
-    assert wheel_install_index < sys_path_index
-    assert wheel_install_index < first_knee_mri_import_index
+    assert (
+        checksum_index
+        < install_index
+        < returncode_index
+        < version_check_index
+        < sys_path_index
+        < first_knee_mri_import_index
+    )
     # Both the wheel and the source package are discovered under the same
     # attached dataset root, not two independent whole-tree searches.
     assert "_dataset_root.rglob(WHEEL_NAME)" in code
@@ -432,6 +447,13 @@ def test_baseline_notebook_frozen_contract_is_complete() -> None:
         "_classifier.n_jobs",
     ):
         assert attribute in code
+
+    # The fold candidates/seed rows and the explicit seed=SEED call are
+    # part of the same "complete contract" correction -- protect them
+    # alongside the factory attributes, not as a separate, droppable fact.
+    assert '{"Setting": "Fold candidates"' in code
+    assert '{"Setting": "Fold seed", "Value": SEED}' in code
+    assert "select_multilabel_folds(y, seed=SEED)" in code
 
 
 def test_baseline_notebook_does_not_claim_low_auc_is_a_bug() -> None:
