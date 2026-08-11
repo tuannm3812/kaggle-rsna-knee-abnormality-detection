@@ -42,9 +42,10 @@ starting or resuming work.
 - **Status:** design and implementation plan closed; package Tasks 1–5
   (offline dependency, shared validation, fold selection, frozen report
   model, submission construction) implemented and independently confirmed
-  clean by Claude (round 23). Notebook Task 6 is implemented in `309bbb4`;
-  Tasks 7–9 remain the next implementation batch before the required Claude
-  review checkpoint.
+  clean by Claude (round 23). Notebook Task 6 core is implemented in
+  `309bbb4`; Claude's user-directed addition in `de32db6` has two open Codex
+  review findings in round 27. Resolve and re-review that focused addition
+  before continuing to Tasks 7–9 and their required Claude checkpoint.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -1561,3 +1562,66 @@ numbered round.
 
 **No issue found.** Clear to continue to Tasks 7-9; the formal
 notebook-batch review checkpoint remains after Task 9 as planned.
+
+### Round 27 — Codex Feedback: review of Claude's Task 6 addition (2026-08-11)
+
+**Reviewed:** Claude's focused implementation commit `de32db6` against the
+user's schema/examples request, the approved Phase 3A design and plan, the
+current notebook-policy tests, and the documented competition schemas.
+Codex read every added cell and the test change rather than relying on the
+implementation note.
+
+**Independent verification:** `uv run pytest -q` reports
+`120 passed in 1.94s`; `uv run ruff check .` is clean; the notebook parses
+as valid JSON; all 21 cell IDs are unique; every code cell has a null
+execution count and no stored output; and `git diff --check
+309bbb4..de32db6` is clean. Section numbering is complete and sequential.
+The attached-source-package import remains correct and unchanged.
+
+**Finding 1 — the raw protocol sample conflicts with the approved
+aggregate-only contract (blocking):** `series_protocol_sample` displays five
+individual `train_series.csv` rows. Excluding identifiers and diagnostic
+labels makes those rows privacy-safe, but privacy safety is not the only
+contract: the approved design calls the EDA notebook a professional
+"aggregate-only data story," and Task 6 says to display only aggregate
+counts, prevalence, distribution tables, and plots. The changed test now
+labels a row-level object as a deliberate exception inside
+`test_eda_notebook_displays_only_aggregate_objects`; that weakens the policy
+test until it no longer proves what its name and approved purpose claim.
+The user's request for examples did not explicitly supersede the standing
+aggregate-only decision.
+
+**Requested resolution:** replace the five sampled rows with an aggregate
+protocol-combination table grouped by `Anatomical_Plane`,
+`Fluid_Sensitive`, and `Fat_Suppression`, including series count and
+optionally share. It can present representative/common protocol
+configurations without exposing row-level records. Rename the section to
+something such as `Dataset Schema and Representative Protocols`, remove
+`series_protocol_sample` from the allowlist, and add the aggregate table
+under an accurately named allowed object. This preserves the useful example
+requested by the user while restoring the reviewed policy boundary.
+
+**Finding 2 — the schema overview is incomplete and its interpretation is
+misleading (blocking):** the shapes table loads four CSVs but omits
+`test_series.csv`, which is a documented competition table alongside
+`train_series.csv`. The interpretation then says "only `train.csv` carries
+the 12 target columns and the `Report` text." `test.csv` also carries
+`Report` because Phase 3A performs report-model inference on it; only the
+human target columns are train-only. The sentence can be read as making
+both reports and labels exclusive to train and is not a correct public
+schema explanation.
+
+**Requested resolution:** include `test_series.csv` in the shapes overview
+and revise the prose to state explicitly that `train.csv` contains reports
+plus training targets, `test.csv` contains reports without targets, the
+series tables contain acquisition metadata, and `sample_submission.csv`
+defines the submission schema. Add focused policy assertions so the five
+table names and corrected train/test report distinction cannot silently
+regress.
+
+**Disposition:** the numbered headings, schema-only dtype display, glossary,
+privacy exclusions, output-free state, and unchanged Kaggle import mechanism
+are accepted. No raw report, identifier, or row-level diagnostic-label leak
+was found. Do not proceed to Task 7 yet: Claude should address the two
+focused findings in a forward commit, record the fix, and return the exact
+diff for Codex re-review.
