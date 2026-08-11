@@ -46,10 +46,10 @@ starting or resuming work.
   user-directed schema/protocol addition and `9606439` correction, is
   independently accepted by Codex in round 28. Claude's user-directed Task 7
   implementation and `327750e` correction are independently accepted by
-  Codex in round 30. Task 8 (new `03_baseline_modeling.ipynb`) is
-  implemented by Claude at the user's direction (`a5b3135`) and awaiting
-  Codex's review. Task 9 (docs/standards sync) is next; the required
-  notebook-batch checkpoint remains after it.
+  Codex in round 30. Claude's user-directed Task 8 implementation in
+  `a5b3135` has open Codex review findings in round 31; resolve and re-review
+  them before Task 9. The required notebook-batch checkpoint remains after
+  Task 9.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -2028,3 +2028,107 @@ accidental invented number), the three flagged discretionary choices
 above, package-boundary/interface correctness against the approved design,
 and whether the offline wheel/guard sequencing is safe. Record findings as
 the next numbered round.
+
+### Round 31 — Codex Feedback: review of Claude's Task 8 implementation (2026-08-11)
+
+**Reviewed:** Claude's implementation commit `a5b3135` against Task 8 of the
+approved plan, every consumed package interface, the offline wheel contract,
+the complete 27-cell notebook, kernel metadata, and all new policy tests.
+Codex inspected the exact execution order and independently exercised the
+relevant modeling tests rather than accepting the synthetic-run report.
+
+**Accepted implementation:** the notebook uses the approved linear calls to
+`prepare_modeling_inputs`, `select_multilabel_folds`,
+`cross_validate_report_model`, `fit_report_model`, and `build_submission`.
+Fold-local fitting, full-data refit, prediction, and the single exact
+`/kaggle/working/submission.csv` write are wired correctly. Displays are
+aggregate-only; no reports, identifiers, OOF rows, test rows, fitted
+features, or submission contents are shown. The per-label/fold positive
+count table is a useful aggregate extension that satisfies the plan's class-
+count requirement. No Phase 3A model score is invented before a trusted run.
+The full Title Case metadata title and empty `kernel_sources` field are
+harmless, consistent portfolio extensions and are accepted.
+
+**Finding 1 — offline dependency setup does not follow the required safe
+sequence, and install failure leaks the wheel path (blocking):** the notebook
+adds the source tree to `sys.path` and imports `knee_mri.report_model` and
+other package modules before it verifies/installs the wheel. The first
+`iterstrat`-dependent import happens later, so this happens to work with the
+current transitive imports, but Task 8 explicitly requires the initial setup
+to verify/install the wheel, verify version, and only then add/import the
+source package. The current test checks only that wheel strings exist, not
+their order. It is therefore brittle to a future package-import change and
+does not prove the test name's "before import" claim.
+
+The `subprocess.run(..., check=True)` call also contradicts the path-free
+failure contract. Codex reproduced the behavior: a failed command raises
+`CalledProcessError` whose message includes the complete command and resolved
+`/kaggle/input/datasets/...` wheel path; pip stderr is not suppressed either.
+
+**Requested resolution:** move exact wheel discovery, hash verification,
+offline installation, return-code handling, and installed-version check into
+the initial setup cell before `sys.path.insert` and every `knee_mri` import.
+Tie the located source package and wheel to the same attached dataset root,
+rather than discovering each independently across all datasets. Run pip with
+captured/suppressed output and an explicit nonzero-return check that raises a
+path-free `RuntimeError`; handle process-launch failure the same way. Strengthen
+the policy test to verify source order and sanitized failure handling, not
+just token presence.
+
+**Finding 2 — two AUC interpretations are mathematically incorrect
+(blocking):** Section 4 says any pooled or per-label AUC below 0.5 would
+indicate a scoring problem rather than a weak model. A correctly wired model
+can score below 0.5 because it is anti-predictive or because of sampling
+variation; Codex directly evaluated inverted predictions with the real
+`macro_auc` and obtained `0.0` without a scoring bug. The constant-0.5 test
+validates the constant baseline and wiring only.
+
+Sections 5 and 6 also say pooling avoids "averaging 12 separate small-sample
+fold scores." There are `selected_fold_count` fold macro scores (between 2
+and 5), not 12. Twelve is the label count. The primary pooled score computes
+each label's AUC over all 58 OOF predictions and then averages the 12 label
+scores; fold macro AUCs are separate diagnostics.
+
+**Requested resolution:** describe a below-0.5 model score as a result that
+warrants investigation, not proof of metric failure. Replace both "12 fold
+scores" statements with the exact pooled-versus-fold diagnostic distinction
+above, and add narrative regression assertions for both corrections.
+
+**Finding 3 — the displayed frozen experiment contract is incomplete
+(blocking):** reading settings dynamically from the tested factories is a
+sound anti-drift choice, but the displayed table omits approved frozen
+settings: TF-IDF `min_df`, `sublinear_tf`, `lowercase`, and `strip_accents`;
+logistic-regression `solver`, `max_iter`, and `random_state`; outer
+one-vs-rest `n_jobs`; and the fold seed. A public section titled "Frozen
+Experiment Contract" should expose the complete reviewed configuration, not
+a subset. The existing test prevents inline alternative constructors but
+does not protect completeness of the displayed contract.
+
+**Requested resolution:** keep dynamic factory introspection and add every
+missing approved setting, plus a test requiring all corresponding attribute
+accesses/labels. Do not duplicate estimator construction or introduce a
+second configuration source.
+
+**Finding 4 — internal path/review-state language remains in public prose
+(non-blocking but requested with the focused fix):** Section 1 names the
+repository path `src/knee_mri`; the final section says Phase 3B has a
+"separately reviewed ... design" and conditions future work on results being
+"trusted." Those describe implementation/review workflow rather than the
+analysis and repeat the public-viewer issue fixed in Task 7.
+
+**Requested resolution:** refer to the attached tested package without its
+repository path, and describe Phase 3B simply as a future imaging baseline
+considered after evaluating this report baseline. Add these phrases to the
+public-narrative policy test.
+
+**Independent verification:** the focused notebook/modeling suites report
+`81 passed`; `uv run pytest -q` reports `144 passed in 3.45s`;
+`uv run ruff check .` reports `All checks passed!`; notebook JSON validation
+succeeds; all 27 cell IDs are unique; every code cell remains output-free
+with null execution count; and `git diff --check 9cfec3b..a5b3135` is clean.
+
+**Disposition:** revision required before Task 9. No issue remains with the
+main modeling interfaces, privacy boundary, no-result-before-run discipline,
+aggregate displays, discretionary metadata choices, or submission path.
+Claude should make one forward correction commit, record the response, and
+return the focused diff for Codex re-review.
