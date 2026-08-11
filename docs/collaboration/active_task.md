@@ -48,10 +48,12 @@ starting or resuming work.
   implementation and `327750e` correction are independently accepted by
   Codex in round 30. Claude's user-directed Task 8 implementation and
   corrections through `01b5ad7` are independently accepted by Codex in
-  round 33. Task 9 (docs/standards/portfolio sync) is implemented by
-  Claude at the user's direction (`190cdb3`) and awaiting Codex's Tasks
-  6–9 checkpoint review — the gate before Task 10 (Kaggle execution) can
-  be authorized.
+  round 33. Task 9 (docs/standards/portfolio sync) was implemented by
+  Claude at the user's direction (`190cdb3`). Codex's Tasks 6–9 checkpoint
+  review is recorded in round 34 with narrow documentation/notebook-policy
+  corrections requested. Task 10 (private Kaggle execution) remains blocked
+  until those findings are fixed, independently re-reviewed, and explicitly
+  approved by the user.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -2359,3 +2361,79 @@ across Tasks 6-8 (rather than drifting from it); and the two documentation
 files (`README.md`, `docs/3_strategy.md`) for accuracy against real
 project state. This is the gate before Task 10 (Kaggle execution) can be
 authorized.
+
+### Round 34 — Codex Feedback: Tasks 6–9 checkpoint and execution strategy (2026-08-11)
+
+**Reviewed:** Claude's Task 9 implementation `190cdb3`, all three notebook
+JSON documents and kernel metadata files, the previously accepted Tasks 6–8
+contracts, the Phase 3A design and plan, and the resulting README, coding
+standards, strategy, and historical-plan status notes. Codex also reconciled
+the proposed standards against the actual accepted notebook prose and the
+real dataset-publishing script instead of treating the documentation as
+self-validating.
+
+**Accepted:** the canonical notebook sequence and Title Case metadata remain
+correct; all kernels remain private, CPU, and internet-disabled with the
+intended competition/source attachments; all repository notebook copies are
+output-free with null execution counts; the historical plan notes correctly
+preserve the original checkbox traces; and the README/strategy now describe
+the Phase 3A/3B/3C delivery sequence. The previously accepted Task 6–8 model,
+privacy, and submission contracts remain accepted. No new implementation,
+model-interface, leakage, metadata, or submission-schema defect was found.
+
+**Finding 1 — the new notebook standards conflict with the accepted notebook
+contract (blocking):** the output policy currently permits committed outputs
+after a Kaggle rerun, whereas the approved design and plan require repository
+copies to remain output-free after every run. Require empty outputs and null
+execution counts on every committed notebook; safe aggregate outputs may
+remain only in the private Kaggle version. The aggregate-only rule also needs
+to permit schema/glossary context without row values, because the accepted EDA
+notebook intentionally displays those objects. Finally, either allow an
+interpretation label that *begins* with `Interpretation` or normalize the
+weak-label notebook's final `Interpretation and decision: No-go.` label; the
+current exact-label rule and accepted notebook disagree.
+
+**Finding 2 — the new public-prose and publishing descriptions are not yet
+true of the repository (blocking):** the standard forbids internal
+`trusted`/`reviewed` workflow language, but `01_eda.ipynb` still uses
+`trusted` twice and refers to a `separately reviewed Phase 3B design`.
+Rewrite those reader-facing cells as analysis facts and add a regression test
+covering the policy. In the publishing section, state that
+`publish_code_dataset.sh` stages both `src/` and `vendor/`; the current text
+omits the vendored wheel. Replace the stale claim that EDA checks fixed
+`src`-nested and flat layouts with its actual unique
+`knee_mri/__init__.py` discovery behavior.
+
+**Finding 3 — current-status wording would mislead a public reader
+(blocking):** README says the "first Kaggle run" has not happened even though
+the same paragraph correctly says Phases 1–2 have real Kaggle results. Say
+that the first *Phase 3A baseline* run, refreshed three-kernel batch, and
+submission have not happened. Prefer `public-facing notebooks` to `public
+notebooks` while all kernels remain private, and remove internal `trusted`
+jargon from the public status text. Once this correction closes Task 9,
+`docs/3_strategy.md` must say local Tasks 1–9 are complete and Task 10 is the
+next gated step, rather than leaving Task 9 "in progress."
+
+**Independent verification:** `uv run pytest -q` reports `149 passed in
+1.92s`; `uv run ruff check .` reports `All checks passed!`; all three
+notebooks pass `python3 -m json.tool`; and `git diff --check` is clean.
+
+**Execution decision:** do not push a Kaggle kernel during this open
+checkpoint. Local execution has reached its useful limit: it verifies tested
+package behavior and static notebook policy, but cannot validate Kaggle
+mounts, the refreshed private source dataset, offline wheel installation,
+real-data folds, or generated aggregate outputs. After Claude makes one
+narrow forward correction, records its disposition, and Codex confirms the
+focused diff clean, the appropriate next step is Task 10 on **private Kaggle
+kernels**, following the plan in order: refresh/inspect the private source
+dataset, run EDA and weak-label kernels, then run the baseline kernel and
+inspect only aggregate output plus submission schema/shape/range. This review
+does not authorize that remote execution, and Task 10 does not submit to the
+competition; exact-version submission remains the separate Task 12 approval
+gate.
+
+**Disposition:** Task 9 and the Tasks 6–9 checkpoint remain open only for the
+three focused consistency corrections above. Claude should implement them in
+a forward commit, append its response here, and return the focused diff for
+Codex re-review. No Kaggle push, execution, publication, or submission is
+authorized by this round.
