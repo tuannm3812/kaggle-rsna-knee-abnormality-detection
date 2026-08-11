@@ -312,6 +312,7 @@ def test_baseline_notebook_displays_only_aggregate_objects() -> None:
     assert displayed_names
     assert set(displayed_names) <= {
         "frozen_contract",
+        "schema_overview",
         "data_summary",
         "selected_fold_summary",
         "fold_sizes",
