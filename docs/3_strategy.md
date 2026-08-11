@@ -99,7 +99,7 @@ sub-phases — **not** to be confused with the A/B/C strategy choice
 above, this is a delivery decomposition within strategy A itself,
 proposed by Codex's round-1 task audit and accepted:
 
-### Phase 3A — Report Baseline — implementation in progress
+### Phase 3A — Report Baseline — local implementation complete, Kaggle execution next
 
 Deterministic 5-fold iterative multilabel-stratified CV over the 58
 labeled studies (preflight both classes present per label per fold,
@@ -117,14 +117,17 @@ public leaderboard.
   — 12 tasks, approved for execution. Full review history (33+ Codex/
   Claude rounds across design, plan, and implementation):
   `docs/collaboration/active_task.md`.
-- **Status:** Tasks 1–8 implemented and independently accepted — the
-  package layer (offline dependency, shared validation, fold selection,
-  frozen report model, submission construction) and all three public
-  notebooks (`01_eda.ipynb`, `02_weak_label_evaluation.ipynb`,
-  `03_baseline_modeling.ipynb`). Task 9 (this documentation/portfolio
-  sync) in progress. Kaggle execution, reproducibility confirmation, and
-  the real competition submission (Tasks 10–12) have not started — no
-  Phase 3A result exists yet.
+- **Status:** local Tasks 1–9 are complete and independently accepted —
+  the package layer (offline dependency, shared validation, fold
+  selection, frozen report model, submission construction), all three
+  public-facing notebooks (`01_eda.ipynb`, `02_weak_label_evaluation.ipynb`,
+  `03_baseline_modeling.ipynb`, private during development), and the
+  documentation/portfolio sync. Task 10 (private Kaggle execution) is the
+  next gated step: refresh/inspect the private source dataset, run the
+  EDA and weak-label kernels, then the baseline kernel, inspecting only
+  aggregate output plus submission schema/shape/range. Reproducibility
+  confirmation and the real competition submission (Tasks 11–12) remain
+  after that — no Phase 3A result exists yet.
 
 ### Phase 3B — Frozen Image-Embedding Baseline — not started
 
