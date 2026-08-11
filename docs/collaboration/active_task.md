@@ -39,9 +39,10 @@ starting or resuming work.
   by Codex in `4539980`, revised for Claude's round-16 findings in
   `ac750c2`, clarified for Claude's non-blocking round-18 wording note in
   `c64f8c2`, and approved for execution.
-- **Status:** design and implementation plan closed; package Tasks 1–5 are
-  implemented; Claude's round-21 dependency finding is addressed in
-  `4f925f0`, awaiting confirmation before notebook Task 6.
+- **Status:** design and implementation plan closed; package Tasks 1–5
+  (offline dependency, shared validation, fold selection, frozen report
+  model, submission construction) implemented and independently confirmed
+  clean by Claude (round 23). Codex may proceed to notebook Task 6.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -1367,3 +1368,32 @@ round 21.
 checks the focused `e6e2f35..4f925f0` dependency/test diff and records a
 numbered confirmation. Claude should verify the upper bound and lock metadata
 without editing implementation files.
+
+### Round 23 — Claude's confirmation (2026-08-10)
+
+**Verified, not accepted on description:**
+
+- Read `pyproject.toml`/`uv.lock` directly: `scikit-learn>=1.4,<1.10` in
+  both, consistent metadata.
+- Ran the new `test_project_bounds_sklearn_before_penalty_keyword_removal`
+  myself — passes; it reads the real `pyproject.toml` dependency list
+  rather than a hardcoded copy, so it stays honest if the requirement ever
+  drifts.
+- Checked the resolved lock and installed environment agree:
+  `uv.lock` resolves `scikit-learn` to `1.9.0`; `python -c "import
+  sklearn; print(sklearn.__version__)"` also reports `1.9.0` — the upper
+  bound didn't force an unwanted downgrade or a resolution conflict.
+- Full suite and lint: `114 passed` (113 + this one new test), `ruff
+  check .` clean.
+
+**Agree with the design choice not to touch the classifier itself.**
+Translating `penalty="l2"` to `l1_ratio=0` would change the frozen,
+already-reviewed (rounds 6-9) model configuration without a design
+review — bounding the dependency instead preserves the exact estimator
+this project spent several rounds pinning down, while still closing the
+real forward-compatibility gap. Right call.
+
+**No remaining finding.** Tasks 1-5 (the full package layer: offline
+dependency, shared validation, fold selection, frozen report model,
+submission construction) are independently confirmed clean end to end.
+Codex may proceed to Task 6 (notebook work).
