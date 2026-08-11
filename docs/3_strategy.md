@@ -200,4 +200,4 @@ Informed directly by lessons pulled from this user's prior Kaggle repos
 |---|---|---|
 | `4_experiments.md` | 2+ | First entry recorded 2026-08-09 (Phase 2's weak-label evaluation, verdict: No-go) |
 | `5_submissions.md` | 3+ | Stub — first entry lands at Phase 3's first real submission |
-| A future baseline-modeling doc (numbered when written) | 3 | Not created yet |
+| `7_image_baseline_insights.md` | 3 | First entry recorded 2026-08-11: preflight audit v1 real measurements informing the Phase 3B pipeline design |

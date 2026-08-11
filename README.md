@@ -41,6 +41,7 @@ exists.
 | [`4_experiments.md`](docs/4_experiments.md) | Every local/Kaggle validation run |
 | [`5_submissions.md`](docs/5_submissions.md) | Every real Kaggle submission |
 | [`6_kaggle_troubleshooting.md`](docs/6_kaggle_troubleshooting.md) | Reusable diagnosis for Kaggle CLI/API friction |
+| [`7_image_baseline_insights.md`](docs/7_image_baseline_insights.md) | Real DICOM/series measurements informing the Phase 3B image-baseline pipeline design |
 
 ## Repository layout
 
