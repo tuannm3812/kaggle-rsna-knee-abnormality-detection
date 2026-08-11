@@ -48,8 +48,10 @@ starting or resuming work.
   implementation and `327750e` correction are independently accepted by
   Codex in round 30. Claude's user-directed Task 8 implementation and
   corrections through `01b5ad7` are independently accepted by Codex in
-  round 33. Task 9 is next; the required notebook-batch checkpoint remains
-  after Task 9.
+  round 33. Task 9 (docs/standards/portfolio sync) is implemented by
+  Claude at the user's direction (`190cdb3`) and awaiting Codex's Tasks
+  6–9 checkpoint review — the gate before Task 10 (Kaggle execution) can
+  be authorized.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -2304,3 +2306,56 @@ the required Claude review checkpoint. The temporary Claude-implements/
 Codex-reviews exception ends here unless the user explicitly directs another
 override. No Kaggle push, execution, publication, or submission is
 authorized by this confirmation.
+
+### Role reversal a fourth time: Claude implements Task 9, requests the Tasks 6-9 checkpoint review (2026-08-11)
+
+**Context:** asked directly whether Codex should resume per round 33's
+stated default; the user chose the override again. Same pattern as Tasks
+6-8. This is also the formal Tasks 6-9 notebook-batch checkpoint request
+per the plan's Task 9 Step 6 — not just a Task 9 implementation note.
+
+**Implemented (`190cdb3`):**
+
+- `docs/0_coding_standards.md`: fixed a real stale fact — the "Notebook
+  naming" line still said `02_baseline_modeling.ipynb`, contradicting the
+  actual sequence (`02_weak_label_evaluation.ipynb` now owns step 02,
+  `03_baseline_modeling.ipynb` is step 03) established back in round 1's
+  original audit. Rewrote the "Notebook Style" section to codify, as
+  standing policy rather than only test assertions, everything Tasks 6-8's
+  review rounds established piecemeal: public-facing purpose statements
+  (no internal paths/housekeeping/spec references), a functional-but-
+  unprinted `IS_KAGGLE` guard with no `NOTEBOOK_VERSION`, "Interpretation"
+  markdown after every result, numbered `##` sections, aggregate-only
+  display, Title Case kernel titles.
+- `README.md`: replaced the "Scaffolding only, no EDA/baseline run yet"
+  status — checked against `docs/2_eda_insights.md`/`docs/4_experiments.md`
+  and confirmed genuinely stale, since Phases 1-2 completed with real
+  results — with accurate current status. Repository layout lists all
+  three notebooks.
+- `docs/3_strategy.md`: Phase 3 restructured into the three sub-phases
+  (3A/3B/3C) actually used to track this work, citing the real design/plan
+  documents and Tasks 1-8 status. Added an explicit note distinguishing
+  this A/B/C sub-phase decomposition from the earlier, different A/B/C
+  strategy choice (honest baseline-first vs. representation-first vs.
+  reopen weak supervision) — same lettering, different concept, worth
+  disambiguating explicitly rather than leaving implicit.
+- Both `docs/superpowers/plans/2026-08-09-*.md` files: dated historical
+  status notes added immediately below their titles, without touching
+  their original unchecked task-list traces.
+
+**Full local gate (Task 9 Step 4):** `uv run pytest -q` → `149 passed`.
+`uv run ruff check .` → clean. All three notebooks (`01_eda.ipynb`,
+`02_weak_label_evaluation.ipynb`, `03_baseline_modeling.ipynb`) valid
+JSON. `git diff --check` → clean.
+
+**Codex review requested — the full Tasks 6-9 checkpoint, per the plan's
+own Step 6 instruction, not just this commit:** every notebook cell and
+kernel-metadata.json across all three public notebooks; design-to-
+implementation traceability against
+`docs/superpowers/specs/2026-08-10-phase-3a-report-baseline-design.md`
+and the approved plan; whether the coding-standards rewrite accurately
+and completely codifies what was actually implemented and reviewed
+across Tasks 6-8 (rather than drifting from it); and the two documentation
+files (`README.md`, `docs/3_strategy.md`) for accuracy against real
+project state. This is the gate before Task 10 (Kaggle execution) can be
+authorized.
