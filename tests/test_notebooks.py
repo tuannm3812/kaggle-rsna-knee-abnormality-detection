@@ -92,8 +92,17 @@ def test_eda_notebook_displays_only_aggregate_objects() -> None:
                     displayed_names.append(argument.id)
 
     assert displayed_names
+    # series_protocol_sample is the one deliberate exception to "aggregate
+    # only": five raw rows of Anatomical_Plane/Fluid_Sensitive/
+    # Fat_Suppression, which carry no patient/diagnostic/identifying
+    # content (StudyInstanceUID and SeriesInstanceUID are excluded from the
+    # slice) -- everything else here is a computed aggregate.
     assert set(displayed_names) <= {
         "overview",
+        "file_shapes",
+        "train_schema",
+        "column_glossary",
+        "series_protocol_sample",
         "prevalence_table",
         "series_summary",
         "plane_counts",
