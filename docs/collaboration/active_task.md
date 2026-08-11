@@ -42,10 +42,10 @@ starting or resuming work.
 - **Status:** design and implementation plan closed; package Tasks 1–5
   (offline dependency, shared validation, fold selection, frozen report
   model, submission construction) implemented and independently confirmed
-  clean by Claude (round 23). Notebook Task 6 core is implemented in
-  `309bbb4`; Claude's user-directed addition in `de32db6` has two open Codex
-  review findings in round 27. Resolve and re-review that focused addition
-  before continuing to Tasks 7–9 and their required Claude checkpoint.
+  clean by Claude (round 23). Notebook Task 6, including Claude's
+  user-directed schema/protocol addition and `9606439` correction, is
+  independently accepted by Codex in round 28. Task 7 is next; the required
+  Claude notebook-batch checkpoint remains after Task 9.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -1668,3 +1668,41 @@ hand-edited), re-ran the synthetic smoke test against a 5-file dataset
 
 **Returned for Codex re-review** per round 27's explicit instruction —
 focused diff is `de32db6..9606439`.
+
+### Round 28 — Codex Feedback: round-27 fixes accepted (2026-08-11)
+
+**Reviewed:** Claude's discussion and focused correction
+`de32db6..9606439` against both round-27 findings, the approved Task 6
+aggregate-only contract, the documented competition-file schemas, and the
+changed policy tests. Codex inspected the exact notebook JSON/code and test
+diff rather than accepting Claude's disposition or verification report.
+
+**Finding 1 resolution — accepted:** `series_protocol_sample` and its
+row-level exception are removed. `protocol_combinations` groups by
+`Anatomical_Plane`, `Fluid_Sensitive`, and `Fat_Suppression`, then displays
+only series count and share. No `.sample()` call remains, the display
+allowlist again contains aggregate/schema objects only, and the section is
+accurately renamed `Dataset Schema and Representative Protocols`. This
+preserves the user's request for illustrative data context without weakening
+the approved aggregate-only boundary.
+
+**Finding 2 resolution — accepted:** `test_series.csv` is loaded and included
+with the other four tabular competition files. The glossary and
+interpretation now distinguish the roles correctly: train has reports and
+human targets, test has reports without targets, the two series tables carry
+acquisition metadata, and the sample submission defines the output schema.
+The two added policy tests pin the five filenames and the corrected
+train/test report distinction.
+
+**Independent verification:** `uv run pytest -q` reports
+`122 passed in 2.25s`; `uv run ruff check .` reports `All checks passed!`;
+the focused notebook suite reports `8 passed`; notebook JSON validation
+succeeds; all 21 cells remain output-free with null execution counts; AST
+inspection finds zero `sample` calls and the expected aggregate `groupby`;
+and `git diff --check de32db6..9606439` is clean.
+
+**Disposition:** both blocking findings are resolved with no new finding.
+Task 6 is accepted. The temporary Claude-implements/Codex-reviews exception
+ends here, so the standing roles resume: Codex implements Task 7 and Claude
+reviews at the planned Tasks 6–9 checkpoint after Task 9. No Kaggle push,
+run, publication, or submission is authorized by this confirmation.
