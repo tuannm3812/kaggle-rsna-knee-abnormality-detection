@@ -244,10 +244,39 @@ def test_weak_label_notebook_has_trusted_conclusion() -> None:
     assert "docs/" not in markdown
 
 
+def test_weak_label_notebook_avoids_internal_workflow_language() -> None:
+    notebook = _load_json("notebooks/02_weak_label_evaluation.ipynb")
+    markdown = _markdown_source(notebook)
+
+    # These describe repository/planning state, not the analysis, and
+    # conflict with the public-viewer/portfolio narrative requirement --
+    # pinned so they can't silently return.
+    for phrase in (
+        "committed output-free",
+        "design spec",
+        "real fork",
+        "not a formality",
+        "not-yet-scoped",
+    ):
+        assert phrase not in markdown
+
+
+def test_weak_label_notebook_does_not_claim_ascii_only_is_english() -> None:
+    notebook = _load_json("notebooks/02_weak_label_evaluation.ipynb")
+    markdown = _markdown_source(notebook)
+
+    # An orthographic bucket observes characters, not language; ASCII-only
+    # text is not necessarily English. Must state the character-set/
+    # language distinction explicitly, not just avoid the wrong claim.
+    assert "skew more English" not in markdown
+    assert "character-set difference" in markdown
+
+
 def test_weak_label_kernel_metadata_is_private_cpu_and_offline() -> None:
     metadata = _load_json("notebooks/kernels/weak-label-evaluation/kernel-metadata.json")
 
     assert metadata["id"] == "tuannm3812/rsna-knee-weak-label-evaluation"
+    assert metadata["title"] == "RSNA Knee Abnormality Detection — Weak-Label Evaluation"
     assert metadata["code_file"] == "02_weak_label_evaluation.ipynb"
     assert metadata["is_private"] is True
     assert metadata["enable_gpu"] is False
