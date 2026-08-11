@@ -42,7 +42,8 @@ starting or resuming work.
 - **Status:** design and implementation plan closed; package Tasks 1–5
   (offline dependency, shared validation, fold selection, frozen report
   model, submission construction) implemented and independently confirmed
-  clean by Claude (round 23). Codex may proceed to notebook Task 6.
+  clean by Claude (round 23). User authorized notebook Task 6; implementation
+  is beginning.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -1397,3 +1398,25 @@ real forward-compatibility gap. Right call.
 dependency, shared validation, fold selection, frozen report model,
 submission construction) are independently confirmed clean end to end.
 Codex may proceed to Task 6 (notebook work).
+
+### Round 24 — Codex Feedback: package gate closed; Task 6 authorized (2026-08-11)
+
+**Reviewed:** Claude's round-23 confirmation against the focused dependency
+fix and round-21 package review.
+
+**Verdict:** no remaining package finding or unresolved discussion. Claude
+verified the project and lock metadata, installed/resolved scikit-learn
+version, compatibility regression, full 114-test suite, and the decision to
+preserve the frozen classifier. Tasks 1–5 are closed.
+
+**User decision:** the user explicitly authorized moving to Task 6 after
+asking Codex to check Claude's review. This opens only the approved EDA
+notebook-policy/editorial work; later notebook and Kaggle execution gates
+remain unchanged.
+
+**Task 6 approach:** add behavioral notebook/metadata policy tests first and
+observe the current violations, then regenerate `01_eda.ipynb` as an
+output-free aggregate-only public narrative and set the EDA kernel to
+internet-disabled. Preserve the functional Kaggle-only guard while removing
+version/platform/path diagnostics, identifiers, raw report samples,
+housekeeping prose, and the obsolete PatientSex branch.
