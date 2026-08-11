@@ -44,11 +44,10 @@ starting or resuming work.
   model, submission construction) implemented and independently confirmed
   clean by Claude (round 23). Notebook Task 6, including Claude's
   user-directed schema/protocol addition and `9606439` correction, is
-  independently accepted by Codex in round 28. Task 7 (weak-label
-  narrative) is implemented by Claude at the user's direction (`ae2c245`)
-  and awaiting Codex's review. Task 8 (new baseline-modeling notebook) is
-  next; the required Claude notebook-batch checkpoint remains after
-  Task 9.
+  independently accepted by Codex in round 28. Claude's user-directed Task 7
+  implementation in `ae2c245` has open Codex review findings in round 29;
+  resolve and re-review them before Task 8. The required notebook-batch
+  checkpoint remains after Task 9.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -1785,3 +1784,81 @@ section-boundary mapping against Task 7's plan text, the taxonomy-table
 conversion, the kernel-title change (discretionary, not explicitly
 requested), and general privacy/quality review. Record findings as the
 next numbered round.
+
+### Round 29 — Codex Feedback: review of Claude's Task 7 implementation (2026-08-11)
+
+**Reviewed:** Claude's implementation commit `ae2c245` against Task 7 of the
+approved plan, the Phase 3A notebook-presentation contract, the trusted
+Phase 2 v2 evidence in `docs/4_experiments.md`, and the complete notebook and
+test diffs. Codex independently inspected every cell and did not rely on
+Claude's implementation summary or synthetic-run report.
+
+**Accepted implementation:** the six numbered sections match the plan;
+`NOTEBOOK_VERSION`, diagnostic `print()` calls, paths in error output, stale
+`pending` prose, and the internal document path are removed. The functional
+Kaggle-only guard and deterministic seed remain. `baseline_metrics`,
+`fixed_metrics`, `taxonomy_table`, `comparison`, and `allowlist_summary` are
+aggregate-only displays; no report text, study ID, or row-level prediction is
+shown. Converting the taxonomy counter to a DataFrame preserves the existing
+mechanics. The absolute percentage-point gap calculation is correct.
+
+**Trusted-number audit:** every public number checked against
+`docs/4_experiments.md` matches: 58/4,349; ACL 0.414; MCL 0.200; Medial
+Meniscus 0.545→0.750 with lower bound 0.505/support 16; Lateral Meniscus
+0.524→0.769; Fracture 0.500→1.000 with lower bound 0.510/support 4; the
+0.55/5 frozen gate; 7.7 and 1.7–2.8 percentage-point gaps; and the empty
+0/12 No-go allowlist. No invented Phase 2 result was found.
+
+**Finding 1 — internal housekeeping/workflow prose remains in the public
+notebook (blocking):** the introduction says the notebook is "committed
+output-free, always"; Section 1 says "per the design spec's decision rule";
+and the conclusion calls the result "a real fork" and a future approach a
+"not-yet-scoped decision." These statements describe repository state and
+internal planning rather than the analysis. They conflict with the user's
+professional-public-viewer requirement and the portfolio rule to remove
+internal paths/housekeeping. The absence of a literal `docs/` path is not
+sufficient.
+
+**Requested resolution:** keep the analytical meaning while removing the
+workflow framing. The introduction can state directly that only aggregate
+counts and rates are displayed. Section 1 can say the thresholds were fixed
+before evaluation. The conclusion can state that Phase 3A excludes weak
+labels and that multilingual or probabilistic weak supervision remains
+future work, without referring to forks, formality, scope state, commits, or
+design specs. Add focused narrative-policy assertions for the removed
+phrases so they cannot return silently.
+
+**Finding 2 — `ascii_only` is interpreted as English (blocking):** Section 5
+says the labeled studies "skew more English" because their `ascii_only`
+share is higher. An orthographic bucket observes characters, not language;
+ASCII-only text can be non-English. This conflicts with the already-approved
+rule that bucket evidence must not be presented as language identification.
+The later transfer caveat does not undo the earlier identification claim.
+
+**Requested resolution:** state only that the labeled subset has a 7.7-point
+higher `ascii_only` share, then explicitly say this is a character-set
+difference rather than evidence of English-language prevalence. Preserve the
+separate, properly hedged taxonomy hypothesis about the English-only keyword
+vocabulary. Add a regression assertion excluding the phrase "skew more
+English" and requiring the character-set/language distinction.
+
+**Finding 3 — the discretionary metadata-title change is not pinned
+(non-blocking but requested with this fix):** the title was improved to
+`RSNA Knee Abnormality Detection — Weak-Label Evaluation`, consistent with
+the H1 and Task 6 pattern, but the metadata test does not assert it. The EDA
+metadata test does assert its exact public title. Add the equivalent exact
+title assertion here so the user-requested Title Case portfolio consistency
+cannot regress.
+
+**Independent verification:** `uv run pytest -q` reports
+`130 passed in 2.53s`; `uv run ruff check .` reports `All checks passed!`;
+both notebook JSON files validate; every cell ID is unique; all code cells
+remain output-free with null execution counts; AST inspection finds zero
+`print`, `sample`, and `head` calls; and `git diff --check
+b760864..ae2c245` is clean.
+
+**Disposition:** revision required for the two public-narrative findings;
+the metadata assertion should be added in the same focused correction. No
+modeling, metric, privacy, or runtime finding remains. Claude should make a
+forward fix, record its disposition, and return the exact diff for Codex
+re-review before Task 8 begins.
