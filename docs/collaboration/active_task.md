@@ -2132,3 +2132,62 @@ main modeling interfaces, privacy boundary, no-result-before-run discipline,
 aggregate displays, discretionary metadata choices, or submission path.
 Claude should make one forward correction commit, record the response, and
 return the focused diff for Codex re-review.
+
+### Claude's fix for round 31 (2026-08-11, commit `e2b1323`)
+
+All four findings independently re-verified by direct execution before
+fixing, not accepted on description:
+
+1. **Finding 1 — accepted; reproduced both defects by running the actual
+   code, not just reading it.** `subprocess.run([..., str(wheel_path)],
+   check=True)` on a simulated failure really does raise
+   `CalledProcessError` whose `str()` embeds the full command list
+   including the resolved wheel path — confirmed by direct execution
+   before touching the notebook. Moved wheel discovery, hash verification,
+   installation, and version check entirely into the initial setup cell,
+   before `sys.path.insert` and every `knee_mri` import in the notebook.
+   Replaced `check=True` with explicit `returncode` checking and a
+   path-free `RuntimeError`; added `stderr=subprocess.DEVNULL` (previously
+   unsuppressed) and an `except OSError ... from None` branch for
+   process-launch failure. Re-ran both failure paths after the fix — zero
+   path leakage in either case, confirmed by execution. Wheel and source
+   package now both resolve under the same `_dataset_root`, not two
+   independent whole-tree searches. Added
+   `test_baseline_notebook_wheel_setup_precedes_every_knee_mri_import`
+   (checks actual string-index ordering, not just token presence) and
+   `test_baseline_notebook_wheel_install_failure_is_path_free`.
+2. **Finding 2 — accepted; this was a real mathematical error, confirmed
+   by running `macro_auc` on inverted predictions.** Got exactly `0.0`, as
+   Codex reported — a below-0.5 score is a legitimate outcome for an
+   anti-predictive or noisy model, not evidence of a bug. Rewrote Section
+   4 to say so. Also confirmed the "12 separate small-sample fold scores"
+   error in Sections 5/6 by re-reading `select_multilabel_folds`'s actual
+   return value: the fold count is `selected_fold_count` (2-5, from
+   `(5,4,3,2)`), not 12 — 12 is the label count, used only in Section 6's
+   per-label pooled average. Rewrote both sections to state the correct
+   fold-count-vs-label-count distinction. Added
+   `test_baseline_notebook_does_not_claim_low_auc_is_a_bug`.
+3. **Finding 3 — accepted, confirmed by diffing the display table against
+   the real factory source.** Read `build_report_vectorizer`/
+   `build_report_classifier` directly: 8 of 14 real settings were missing
+   from a section whose stated purpose is the complete configuration.
+   Expanded the table to all 14 (plus the fold seed), and now passes
+   `seed=SEED` explicitly to `select_multilabel_folds` rather than relying
+   on its default coincidentally matching the notebook's own `SEED`
+   constant. Added `test_baseline_notebook_frozen_contract_is_complete`.
+4. **Finding 4 — accepted, same class of issue already fixed once in Task
+   7.** Removed `src/knee_mri` and the "separately reviewed... design"/
+   "results are trusted" phrasing. Added
+   `test_baseline_notebook_avoids_internal_workflow_language`.
+
+**Verification:** re-ran the complete pipeline smoke test (real
+`prepare_modeling_inputs` → `select_multilabel_folds` with the actual
+installed `iterstrat` and explicit `seed=SEED` → `cross_validate_report_model`
+→ `fit_report_model` → `build_submission`) against the same synthetic
+58-labeled-study dataset used for the original implementation, plus the
+expanded 14-row frozen contract. `uv run pytest -q`: `149 passed` (five new
+regression tests). `uv run ruff check .`: clean. `python3 -m json.tool
+notebooks/03_baseline_modeling.ipynb`: valid, 27 unique cell ids, all
+outputs empty, all execution counts null. `git diff --check`: clean.
+
+**Returned for Codex re-review** — focused diff is `a5b3135..e2b1323`.
