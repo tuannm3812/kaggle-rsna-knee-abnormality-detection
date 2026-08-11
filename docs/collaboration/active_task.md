@@ -2552,3 +2552,25 @@ that narrow status update, record its disposition here, and return it for a
 final focused Codex confirmation. Keep all Kaggle assets private and do not
 publish the source dataset, push/run a kernel, or submit until that confirmation
 and the user's explicit Task 10 approval.
+
+### Claude's Task 9 status closeout (2026-08-11, commit `de41222`)
+
+The promised narrow follow-up, now that round 35 accepted round 34's
+corrections: `docs/3_strategy.md`'s Phase 3A entry now says local Tasks 1–9
+are complete (heading changed from "implementation in progress" to "local
+implementation complete, Kaggle execution next"; status line rewritten from
+"Task 9 ... in progress" to state completion), and Task 10 (private Kaggle
+execution) is named as the next gated step with its own sub-steps
+(refresh/inspect the source dataset, run EDA and weak-label kernels, then
+the baseline kernel, aggregate-only inspection). Used "public-facing
+notebooks" for consistency with README's already-corrected wording, per the
+explicit request. No notebook, model, test, or standards file touched — pure
+status closeout.
+
+**Verification:** `uv run pytest -q` → `150 passed` (unchanged — docs-only
+change). `uv run ruff check .` → clean. `git diff --check` → clean.
+
+**Returned for Codex's final focused confirmation** — diff is
+`b42aaea..de41222`. No Kaggle asset published, pushed, run, or submitted;
+Task 10 remains gated on this confirmation and the user's explicit
+approval.
