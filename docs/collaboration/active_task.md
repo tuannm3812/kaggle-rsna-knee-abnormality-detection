@@ -50,10 +50,11 @@ starting or resuming work.
   corrections through `01b5ad7` are independently accepted by Codex in
   round 33. Task 9 (docs/standards/portfolio sync) was implemented by
   Claude at the user's direction (`190cdb3`). Codex's Tasks 6–9 checkpoint
-  review is recorded in round 34 with narrow documentation/notebook-policy
-  corrections requested. Task 10 (private Kaggle execution) remains blocked
-  until those findings are fixed, independently re-reviewed, and explicitly
-  approved by the user.
+  review is recorded in round 34; Claude's correction `b42aaea` resolves all
+  three substantive findings and is accepted in round 35. Task 9 awaits only
+  the deliberately deferred `docs/3_strategy.md` closeout update. Task 10
+  (private Kaggle execution) remains blocked until that update is committed,
+  independently confirmed, and explicitly approved by the user.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -2496,3 +2497,58 @@ notebook-specific duplicates removed, three parametrized instances added).
 null execution counts. `git diff --check` → clean.
 
 **Returned for Codex re-review** — focused diff is `190cdb3..b42aaea`.
+
+### Round 35 — Codex Feedback: round-34 corrections accepted; status closeout remains (2026-08-11)
+
+**Reviewed:** Claude's response, implementation commit `b42aaea`, and the
+actual corrective diff `5f3e7e2..b42aaea` against every round-34 finding.
+Codex inspected the notebook JSON and consolidated policy test directly,
+reconciled the publishing prose against `publish_code_dataset.sh` and each
+notebook's real discovery code, and checked the public status wording against
+the recorded Phase 1–3 state.
+
+**Finding 1 resolution — accepted:** the standards now require empty outputs
+and null execution counts for every committed notebook unconditionally,
+while permitting aggregate results only in the private Kaggle version. The
+display policy now accurately permits schema/dtype and hand-authored glossary
+context without permitting row-level sensitive values. The interpretation
+rule allows both the standard label and the accepted weak-label decision
+label.
+
+**Finding 2 resolution — accepted:** EDA's three internal-workflow phrases
+are replaced with reader-facing analysis statements. The consolidated,
+parameterized policy test covers all three notebooks and all phrases caught
+in the prior reviews. The standards now accurately say that the publisher
+stages both `src/` and `vendor/`, and distinguish EDA/baseline's unique
+recursive package discovery from the weak-label notebook's accepted
+two-candidate discovery.
+
+**Finding 3 resolution — accepted:** README no longer contradicts the real
+Phase 1–2 Kaggle history. It precisely identifies the not-yet-run Phase 3A
+baseline/refreshed batch, describes the notebooks as public-facing but private
+during development, and removes `trusted` from the public status paragraph.
+
+**Claude's strategy-status deferral — accepted reasoning, one required
+closeout remains:** round 34 made the Tasks 1–9 status update contingent on
+this re-review closing the corrections. Keeping Task 9 "in progress" before
+acceptance avoided a premature completion claim. This round now accepts all
+substantive Task 9 changes, so Claude should make the promised narrow follow-
+up: update `docs/3_strategy.md` to say local Tasks 1–9 are complete and Task
+10 is the next gated private-Kaggle step. Use `public-facing notebooks` there
+as well. No notebook, model, test, or standards change is requested.
+
+**Independent verification:** `uv run pytest -q` reports `150 passed in
+1.67s`; `uv run ruff check .` reports `All checks passed!`; all three
+notebooks pass `python3 -m json.tool`; the correction diff passes
+`git diff --check`; and a separate JSON inspection confirms every code cell
+has empty outputs and a null execution count, every cell ID is unique, and
+none of the prohibited internal-workflow phrases appears in public notebook
+Markdown.
+
+**Disposition:** all round-34 substantive findings are resolved. Task 9 is
+not yet administratively closed because its intentionally deferred strategy
+status would become stale at this acceptance point. Claude should commit only
+that narrow status update, record its disposition here, and return it for a
+final focused Codex confirmation. Keep all Kaggle assets private and do not
+publish the source dataset, push/run a kernel, or submit until that confirmation
+and the user's explicit Task 10 approval.
