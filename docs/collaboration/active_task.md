@@ -68,7 +68,19 @@ starting or resuming work.
   aggregate preflight, and the exact image-series scope is not yet chosen.
   The original Task 10 cannot continue under its report-submission contract.
   No further remote or implementation work begins until a dedicated Phase 3B
-  design is discussed, written, independently reviewed, and approved.
+  design is discussed, written, independently reviewed, and approved. At the
+  user's direction, Claude implemented and ran the project-owned preflight
+  audit round 38 called for (finding 3) — recorded in round 39 with real
+  measurements now in `docs/7_image_baseline_insights.md`: `Fluid_Sensitive`/
+  `Fat_Suppression` are perfectly redundant, every study has all three
+  planes, `InstanceNumber` order agrees with true DICOM geometry on every
+  sampled series (no `load_series` change needed after all), the
+  `Laterality` tag is reliable when present but missing on ~18% of series,
+  decode failure rate is 0% (with an unexplained codec-availability caveat),
+  and GPU timing could not be measured — Kaggle allocated an incompatible
+  P100 GPU on both attempts. The Phase 3B design itself is still not
+  written, reviewed, or approved; this preflight is an input to that design,
+  not the design.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -2889,3 +2901,133 @@ form. No further dataset publication, kernel push/run, implementation, or
 submission should occur during the design discussion. Codex recommends a
 dedicated Phase 3B spec after the user chooses the intended baseline scope;
 Claude should review that written spec before any implementation plan begins.
+
+### Round 39 — Claude: project-owned preflight audit implemented and run (2026-08-11)
+
+**User authorization:** "yes can you do that, and record your work and
+discussion in agent log also" — approving the preflight-audit-first path
+proposed after round 38, and asking for this round to be recorded here
+before further discussion.
+
+**Scope:** round 38 finding 3 called for a project-owned, aggregate-only
+DICOM/manifest audit before freezing any image pipeline choice. This round
+designs, implements, tests, runs, and records that audit — it does not
+write a Phase 3B design spec, which remains explicitly gated on this data
+plus the user's/Codex's review, per round 38's disposition.
+
+**Implementation (commits `7455910`, `a11f84f`, `f67ee59`, `914085a`,
+`1bc4e0e`):**
+
+- New `src/knee_mri/series_audit.py`: pure, TDD-tested functions —
+  `slice_normal`/`slice_position` (geometry projection),
+  `order_agreement` (Spearman rank correlation between `InstanceNumber` and
+  geometry order), `laterality_from_geometry` (DICOM-standard pixel-to-
+  patient center mapping, dead-zone-thresholded), `central_band_indices`
+  (reusable slice-sampling helper), `fluid_fat_suppression_agreement`, and
+  `plane_series_counts`, plus an `audit_series` integration function that
+  reads real `.dcm` headers for every slice and full-decodes only a central-
+  band sample. 18 new tests, all against synthetic in-memory/on-disk DICOM
+  fixtures (no real data needed for correctness) — `uv run pytest -q` →
+  `168 passed` before the notebook was added, `176 passed` after.
+- New `notebooks/04_image_baseline_preflight.ipynb`: full-corpus metadata
+  checks (`train_series.csv`/`test_series.csv`, no DICOM access), a seeded
+  150-study/822-series geometry-and-decode audit, a codec-availability
+  check, and a GPU timing probe for the round-37-proposed frozen DINOv2-
+  small encoder. Follows the established public-notebook policy (aggregate-
+  only, output-free when committed, numbered sections, `display()` +
+  Interpretation pairing) — added to the shared parametrized notebook-policy
+  tests. Never reads `train.csv`/`Report`, only `train_series.csv` and
+  DICOM headers, keeping this audit's own privacy footprint narrower than
+  the existing notebooks need.
+- New kernel `notebooks/kernels/image-baseline-preflight/` — first
+  `enable_gpu: true` kernel in this project, `model_sources:
+  ["metaresearch/dinov2/PyTorch/small/1"]` (verified against the live
+  Kaggle Models API in round 37).
+- `transformers>=4.45` added alongside the existing `torch` optional
+  dependency group.
+
+**Execution — three real problems hit and fixed, in order:**
+
+1. Version 1 push rejected server-side: `"The title cannot exceed 50
+   characters"` (undocumented Kaggle hard limit) — shortened the title,
+   which also triggered the now-familiar title/id slug auto-migration;
+   reconciled `kernel-metadata.json` and its test the same way as rounds 37
+   used for the other two kernels.
+2. Version 2 ran and crashed mid-way: Kaggle allocated a Tesla
+   P100-PCIE-16GB (CUDA compute capability 6.0), and the kernel's
+   preinstalled `torch==2.10.0+cu128` only supports `sm_70`+ —
+   `AcceleratorError: CUDA error: no kernel image is available for
+   execution on the device` on the DINOv2 forward pass, losing the
+   already-complete metadata/geometry/decode sections along with it. Fixed
+   by checking `torch.cuda.get_device_capability(0)` against
+   `torch.cuda.get_arch_list()` up front and reporting incompatibility as an
+   explicit `GPU timing measured: False` result instead of crashing — a real
+   risk the eventual Phase 3B pipeline kernel would face too, not just this
+   diagnostic.
+3. Version 2 (before it crashed) also exposed a retrieval gap: Kaggle's
+   `kernels output` API only returns files written to `/kaggle/working` plus
+   a plain stderr/traceback log — rendered notebook `display()` output is
+   not retrievable that way for a notebook-type kernel. Fixed by having the
+   notebook serialize every aggregate table to
+   `/kaggle/working/preflight_audit_summary.json` in a final cell — a
+   pattern worth reusing for any future GPU/long-running kernel whose
+   results need offline retrieval.
+
+Version 3 completed cleanly (`KernelWorkerStatus.COMPLETE`) and its
+persisted JSON was fetched and verified as valid, round-trippable JSON
+before being transcribed.
+
+**Real results — recorded in full in `docs/7_image_baseline_insights.md`,
+summarized here:**
+
+- `Fluid_Sensitive`/`Fat_Suppression` agreement rate **1.0** on both train
+  (24,371/24,371 series) and test (15/15 series) — genuinely redundant
+  columns, not a coincidental correlation, closing the question
+  `docs/2_eda_insights.md` had flagged from matching means alone.
+- Plane coverage: `has_all_three_planes` **1.0** for both train and test —
+  every study has at least one series in each of Sagittal/Coronal/Axial.
+  Removes one argument against a multi-plane design; does not by itself
+  decide the scope question, which also depends on the still-missing GPU
+  runtime numbers.
+- Geometry-tag coverage **1.0** across 822 audited series; `InstanceNumber`-
+  vs-geometry order agreement mean `|r|` **1.0**, `1.0` of series above
+  `|r| > 0.99`, none below `0.9`. **Correction to round 38's finding 3**:
+  `src/knee_mri/dicom_io.py::load_series`'s existing `InstanceNumber`-based
+  sort is empirically correct for this dataset and does not need to change
+  to geometry-based ordering — round 38 was right that the public
+  notebooks' cited statistic (filename/SOP-UID order, not `InstanceNumber`)
+  didn't prove the current loader wrong; this measurement now settles it
+  directly rather than leaving it open.
+- `Laterality` tag coverage **0.8187**; conflict rate among series where
+  both the tag and geometry are resolvable **0.0076** — the tag is reliable
+  when present, missing on ~18% of series. The geometry fallback is needed
+  to fill coverage gaps, not to correct disagreement.
+- Decode failure rate **0.0** across ~4,110 attempted full pixel decodes,
+  despite none of `pylibjpeg`/`pylibjpeg-libjpeg`/`pylibjpeg-openjpeg`/`gdcm`
+  being importable in the kernel — flagged as an open, unexplained caveat
+  rather than assumed benign, since the reason zero failures occurred
+  without any checked codec present is not established.
+- Pixel spacing mean 0.327mm (range 0.137–1.172mm, >8×) and slice count
+  (mean 34.3, median 30, max 320, closely replicating
+  `docs/2_eda_insights.md`'s independent sample) confirm the physical-
+  cropping and central-band-sampling assumptions already in round 37's
+  proposal.
+- GPU timing: **not measured**. Both GPU runs got the same incompatible
+  P100 — plausibly a reproducible constraint for this account/competition's
+  GPU pool rather than one-off bad luck, though not confirmed with a third
+  attempt or the untested `--accelerator` push flag. This remains a real
+  gap the runtime-budget half of the single-series-vs-multi-plane decision
+  still needs.
+
+**Verification:** `uv run pytest -q` → `176 passed`; `uv run ruff check .` →
+clean; all four public notebooks pass JSON validation, output-free, null
+execution counts; `git diff --check` clean at every commit above; live
+`kaggle kernels status` reconfirms the preflight kernel `COMPLETE` and the
+persisted summary JSON round-trips through `json.loads`.
+
+**Not yet done:** no Phase 3B design spec written; the single-series-vs-
+multi-plane scope decision (round 38 finding 4) remains open, now partially
+informed (plane coverage is not a blocker) but not fully (GPU runtime is
+still unmeasured); `docs/1_instructions.md`'s false "same schema" claim
+about `test.csv` (round 38 finding 5) has not been corrected yet. Returned
+for the user's and Codex's review before any design spec is drafted.
