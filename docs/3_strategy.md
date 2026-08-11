@@ -75,7 +75,7 @@ indefinitely.
   extractor. Neither is scoped or estimated here; this is a named
   option, not a plan.
 
-## Phase 3 — Baseline Modeling — target ~2026-09-06, strategy chosen: A (2026-08-09)
+## Phase 3 — Baseline Modeling — in progress, strategy A (2026-08-09)
 
 First trainable multi-label model producing a real macro-AUC number and
 a first `submission.csv`. The original sketch here (an unconstrained
@@ -94,27 +94,57 @@ Codex's round-15 review of the active task caught two real problems:
 
 **User chose strategy A — Honest baseline-first** (Codex's own
 recommendation) over B (representation-first) and C (reopen weak
-supervision first): deterministic 5-fold iterative multilabel-stratified
-CV over the 58 studies (every series for a study kept in one fold;
-preflight both classes present per label per fold, falling back to fewer
-folds if not). Two low-capacity, separately-measured baselines first —
-report-only character n-gram TF-IDF + regularized one-vs-rest logistic
-regression, and image-only frozen pretrained study embeddings +
-regularized linear heads — late fusion only after both out-of-fold
-baselines exist. Explicitly disclosed as internal CV on the only 58
-labels, not an independent confirmation set. Freeze the small model
-list; no repeated tuning against these folds or the public leaderboard.
+supervision first). Strategy A is delivered as three reviewed
+sub-phases — **not** to be confused with the A/B/C strategy choice
+above, this is a delivery decomposition within strategy A itself,
+proposed by Codex's round-1 task audit and accepted:
 
-B (representation-first, using the 4349 unlabeled studies for
-self-supervised/contrastive learning) is recorded as the next
-improvement path once A produces a working baseline; C (reopening weak
-supervision with a multilingual/probabilistic approach before modeling)
-is deferred, not ruled out.
+### Phase 3A — Report Baseline — implementation in progress
 
-**Next action:** write a dedicated Phase 3 baseline-modeling design for
-strategy A — this sketch does not turn directly into implementation.
-First real Kaggle GPU training run and first real submission follow once
-that design is approved.
+Deterministic 5-fold iterative multilabel-stratified CV over the 58
+labeled studies (preflight both classes present per label per fold,
+falling back to fewer folds if not); a frozen character n-gram TF-IDF
+plus regularized one-vs-rest logistic regression, trained on report text
+only; pooled out-of-fold macro-AUC as the primary internal score.
+Explicitly disclosed as internal CV on the only 58 labels, not an
+independent confirmation set — the small model list is frozen before any
+result is viewed, with no repeated tuning against these folds or the
+public leaderboard.
+
+- Design: `docs/superpowers/specs/2026-08-10-phase-3a-report-baseline-design.md`
+  — approved by the user after Claude's whole-spec review.
+- Plan: `docs/superpowers/plans/2026-08-10-phase-3a-report-baseline.md`
+  — 12 tasks, approved for execution. Full review history (33+ Codex/
+  Claude rounds across design, plan, and implementation):
+  `docs/collaboration/active_task.md`.
+- **Status:** Tasks 1–8 implemented and independently accepted — the
+  package layer (offline dependency, shared validation, fold selection,
+  frozen report model, submission construction) and all three public
+  notebooks (`01_eda.ipynb`, `02_weak_label_evaluation.ipynb`,
+  `03_baseline_modeling.ipynb`). Task 9 (this documentation/portfolio
+  sync) in progress. Kaggle execution, reproducibility confirmation, and
+  the real competition submission (Tasks 10–12) have not started — no
+  Phase 3A result exists yet.
+
+### Phase 3B — Frozen Image-Embedding Baseline — not started
+
+Choose and freeze a pretrained image encoder; evaluate on the exact same
+Phase 3A folds. Not designed or scoped yet — begins only once Phase 3A
+produces a working, submitted baseline.
+
+### Phase 3C — Late Fusion — not started
+
+One predefined blend rule combining Phase 3A and Phase 3B's out-of-fold
+predictions, attempted only after both exist. Not designed or scoped
+yet.
+
+---
+
+Beyond this 3A/3B/3C sequence: strategy B (representation-first, using
+the 4349 unlabeled studies for self-supervised/contrastive learning) is
+recorded as a longer-term improvement path once Phase 3B exists; strategy
+C (reopening weak supervision with a multilingual/probabilistic approach
+before modeling) remains deferred, not ruled out.
 
 ## Phase 4 — Model Improvement & Ensemble — target ~2026-10-08
 

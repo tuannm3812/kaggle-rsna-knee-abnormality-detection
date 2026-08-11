@@ -1,5 +1,11 @@
 # RSNA Knee Abnormality Detection — Repo Setup Implementation Plan
 
+> **Status: completed 2026-08-09, retained as historical authoring
+> evidence.** The unchecked `- [ ]` boxes below reflect this plan's
+> original authoring template, not active or unstarted work — this
+> phase is done (see `docs/3_strategy.md` Phase 0). Do not execute this
+> plan again.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Scaffold `kaggle-rsna-knee-abnormality-detection` from an empty repo into a Kaggle-only-execution project: tooling, docs, a tested `src/knee_mri` package, a stub EDA notebook, and Kaggle CLI push/publish/submit scripts.

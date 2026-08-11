@@ -16,7 +16,8 @@ Kaggle-only execution, same shape as `kaggle-biohub-cell-tracking-during-
 development`: the dataset (569.76 GB) is never downloaded locally, and no
 code here is expected to run against real data outside a Kaggle Kernel.
 
-- `notebooks/` — `01_eda.ipynb`, plus `notebooks/kernels/<name>/` holding
+- `notebooks/` — `01_eda.ipynb`, `02_weak_label_evaluation.ipynb`,
+  `03_baseline_modeling.ipynb`, plus `notebooks/kernels/<name>/` holding
   each notebook's Kaggle `kernel-metadata.json`.
 - `docs/` — durable findings and decisions, including
   `docs/collaboration/active_task.md` (current task's live handoff/review
@@ -95,11 +96,11 @@ and the next required action. Record the entry before the next revision
 starts so the full exchange remains reconstructable from the repository
 alone.
 
-Notebook naming: `01_eda.ipynb`, `02_baseline_modeling.ipynb`, ... —
-zero-padded, matching the sibling repos. Prefer a new config flag inside
-an existing notebook for a new experiment variant over a new notebook
-file; only split out a new numbered notebook once the current one becomes
-too large/slow to run as a single kernel.
+Notebook naming: `01_eda.ipynb` → `02_weak_label_evaluation.ipynb` →
+`03_baseline_modeling.ipynb` — zero-padded, matching the sibling repos.
+Prefer a new config flag inside an existing notebook for a new experiment
+variant over a new notebook file; only split out a new numbered notebook
+once the current one becomes too large/slow to run as a single kernel.
 
 ## Python Style
 
@@ -113,22 +114,37 @@ too large/slow to run as a single kernel.
 
 ## Notebook Style
 
-Each notebook should include:
+Every notebook is a public-facing artifact (private during development,
+released only after an explicit publication decision — see "Pushing
+Notebooks To Kaggle" below) and should include:
 
-- Purpose statement.
-- Configuration cell near the top, with an `IS_KAGGLE` check that resolves
-  the competition data mount and `src/knee_mri`'s dataset mount, and raises
-  immediately with a clear message if run anywhere other than Kaggle (this
-  project has no local execution path — see "Data & Compute" below), plus
-  a deterministic seed and a `NOTEBOOK_VERSION` string printed by the first
-  code cell.
-- Markdown insight cells after every important plot or metric.
-- Numbered sections with clear reader-facing headers.
+- Purpose statement aimed at a public reader — no internal file paths,
+  housekeeping notes, or references to the design/review process (specs,
+  plans, "trusted"/"reviewed" language). State facts about the analysis,
+  not facts about the repository or how the work was reviewed.
+- Configuration cell near the top, with a functional `IS_KAGGLE` check
+  that resolves the competition data mount and the attached
+  `rsna-knee-mri-src` source dataset, and raises immediately with a
+  clear, path-free message if run anywhere other than Kaggle (this
+  project has no local execution path — see "Data & Compute" below),
+  plus a deterministic seed. The guard itself stays functional and
+  unprinted: do not print `IS_KAGGLE`, resolved paths, or a
+  `NOTEBOOK_VERSION` string — none of that belongs in public output.
+- Markdown cells labeled "**Interpretation.**" immediately after every
+  displayed table or plot, explaining what it shows and what it does not
+  establish.
+- Numbered `##` sections (`## 1. ...`, `## 2. ...`, ...) with clear
+  reader-facing headers.
+- Aggregate-only displayed content: no raw report text, study/series
+  identifiers, or row-level predictions — only computed aggregates
+  (counts, rates, distributions, summary statistics).
 
 **Outputs policy:** clear outputs before committing if the notebook code
 changed and hasn't been rerun on Kaggle yet.
 **Offline-safety:** submission notebooks must declare every dependency
 explicitly and run with internet disabled — this is a Code Competition.
+**Kernel display titles:** Title Case, matching the notebook's own `#`
+heading (e.g. "RSNA Knee Abnormality Detection — Report Baseline").
 
 ## Plot Style
 

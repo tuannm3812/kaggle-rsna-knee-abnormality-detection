@@ -1,5 +1,12 @@
 # Weak-Label Evaluation Implementation Plan
 
+> **Status: completed 2026-08-09, retained as historical authoring
+> evidence.** The unchecked `- [ ]` boxes below reflect this plan's
+> original authoring template, not active or unstarted work — this
+> phase is done, verdict No-go (see `docs/3_strategy.md` Phase 2 and
+> `docs/collaboration/archive/2026-08-09-weak-label-evaluation.md`). Do
+> not execute this plan again.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement the approved weak-label evaluation design: a 3-state, clause-scoped, assertion-aware `extract_weak_labels`; a `weak_label_metrics` scoring function with a Wilson-interval-gated per-label allowlist; and the Kaggle-only evaluation notebook that measures both the old and new extractor against the 58 real labeled studies.

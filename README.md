@@ -4,7 +4,7 @@
   <a href="https://www.kaggle.com/competitions/rsna-knee-abnormality-detection"><img alt="Kaggle Competition" src="https://img.shields.io/badge/Kaggle-RSNA%20Knee%20Abnormality%20Detection-20BEFF?logo=kaggle&logoColor=white"></a>
   <a href="pyproject.toml"><img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white"></a>
   <a href="docs/0_coding_standards.md"><img alt="Execution" src="https://img.shields.io/badge/Execution-Kaggle--only-orange"></a>
-  <img alt="Status" src="https://img.shields.io/badge/Status-Scaffolding-lightgrey">
+  <img alt="Status" src="https://img.shields.io/badge/Status-Phase%203A%20In%20Progress-blue">
 </p>
 
 Personal entry for the Kaggle competition
@@ -18,9 +18,16 @@ format, and scoring details: [`docs/1_instructions.md`](docs/1_instructions.md).
 
 ## Status
 
-Scaffolding only as of 2026-08-09 — no EDA/baseline Kaggle run yet. See
+EDA (Phase 1) and weak-label evaluation (Phase 2, verdict: No-go) are
+complete with real trusted results — see
 [`docs/2_eda_insights.md`](docs/2_eda_insights.md) and
-[`docs/5_submissions.md`](docs/5_submissions.md) as they fill in.
+[`docs/4_experiments.md`](docs/4_experiments.md). Phase 3A (report-only
+baseline) is in progress: the package layer and all three public
+notebooks are implemented and reviewed; the first Kaggle run and
+submission have not happened yet. Full roadmap:
+[`docs/3_strategy.md`](docs/3_strategy.md). See
+[`docs/5_submissions.md`](docs/5_submissions.md) once a real submission
+exists.
 
 ## Documentation
 
@@ -36,7 +43,8 @@ Scaffolding only as of 2026-08-09 — no EDA/baseline Kaggle run yet. See
 
 ## Repository layout
 
-- [`notebooks/`](notebooks/) — `01_eda.ipynb`, plus
+- [`notebooks/`](notebooks/) — `01_eda.ipynb`,
+  `02_weak_label_evaluation.ipynb`, `03_baseline_modeling.ipynb`, plus
   `notebooks/kernels/<name>/` holding each notebook's Kaggle
   `kernel-metadata.json`.
 - [`docs/`](docs/) — see the table above.
