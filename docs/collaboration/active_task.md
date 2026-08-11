@@ -1490,5 +1490,74 @@ directly rather than trusting round 25's report:
   narrative is grounded in real prior results, not restated from memory or
   approximated.
 
+### Role reversal: Claude implements a Task 6 addition, requests Codex review (2026-08-11)
+
+**Context:** the user directly asked Claude to take over writing/implementing
+code for this specific notebook addition (numbered sections, a new data
+overview/examples section), rather than continuing reviewer-only. This is a
+deliberate, user-directed exception to the standing Codex-implements/
+Claude-reviews split for Phase 3A — the split resumes for everything else.
+
+**User's request had three parts:**
+
+1. A concern that the notebook's `knee_mri` import couldn't work on Kaggle
+   ("local packages"). Clarified with the user before writing anything: the
+   import is from the attached `rsna-knee-mri-src` Kaggle dataset, already
+   proven working on real completed kernel runs, not local-machine code.
+   User confirmed keeping it unchanged — no code change needed for this
+   point.
+2. Number the section headings.
+3. Add a data-overview/examples section before the deeper analysis
+   sections, detailed enough for public viewers.
+
+**Implemented (`de32db6`):** numbered all seven `##` headings (`1.` through
+`7.`), and inserted a new `## 2. Dataset Schema and Example Records` between
+the existing overview and prevalence sections. That section shows: row/
+column shapes across all four competition files (`train.csv`, `test.csv`,
+`sample_submission.csv`, `train_series.csv`); `train.csv`'s column dtypes
+(schema only, no row values); a plain-language glossary explaining what
+`StudyInstanceUID`/`Report`/the 12 target columns are and explicitly why
+each is never shown in raw form; and a 5-row sample of `train_series.csv`
+restricted to non-identifying acquisition-protocol columns
+(`Anatomical_Plane`, `Fluid_Sensitive`, `Fat_Suppression`) — both
+`StudyInstanceUID` and `SeriesInstanceUID` are excluded from that slice.
+
+**Privacy reasoning (the one substantive judgment call in this change):**
+the established policy across every prior round is "aggregate-only, no raw
+report text, no study identifiers, no row-level diagnostic labels." A
+literal reading would exclude any row-level sample at all. Judgment: MRI
+acquisition-protocol flags (imaging plane, fluid-sensitivity, fat-
+suppression) carry no patient-identifying or diagnostic content — they are
+categorically different from `Report` text, `StudyInstanceUID`, or the 12
+finding-presence columns, which all stay aggregate-only exactly as before.
+Documented this distinction inline in both the notebook's Interpretation
+cell and a test comment rather than leaving it implicit.
+
+**Verification performed before treating this as done:**
+
+- Rebuilt the notebook via `nbformat` (not hand-edited JSON) — verified
+  valid JSON, 21 unique cell ids, every code cell's `execution_count: null`
+  and `outputs: []`.
+- Updated `test_eda_notebook_displays_only_aggregate_objects`'s display-name
+  allowlist for the four new variables (`file_shapes`, `train_schema`,
+  `column_glossary`, `series_protocol_sample`), with an inline comment
+  marking `series_protocol_sample` as the one deliberate non-aggregate
+  exception and why.
+- Executed the new cell's actual logic against a synthetic smoke-test
+  dataset (constructed matching the real `train.csv`/`test.csv`/
+  `sample_submission.csv`/`train_series.csv` schemas) before considering it
+  correct — not just read for syntax.
+- `uv run pytest -q`: `120 passed`. `uv run ruff check .`: clean.
+  `python3 -m json.tool notebooks/01_eda.ipynb`: valid. `git diff --check`:
+  clean.
+
+**Codex review requested:** this is implementer output from the
+non-standard side of the split, so it should get the same independent
+scrutiny Claude has been giving Codex's commits all along — privacy
+reasoning (the protocol-metadata-sample judgment call above), whether the
+new section fits the approved Task 6/notebook-portfolio contract in the
+design spec, and general code quality. Record findings as the next
+numbered round.
+
 **No issue found.** Clear to continue to Tasks 7-9; the formal
 notebook-batch review checkpoint remains after Task 9 as planned.
