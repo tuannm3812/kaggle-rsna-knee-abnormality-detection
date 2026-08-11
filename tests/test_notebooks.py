@@ -345,6 +345,34 @@ def test_baseline_notebook_verifies_wheel_before_import() -> None:
     assert "http://" not in code and "https://" not in code
 
 
+def test_baseline_notebook_wheel_setup_precedes_every_knee_mri_import() -> None:
+    notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
+    code = _code_source(notebook)
+
+    wheel_install_index = code.index("subprocess.run(")
+    sys_path_index = code.index("sys.path.insert(")
+    first_knee_mri_import_index = code.index("from knee_mri")
+
+    assert wheel_install_index < sys_path_index
+    assert wheel_install_index < first_knee_mri_import_index
+    # Both the wheel and the source package are discovered under the same
+    # attached dataset root, not two independent whole-tree searches.
+    assert "_dataset_root.rglob(WHEEL_NAME)" in code
+
+
+def test_baseline_notebook_wheel_install_failure_is_path_free() -> None:
+    notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
+    code = _code_source(notebook)
+
+    # check=True would embed the full command (including the resolved
+    # wheel path) in CalledProcessError's message; the return code must
+    # be checked explicitly instead, with stderr suppressed too.
+    assert "check=True" not in code
+    assert "stderr=subprocess.DEVNULL" in code
+    assert "install_result.returncode != 0" in code
+    assert "except OSError" in code
+
+
 def test_baseline_notebook_has_constant_sanity_assertion() -> None:
     notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
     code = _code_source(notebook)
@@ -379,6 +407,51 @@ def test_baseline_notebook_asserts_no_result_before_the_trusted_run() -> None:
 
     assert "computed live" in markdown
     assert "none is asserted here in advance" in markdown
+
+
+def test_baseline_notebook_frozen_contract_is_complete() -> None:
+    notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
+    code = _code_source(notebook)
+
+    # Every approved frozen setting must be displayed, not a subset --
+    # this section's whole purpose is exposing the complete configuration.
+    for attribute in (
+        "_vectorizer.analyzer",
+        "_vectorizer.ngram_range",
+        "_vectorizer.min_df",
+        "_vectorizer.max_features",
+        "_vectorizer.sublinear_tf",
+        "_vectorizer.lowercase",
+        "_vectorizer.strip_accents",
+        "_classifier.estimator.penalty",
+        "_classifier.estimator.solver",
+        "_classifier.estimator.C",
+        "_classifier.estimator.class_weight",
+        "_classifier.estimator.max_iter",
+        "_classifier.estimator.random_state",
+        "_classifier.n_jobs",
+    ):
+        assert attribute in code
+
+
+def test_baseline_notebook_does_not_claim_low_auc_is_a_bug() -> None:
+    notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
+    markdown = _markdown_source(notebook)
+
+    # A correctly-wired model can legitimately score below 0.5 (e.g. if
+    # anti-predictive) -- only the constant-0.5 wiring/metric check
+    # itself is guaranteed, not every later score.
+    assert "not proof of a scoring error" in markdown
+    assert "would indicate a scoring problem" not in markdown
+    assert "12 separate small-sample fold scores" not in markdown
+
+
+def test_baseline_notebook_avoids_internal_workflow_language() -> None:
+    notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
+    markdown = _markdown_source(notebook)
+
+    for phrase in ("src/knee_mri", "separately reviewed", "results are trusted"):
+        assert phrase not in markdown
 
 
 def test_baseline_kernel_metadata_is_private_cpu_and_offline() -> None:
