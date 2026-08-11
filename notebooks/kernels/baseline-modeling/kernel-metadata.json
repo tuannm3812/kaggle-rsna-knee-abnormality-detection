@@ -1,5 +1,5 @@
 {
-  "id": "tuannm3812/rsna-knee-baseline-modeling",
+  "id": "tuannm3812/rsna-knee-abnormality-detection-report-baseline",
   "title": "RSNA Knee Abnormality Detection — Report Baseline",
   "code_file": "03_baseline_modeling.ipynb",
   "language": "python",

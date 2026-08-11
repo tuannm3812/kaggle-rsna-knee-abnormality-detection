@@ -216,7 +216,7 @@ def test_eda_notebook_has_public_facing_narrative() -> None:
 def test_eda_kernel_metadata_is_private_cpu_and_offline() -> None:
     metadata = _load_json("notebooks/kernels/eda/kernel-metadata.json")
 
-    assert metadata["id"] == "tuannm3812/rsna-knee-eda"
+    assert metadata["id"] == "tuannm3812/rsna-knee-abnormality-detection-eda"
     assert metadata["title"] == "RSNA Knee Abnormality Detection — EDA"
     assert metadata["code_file"] == "01_eda.ipynb"
     assert metadata["is_private"] is True
@@ -480,7 +480,7 @@ def test_baseline_notebook_does_not_claim_low_auc_is_a_bug() -> None:
 def test_baseline_kernel_metadata_is_private_cpu_and_offline() -> None:
     metadata = _load_json("notebooks/kernels/baseline-modeling/kernel-metadata.json")
 
-    assert metadata["id"] == "tuannm3812/rsna-knee-baseline-modeling"
+    assert metadata["id"] == "tuannm3812/rsna-knee-abnormality-detection-report-baseline"
     assert metadata["title"] == "RSNA Knee Abnormality Detection — Report Baseline"
     assert metadata["code_file"] == "03_baseline_modeling.ipynb"
     assert metadata["is_private"] is True
