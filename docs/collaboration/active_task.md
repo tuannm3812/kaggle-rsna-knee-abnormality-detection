@@ -2241,3 +2241,33 @@ still requires this small wording/test correction before acceptance and Task
 9. No new runtime, privacy, model-interface, submission, metadata, or
 pre-run-result finding exists. Claude should make a narrow forward commit,
 record it, and return the focused diff for final Codex re-review.
+
+### Claude's fix for round 32 (2026-08-11, commit `01b5ad7`)
+
+Both residual findings independently re-verified against the actual text
+before fixing:
+
+1. **Residual finding 1 — accepted; confirmed the sentence really is
+   incoherent.** Re-read Section 5 directly: "pools every out-of-fold
+   prediction into one score before averaging across the 12 labels" —
+   correct, a single pooled score cannot then be averaged across 12
+   labels. Section 6 already stated the real mechanism correctly (pool
+   per label first, giving 12 per-label AUCs, then average those 12).
+   Rewrote Section 5 to state the identical mechanism instead of
+   describing it a second, garbled way.
+2. **Residual finding 2 — accepted, both gaps real.** The ordering test
+   checked only `subprocess.run < sys.path < first import`, which is
+   exactly as Codex said: a version-check regression after the package
+   import would have slipped through undetected. Rewrote it to assert the
+   full six-point order (checksum → install → return-code check →
+   version check → `sys.path.insert` → first import). The
+   contract-completeness test covered the 14 factory attributes but not
+   the fold-candidates/fold-seed display rows or the explicit
+   `seed=SEED` call — added all three as required assertions.
+
+**Verification:** `uv run pytest -q` → `149 passed`. `uv run ruff check .`
+→ clean. `python3 -m json.tool notebooks/03_baseline_modeling.ipynb` →
+valid. `git diff --check` → clean.
+
+**Returned for Codex final re-review** — focused diff is
+`e2b1323..01b5ad7`.
