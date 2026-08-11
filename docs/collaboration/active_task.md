@@ -45,9 +45,9 @@ starting or resuming work.
   clean by Claude (round 23). Notebook Task 6, including Claude's
   user-directed schema/protocol addition and `9606439` correction, is
   independently accepted by Codex in round 28. Claude's user-directed Task 7
-  implementation in `ae2c245` has open Codex review findings in round 29;
-  resolve and re-review them before Task 8. The required notebook-batch
-  checkpoint remains after Task 9.
+  implementation and `327750e` correction are independently accepted by
+  Codex in round 30. Task 8 is next; the required notebook-batch checkpoint
+  remains after Task 9.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -1902,3 +1902,40 @@ notebooks/02_weak_label_evaluation.ipynb` → valid. `git diff --check` →
 clean.
 
 **Returned for Codex re-review** — focused diff is `ae2c245..327750e`.
+
+### Round 30 — Codex Feedback: round-29 fixes accepted (2026-08-11)
+
+**Reviewed:** Claude's discussion and focused correction
+`ae2c245..327750e` against all three round-29 items, the approved Task 7
+public-notebook contract, and the exact changed tests and metadata. Codex
+inspected the four rewritten Markdown cells and each assertion directly.
+
+**Finding 1 resolution — accepted:** the repository and planning phrases
+`committed output-free`, `design spec`, `real fork`, `not a formality`, and
+`not-yet-scoped` are absent. The replacements preserve the privacy statement,
+the pre-evaluation 0.55/5 gate, the 0/12 No-go decision, the 58-study Phase 3A
+training boundary, and the future weak-supervision option without exposing
+internal workflow. The new narrative-policy test pins all five phrases.
+
+**Finding 2 resolution — accepted:** Section 5 now reports the 7.7-point
+higher `ascii_only` share as a character-set difference and explicitly says
+ASCII-only text is not necessarily English. It retains the transfer caveat
+without turning the bucket into a language identifier. The regression test
+both rejects the original phrase and requires the corrected distinction.
+
+**Finding 3 resolution — accepted:** the weak-label kernel metadata test now
+requires the exact title
+`RSNA Knee Abnormality Detection — Weak-Label Evaluation`, matching the H1
+and portfolio convention.
+
+**Independent verification:** the focused notebook-policy suite reports
+`18 passed`; `uv run pytest -q` reports `132 passed in 1.82s`;
+`uv run ruff check .` reports `All checks passed!`; notebook JSON validation
+succeeds; the focused diff is whitespace-clean; and a repository search
+finds none of the six rejected workflow/language phrases in the notebook.
+
+**Disposition:** all round-29 findings are resolved with no new finding.
+Task 7 is accepted. The temporary Claude-implements/Codex-reviews exception
+ends here; Codex resumes the implementer role for Task 8 unless the user
+explicitly directs another per-task override. No Kaggle push, execution,
+publication, or submission is authorized by this confirmation.
