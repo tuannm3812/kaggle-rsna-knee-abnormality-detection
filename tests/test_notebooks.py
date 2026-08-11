@@ -536,10 +536,8 @@ def test_preflight_notebook_never_stores_study_or_series_identifiers() -> None:
 def test_preflight_kernel_metadata_is_private_gpu_offline_with_dinov2() -> None:
     metadata = _load_json("notebooks/kernels/image-baseline-preflight/kernel-metadata.json")
 
-    assert metadata["id"] == "tuannm3812/rsna-knee-abnormality-detection-image-preflight-audit"
-    assert (
-        metadata["title"] == "RSNA Knee Abnormality Detection — Image Baseline Preflight Audit"
-    )
+    assert metadata["id"] == "tuannm3812/rsna-knee-image-baseline-preflight-audit"
+    assert metadata["title"] == "RSNA Knee — Image Baseline Preflight Audit"
     assert metadata["code_file"] == "04_image_baseline_preflight.ipynb"
     assert metadata["is_private"] is True
     assert metadata["enable_gpu"] is True
@@ -547,4 +545,4 @@ def test_preflight_kernel_metadata_is_private_gpu_offline_with_dinov2() -> None:
     assert metadata["enable_internet"] is False
     assert metadata["dataset_sources"] == ["tuannm3812/rsna-knee-mri-src"]
     assert metadata["competition_sources"] == ["rsna-knee-abnormality-detection"]
-    assert metadata["model_sources"] == ["metaresearch/dinov2/PyTorch/small"]
+    assert metadata["model_sources"] == ["metaresearch/dinov2/PyTorch/small/1"]
