@@ -46,8 +46,10 @@ starting or resuming work.
   user-directed schema/protocol addition and `9606439` correction, is
   independently accepted by Codex in round 28. Claude's user-directed Task 7
   implementation and `327750e` correction are independently accepted by
-  Codex in round 30. Task 8 is next; the required notebook-batch checkpoint
-  remains after Task 9.
+  Codex in round 30. Task 8 (new `03_baseline_modeling.ipynb`) is
+  implemented by Claude at the user's direction (`a5b3135`) and awaiting
+  Codex's review. Task 9 (docs/standards sync) is next; the required
+  notebook-batch checkpoint remains after it.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -1939,3 +1941,90 @@ Task 7 is accepted. The temporary Claude-implements/Codex-reviews exception
 ends here; Codex resumes the implementer role for Task 8 unless the user
 explicitly directs another per-task override. No Kaggle push, execution,
 publication, or submission is authorized by this confirmation.
+
+### Role reversal a third time: Claude implements Task 8, requests Codex review (2026-08-11)
+
+**Context:** asked directly whether Codex should resume Task 8 per round
+30's own stated default, or whether the user wanted another per-task
+override. The user explicitly chose the override again. Same pattern as
+Tasks 6-7.
+
+**Implemented (`a5b3135`):** `notebooks/03_baseline_modeling.ipynb` (27
+cells) and `notebooks/kernels/baseline-modeling/kernel-metadata.json`,
+following Task 8's plan text closely.
+
+**Structure:** nine numbered sections exactly per the plan (renumbered `1`-`9`
+for the `##` headings, matching the established convention that the H1 itself
+isn't counted): Frozen Experiment Contract, Offline Setup and Data
+Validation, Deterministic Multilabel Folds, Constant-Probability Sanity
+Check, Fold-Local Out-of-Fold Evaluation, Pooled and Per-Label
+Interpretation, Full-Data Refit and Test Prediction, Submission Validation
+and Artifact, Limitations and Phase 3B. One invisible setup cell (imports,
+`SEED`, functional `IS_KAGGLE` guard, `knee_mri` source-path discovery via
+the same `rglob` pattern already accepted for the EDA notebook) precedes
+the first heading, matching Tasks 6/7's precedent.
+
+**The key difference from Tasks 6/7:** this notebook has never run.
+Sections 6/7's weak-label rewrite could cite already-trusted historical
+numbers; this one cannot invent any. Every Interpretation cell describes
+*how* a result will read once the trusted run happens (Section 4: "any
+score below this section's value would indicate a scoring problem, not a
+weak model"), never asserts a specific value. The closing paragraph states
+this explicitly and is pinned by a dedicated test.
+
+**Design choices flagged for review, not silently made:**
+
+- Frozen hyperparameters in Section 1 are read dynamically off
+  `build_report_vectorizer()`/`build_report_classifier()` (`_vectorizer.analyzer`,
+  `_classifier.estimator.penalty`, etc.) rather than duplicated as literal
+  strings, so the displayed contract cannot drift from the actual frozen
+  factories if either changes later.
+- Section 3 adds a per-label × per-fold validation-positive-count table
+  beyond what the plan's example code shows, to satisfy the plan's own
+  stated requirement to display "aggregate fold sizes/**class counts**" —
+  the example snippet only computed sizes.
+- Kernel title extended to `RSNA Knee Abnormality Detection — Report
+  Baseline` (plan's own JSON example showed `RSNA Knee Baseline Modeling`),
+  matching the H1 and the portfolio-consistency pattern Codex has now
+  accepted twice (rounds 25 and 29) for the other two kernels — same
+  discretionary-but-precedented call as before.
+- `kernel_sources: []` included in the metadata (absent from the plan's
+  shown JSON) for consistency with the other two kernel-metadata.json
+  files, which both have it.
+
+**Test changes:** added `notebooks/03_baseline_modeling.ipynb` to the
+shared `NOTEBOOK_PATHS` parametrization (picking up the four generic
+policy checks for free) and eight notebook-specific tests: the display
+allowlist, full package-boundary import coverage (all five `src/knee_mri`
+interfaces), wheel filename/SHA-256/version verification present, the
+constant-0.5 sanity assertion present verbatim, exactly one
+`to_csv(...)` call targeting `/kaggle/working/submission.csv`, absence of
+any inline `TfidfVectorizer(`/`LogisticRegression(`/`candidate_splits=`
+that could diverge from the frozen factories, the no-result-before-the-
+trusted-run narrative markers, and exact kernel metadata.
+
+**Verification performed before treating this as done:**
+
+- Ran the **complete** pipeline against a synthetic 58-labeled/30-unlabeled/
+  5-test-study dataset with varied report text (not a trivial fixture):
+  `prepare_modeling_inputs` → `select_multilabel_folds` (using the actual
+  installed `iterstrat`, not a mock — it's a real project dependency now)
+  → `cross_validate_report_model` → `fit_report_model` → `build_submission`,
+  exercising every `display()` call in the notebook. Only the Kaggle
+  filesystem/pip-install plumbing was stubbed (already independently
+  covered by Task 1's own tests).
+- `uv run ruff check .` first found a real `E402` (imports after
+  executable code in the offline-setup cell) — verified `dataset.py`/
+  `labels.py` have zero transitive dependency on `iterstrat` before
+  reordering the imports to the top, rather than assuming it was safe.
+- `uv run pytest -q`: `144 passed`. `uv run ruff check .`: clean.
+  `python3 -m json.tool notebooks/03_baseline_modeling.ipynb`: valid. 27
+  unique cell ids, all outputs empty, all execution counts null. `git diff
+  --check`: clean.
+
+**Codex review requested**, particularly: whether the "no result before
+the trusted run" discipline is actually maintained everywhere (no
+accidental invented number), the three flagged discretionary choices
+above, package-boundary/interface correctness against the approved design,
+and whether the offline wheel/guard sequencing is safe. Record findings as
+the next numbered round.
