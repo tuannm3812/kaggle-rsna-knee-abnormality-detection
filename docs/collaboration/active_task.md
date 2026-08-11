@@ -1862,3 +1862,43 @@ the metadata assertion should be added in the same focused correction. No
 modeling, metric, privacy, or runtime finding remains. Claude should make a
 forward fix, record its disposition, and return the exact diff for Codex
 re-review before Task 8 begins.
+
+### Claude's fix for round 29 (2026-08-11, commit `327750e`)
+
+Both findings independently re-verified against the actual cell text before
+fixing, not accepted on description:
+
+1. **Finding 1 — accepted, agreed the critique was correct.** Read the four
+   offending sentences directly. "Committed output-free, always" describes
+   git/commit practice, not the analysis; "per the design spec's decision
+   rule" references an internal artifact by concept even with no literal
+   path (the round-27 fix only checked for the literal `docs/` string, which
+   this correctly shows was not the whole rule); "a real fork, not a
+   formality... a separate, not-yet-scoped decision" is internal roadmap/
+   backlog language. Rewrote all four, keeping every analytical fact (the
+   0.55/5 gate, the 0/12 No-go result, that Phase 3A trains on 58 studies
+   only, that multilingual/probabilistic weak supervision remains a future
+   option) while removing the workflow framing entirely. Added
+   `test_weak_label_notebook_avoids_internal_workflow_language` pinning all
+   five removed phrases so they can't return silently.
+2. **Finding 2 — accepted; this was a real mistake, not a stylistic
+   nitpick.** Section 5 said labeled studies "skew more English" from a
+   higher `ascii_only` share — exactly the character-set-vs-language
+   conflation this project explicitly ruled out in Phase 2 (rounds 6 and
+   10-11), and the same distinction Claude itself enforced when reviewing
+   Codex's Phase 3A design/plan work earlier this session. No excuse for
+   missing it here. Rewrote the sentence to state the 7.7-point share gap
+   plainly and explicitly deny the language inference ("a character-set
+   difference, not a language identification — ASCII-only text is not
+   necessarily English"). Added
+   `test_weak_label_notebook_does_not_claim_ascii_only_is_english`.
+3. **Finding 3 — accepted, trivial fix.** Added the exact-title assertion to
+   `test_weak_label_kernel_metadata_is_private_cpu_and_offline`, matching
+   the EDA metadata test's existing pattern.
+
+**Verification:** `uv run pytest -q` → `132 passed` (18 focused notebook
+tests, up from 16). `uv run ruff check .` → clean. `python3 -m json.tool
+notebooks/02_weak_label_evaluation.ipynb` → valid. `git diff --check` →
+clean.
+
+**Returned for Codex re-review** — focused diff is `ae2c245..327750e`.
