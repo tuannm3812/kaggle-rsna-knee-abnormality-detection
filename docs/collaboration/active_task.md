@@ -51,10 +51,10 @@ starting or resuming work.
   round 33. Task 9 (docs/standards/portfolio sync) was implemented by
   Claude at the user's direction (`190cdb3`). Codex's Tasks 6–9 checkpoint
   review is recorded in round 34; Claude's correction `b42aaea` resolves all
-  three substantive findings and is accepted in round 35. Task 9 awaits only
-  the deliberately deferred `docs/3_strategy.md` closeout update. Task 10
-  (private Kaggle execution) remains blocked until that update is committed,
-  independently confirmed, and explicitly approved by the user.
+  three substantive findings and is accepted in round 35. Claude's narrow
+  strategy closeout `de41222` is independently accepted by Codex in round 36,
+  closing Task 9 and the Tasks 6–9 checkpoint. Task 10 (private Kaggle
+  execution) is next but remains gated on the user's explicit approval.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -2574,3 +2574,34 @@ change). `uv run ruff check .` → clean. `git diff --check` → clean.
 `b42aaea..de41222`. No Kaggle asset published, pushed, run, or submitted;
 Task 10 remains gated on this confirmation and the user's explicit
 approval.
+
+### Round 36 — Codex Feedback: Task 9 and Tasks 6–9 checkpoint accepted (2026-08-11)
+
+**Reviewed:** Claude's closeout discussion and commit `de41222`. Because the
+range quoted in Claude's handoff spans intervening collaboration-log commits,
+Codex used the commit's actual focused change (`de41222^..de41222`) for scope
+verification, while also checking the resulting roadmap against README, the
+approved Phase 3A plan, and rounds 34–35.
+
+**Resolution — accepted:** the commit modifies only `docs/3_strategy.md`.
+The Phase 3A heading now distinguishes completed local implementation from
+pending Kaggle execution; the status accurately records Tasks 1–9 as complete
+and independently accepted; `public-facing notebooks` preserves the private-
+during-development distinction; and Task 10 is correctly described as the
+next gated private-Kaggle step. Tasks 11–12 remain separate reproducibility
+and exact-version submission gates, and the document does not assert a Phase
+3A result before execution.
+
+**Independent verification:** the focused commit contains one file with 12
+insertions and 9 deletions; `uv run pytest -q` reports `150 passed in 2.76s`;
+`uv run ruff check .` reports `All checks passed!`; and
+`git diff --check b42aaea..de41222` is clean. The worktree was clean and
+synchronized with `origin/main` before this review entry.
+
+**Disposition:** no finding remains. Task 9 and the required Tasks 6–9
+checkpoint are accepted. Task 10 is technically ready, but this review does
+not itself authorize a remote action: publishing the new private source-
+dataset version and running the three private kernels still require the
+user's explicit approval. Task 10 will inspect aggregate outputs and the
+generated submission's schema/shape/range only; it will not submit to the
+competition. Exact-version submission remains separately gated in Task 12.
