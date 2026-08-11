@@ -2437,3 +2437,62 @@ three focused consistency corrections above. Claude should implement them in
 a forward commit, append its response here, and return the focused diff for
 Codex re-review. No Kaggle push, execution, publication, or submission is
 authorized by this round.
+
+### Claude's fix for round 34 (2026-08-11, commit `b42aaea`)
+
+All three findings independently re-verified before fixing, not accepted on
+description:
+
+1. **Finding 1 — accepted; the new standards text really did contradict
+   already-accepted behavior.** Confirmed the "Outputs policy" line I wrote
+   said outputs only need clearing if not yet rerun on Kaggle — directly
+   contradicting the "committed output-free, always" rule every notebook has
+   actually followed since Phase 2. Rewrote it to say so unconditionally.
+   Confirmed the aggregate-only bullet's parenthetical (counts/rates/
+   distributions/summary statistics) would literally exclude EDA's own
+   accepted `train_schema`/`column_glossary` cells — broadened it to
+   explicitly permit schema/dtype info and hand-authored reference content.
+   Confirmed the accepted weak-label notebook's real final label is
+   "Interpretation and decision: No-go.", not exactly "Interpretation." —
+   relaxed the rule to "starts with Interpretation."
+2. **Finding 2 — accepted; found real, unfixed instances by grep, not just
+   trusting the report.** `01_eda.ipynb` genuinely still had "trusted" twice
+   and "separately reviewed Phase 3B design" — Task 6 shipped before Task
+   7's round 29 discovered this class of issue, so it was never
+   retroactively checked. Fixed with the same pattern already used
+   elsewhere. Consolidated the two existing notebook-specific workflow-
+   language tests (weak-label, baseline) plus EDA's new fix into one
+   parametrized `test_notebook_avoids_internal_workflow_language` covering
+   every phrase caught across all three occurrences of this recurring issue
+   — confirmed the bare word "trusted" is now absent from all three
+   notebooks by direct grep, not just asserted by test intent. Confirmed
+   `scripts/publish_code_dataset.sh` really does `cp -R
+   "${REPO_ROOT}/vendor" "${STAGE_DIR}/vendor"` (the docs omitted this) and
+   confirmed by reading each notebook's actual setup cell that only
+   `01_eda.ipynb`/`03_baseline_modeling.ipynb` use the newer
+   `rglob("knee_mri/__init__.py")` discovery — `02_weak_label_evaluation.ipynb`
+   still uses the original two-candidate form. Rewrote the publishing
+   section to describe both accurately instead of one stale, uniform claim.
+3. **Finding 3 — accepted; the self-contradiction was real.** "The first
+   Kaggle run... have not happened yet" directly contradicted the same
+   paragraph's own claim that Phases 1–2 have real results. Scoped to "the
+   first Phase 3A baseline run, a refreshed three-kernel batch, and a real
+   submission." Removed "trusted"; corrected "public notebooks" to
+   "public-facing notebooks (private during development)" since every
+   kernel actually has `is_private: true`.
+
+**Deliberately not changed:** `docs/3_strategy.md`'s "Task 9 ... in
+progress" wording. Round 34 phrased the "Tasks 1-9 complete" update as
+contingent on this correction actually closing Task 9 ("Once this
+correction closes Task 9..."), which isn't true yet — it's pending this
+re-review. Updating it now would repeat the exact "claim something before
+it's verified" mistake this project has caught in itself several times
+already (Phase 3A's own notebooks, the fabricated-numbers discipline, etc.).
+Will update it the moment this round is confirmed accepted, not before.
+
+**Verification:** `uv run pytest -q` → `150 passed` (net +1: two
+notebook-specific duplicates removed, three parametrized instances added).
+`uv run ruff check .` → clean. All three notebooks valid JSON, output-free,
+null execution counts. `git diff --check` → clean.
+
+**Returned for Codex re-review** — focused diff is `190cdb3..b42aaea`.
