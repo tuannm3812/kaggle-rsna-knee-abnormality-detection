@@ -71,16 +71,17 @@ starting or resuming work.
   design is discussed, written, independently reviewed, and approved. At the
   user's direction, Claude implemented and ran the project-owned preflight
   audit round 38 called for (finding 3) — recorded in round 39 with real
-  measurements now in `docs/7_image_baseline_insights.md`: `Fluid_Sensitive`/
-  `Fat_Suppression` are perfectly redundant, every study has all three
-  planes, `InstanceNumber` order agrees with true DICOM geometry on every
-  sampled series (no `load_series` change needed after all), the
-  `Laterality` tag is reliable when present but missing on ~18% of series,
-  decode failure rate is 0% (with an unexplained codec-availability caveat),
-  and GPU timing could not be measured — Kaggle allocated an incompatible
-  P100 GPU on both attempts. The Phase 3B design itself is still not
-  written, reviewed, or approved; this preflight is an input to that design,
-  not the design.
+  measurements now in `docs/7_image_baseline_insights.md`. Codex's round-40
+  review accepts the audit infrastructure, private/offline execution, and
+  the descriptive fluid/fat, plane, geometry-tag, pixel-spacing, slice-count,
+  and decode observations, but does not accept several derived conclusions
+  yet: absolute rank correlation hides slice-direction reversals, laterality
+  coverage is not measured end to end, the codec import probe uses two wrong
+  module names and omits transfer syntaxes, and the unmeasured runtime
+  projection targets the wrong train/scope populations. The Phase 3B design
+  itself is still not written, reviewed, or approved; a focused preflight-v2
+  correction and explicit-T4 timing rerun is recommended before the user
+  chooses the one-series versus compact-multi-plane scope.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -3031,3 +3032,115 @@ informed (plane coverage is not a blocker) but not fully (GPU runtime is
 still unmeasured); `docs/1_instructions.md`'s false "same schema" claim
 about `test.csv` (round 38 finding 5) has not been corrected yet. Returned
 for the user's and Codex's review before any design spec is drafted.
+
+### Round 40 — Codex Feedback: preflight implementation accepted, conclusions require a focused v2 correction (2026-08-12)
+
+**Scope reviewed:** Claude's commits `7455910`, `a11f84f`, `f67ee59`,
+`914085a`, `1bc4e0e`, and `624e9b1`; the new audit module/tests/notebook and
+kernel metadata; the persisted aggregate JSON downloaded independently from
+the live private preflight kernel version 3; the live `COMPLETE` status and
+log; and the affected public documentation. No raw report, identifier,
+pixel, row-level prediction, or submission row was inspected or recorded.
+
+**Accepted work:** the project-owned audit is a valuable and appropriately
+private input to design. The committed notebook is output-free and its live
+kernel is private, GPU-enabled, offline, and attached to the intended
+DINOv2-small model source. Persisting aggregate results under
+`/kaggle/working` successfully closes the notebook-output retrieval gap.
+The full-corpus `Fluid_Sensitive`/`Fat_Suppression` agreement measurement,
+train plane availability, sampled geometry-tag coverage, pixel-spacing and
+slice-count distributions, and zero observed decode failures are accepted as
+descriptive measurements of the audited populations. The P100/PyTorch
+compute-capability failure is correctly detected without crashing. These
+implementation commits may remain; no revert is requested.
+
+**Finding 1 — absolute rank correlation cannot settle signed slice direction
+(blocking the current ordering conclusion):** `order_agreement` deliberately
+returns signed Spearman correlation and its contract says a consistent
+reversal produces approximately `-1`, but the notebook persists and reports
+only `|r|`. Therefore `mean |r| = 1.0` establishes perfect monotonicity, not
+that `InstanceNumber` and geometry increase in the same physical direction.
+This is enough for adjacency and order-insensitive pooling, but it does not
+support the unqualified statement that the orders "agree" or that signed
+direction is irrelevant for later directional normalization. Preflight v2
+must persist the signed distribution (at least positive/negative fractions
+and signed mean/range) and qualify the interim result as “perfectly
+monotonic; direction unresolved.” A `load_series` change is not requested
+without that evidence.
+
+**Finding 2 — the laterality result does not measure fallback coverage end to
+end (blocking the claimed ~18% fill):** `SeriesAudit.has_laterality_tag` is
+documented as an every-slice property but `audit_series` checks only the first
+slice. Presence also accepts an empty or invalid value, and the notebook's
+conflict denominator includes those values as non-conflicts. The audit checks
+`Laterality` but not `ImageLaterality`, and it does not persist geometry-call
+coverage, geometry success among tag-missing series, unresolved rate, or
+study-level coverage/consistency. The center calculation should use pixel
+indices `(columns - 1) / 2` and `(rows - 1) / 2` for the exact DICOM mapping.
+Preflight v2 must validate normalized `L`/`R` values, define the precedence of
+`ImageLaterality` and `Laterality`, measure the tag-plus-geometry fallback
+end to end at series and study level, and test mixed/missing/invalid tags.
+Until then, the observed first-slice tag-presence and disagreement rates are
+descriptive only; the claim that geometry fills the missing 18% is not
+established.
+
+**Finding 3 — the codec probe is technically incorrect and the decode result
+lacks transfer-syntax context (blocking codec conclusions):** the notebook
+tests import names `pylibjpeg_libjpeg` and `pylibjpeg_openjpeg`, but those
+distributions expose the importable modules `libjpeg` and `openjpeg`.
+Independent local verification finds both correct modules importable while
+the two tested names are not. The audit also does not record
+`TransferSyntaxUID`, so zero failures across the sample cannot show which
+compressed syntaxes were exercised or which handler decoded them. Correct
+the module probe and persist attempted/failed decode counts by transfer
+syntax before replacing the current caveat with a conclusion. Append a
+clearly labeled v2 correction to `docs/7_image_baseline_insights.md`; do not
+silently rewrite the v1 execution history.
+
+**Finding 4 — the timing projection targets the wrong workload (blocking the
+series-scope decision):** the proposed supervised baseline trains on the 58
+gold-labeled studies and infers on the documented hidden-test scale, not all
+4,407 training studies. “All series” also does not represent the candidate
+compact multi-plane design, which needs one selected series per anatomical
+plane. Preflight v2 should time the frozen preprocessing/encoder path and
+project explicit one-series and three-series workloads for 58 training
+studies plus the documented test scale, with uncertainty and selection/
+dataloader overhead stated. The installed project CLI explicitly supports
+`kaggle kernels push --accelerator ACC`; use a reviewed wrapper extension and
+an explicit `NvidiaTeslaT4` request rather than another random P100 attempt.
+This review does not authorize that remote push or rerun.
+
+**Finding 5 — documentation and public-notebook claims still need
+reconciliation (blocking design freeze, not the audit code):**
+`docs/1_instructions.md` still falsely calls test data the “same schema”;
+`docs/3_strategy.md` still presents the impossible report submission and
+direct text/image fusion as active next phases; README status/layout omits
+the new preflight and current invalidation; and the notebook contains
+internal “offline review workflow” prose that is not appropriate in a
+public-facing artifact. Plane availability is 1.0 across the full train set
+but only three visible example test studies, so the eventual loader still
+needs an absence/fallback contract for hidden test. Describe the seeded
+150-study header/decode audit as a fixed descriptive sample rather than
+asserting statistical stability without intervals, persist PixelSpacing
+coverage as well as its observed range, and record the exact numeric private
+source-dataset version (not only its publishing commit). Reconcile the
+50-character Kaggle title constraint with the notebook-title standard by
+allowing a semantically aligned shortened kernel title.
+
+**Independent verification:** the private preflight kernel version 3 reports
+`COMPLETE`; its downloaded `preflight_audit_summary.json` parses and matches
+the aggregate values recorded in round 39. Before this feedback-only commit,
+`.venv/bin/pytest -q` reported `176 passed`, `.venv/bin/ruff check .`
+reported `All checks passed!`, all four notebooks were valid JSON,
+output-free, and had unique cell IDs, and `git diff --check` was clean. A
+fresh `.venv/bin/kaggle kernels push --help` check confirms the current CLI's
+`--accelerator ACC` option; direct imports confirm `libjpeg` and `openjpeg`
+are the correct available codec modules in the local project environment.
+
+**Disposition:** the audit implementation and useful descriptive
+measurements are accepted, but the ordering, laterality, codec, and runtime
+conclusions require revision. No Phase 3B design is approved and no further
+remote execution is authorized by this review. Codex recommends one narrow
+preflight-v2 correction, an explicitly requested T4 timing rerun through the
+standard wrapper after user approval, and then a user choice between the
+speed-first single-series baseline and the compact three-plane baseline.
