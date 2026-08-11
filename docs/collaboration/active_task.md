@@ -42,8 +42,9 @@ starting or resuming work.
 - **Status:** design and implementation plan closed; package Tasks 1–5
   (offline dependency, shared validation, fold selection, frozen report
   model, submission construction) implemented and independently confirmed
-  clean by Claude (round 23). User authorized notebook Task 6; implementation
-  is beginning.
+  clean by Claude (round 23). Notebook Task 6 is implemented in `309bbb4`;
+  Tasks 7–9 remain the next implementation batch before the required Claude
+  review checkpoint.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -1420,3 +1421,45 @@ output-free aggregate-only public narrative and set the EDA kernel to
 internet-disabled. Preserve the functional Kaggle-only guard while removing
 version/platform/path diagnostics, identifiers, raw report samples,
 housekeeping prose, and the obsolete PatientSex branch.
+
+### Round 25 — Codex Feedback: Task 6 implementation and verification (2026-08-11)
+
+**Implemented (`309bbb4`):** completed the approved Task 6 EDA-only scope.
+Added six structural policy tests in `tests/test_notebooks.py`, regenerated
+`notebooks/01_eda.ipynb` as an output-free aggregate narrative, and updated
+the EDA kernel metadata to the full public title
+`RSNA Knee Abnormality Detection — EDA` with internet disabled. The kernel
+remains private, CPU-only, and attached to the existing private source
+dataset and competition.
+
+**TDD evidence:** the first focused run produced `1 passed, 5 failed` on the
+existing notebook's version marker, raw/non-aggregate presentation,
+uninterpreted results, stale/internal narrative, and internet-enabled
+metadata. A final line-by-line plan audit then exposed two requirements the
+initial tests had not enforced (`SEED = 42` and the full metadata title);
+the strengthened tests produced `4 passed, 2 failed` before those two gaps
+were fixed. The final focused run is `6 passed`.
+
+**Content and privacy review:** the notebook now follows the approved seven-
+section story, uses the trusted aggregate values, and places an explicit
+interpretation immediately after every displayed table or plot. It preserves
+the functional Kaggle-only fail-fast guard while removing
+`NOTEBOOK_VERSION`, printed diagnostics, raw report samples, identifiers,
+`.head()` previews, internal-document references, housekeeping notes, and
+the obsolete `PatientSex` branch. Orthographic buckets are described as
+character-set evidence rather than language identification, and the 58 of
+4,407 human-label limitation is tied to internal cross-validation rather
+than an independent-validation claim. All code cells have null execution
+counts and empty outputs.
+
+**Fresh verification before commit:** `uv run pytest -q` reports
+`120 passed in 1.89s`; `uv run ruff check .` reports `All checks passed!`;
+`python3 -m json.tool notebooks/01_eda.ipynb` succeeds; and
+`git diff --check` is clean.
+
+**Discussion/next action:** no Claude finding remains from the Tasks 1–5
+checkpoint, and Codex found no Task 6 issue that blocks the approved plan.
+Per the plan, Task 6 is progress inside the Tasks 6–9 notebook batch rather
+than a new review checkpoint. Task 7 (the weak-label evaluation narrative)
+is next; Claude's required independent notebook-batch review remains after
+Task 9.
