@@ -44,8 +44,11 @@ starting or resuming work.
   model, submission construction) implemented and independently confirmed
   clean by Claude (round 23). Notebook Task 6, including Claude's
   user-directed schema/protocol addition and `9606439` correction, is
-  independently accepted by Codex in round 28. Task 7 is next; the required
-  Claude notebook-batch checkpoint remains after Task 9.
+  independently accepted by Codex in round 28. Task 7 (weak-label
+  narrative) is implemented by Claude at the user's direction (`ae2c245`)
+  and awaiting Codex's review. Task 8 (new baseline-modeling notebook) is
+  next; the required Claude notebook-batch checkpoint remains after
+  Task 9.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -1706,3 +1709,79 @@ Task 6 is accepted. The temporary Claude-implements/Codex-reviews exception
 ends here, so the standing roles resume: Codex implements Task 7 and Claude
 reviews at the planned Tasks 6–9 checkpoint after Task 9. No Kaggle push,
 run, publication, or submission is authorized by this confirmation.
+
+### Role reversal again: Claude implements Task 7, requests Codex review (2026-08-11)
+
+**Context:** immediately after round 28 closed the previous exception, the
+user directly asked Claude to implement Task 7 too ("implement next step
+then record it for codex feedback"). Same pattern as Task 6: a deliberate,
+explicit per-task override of the standing Codex-implements/Claude-reviews
+split, not a violation of round 28's stated expectation. Followed Task 7's
+plan text closely rather than reinterpreting it.
+
+**Implemented (`ae2c245`):**
+
+- Removed `NOTEBOOK_VERSION` and every diagnostic `print()` from
+  `02_weak_label_evaluation.ipynb`; kept the functional `IS_KAGGLE`
+  fail-fast guard unchanged (did not touch its two-candidate source-root
+  discovery logic — that wasn't in Task 7's scope, unlike Task 6's EDA
+  rewrite where the `rglob` mechanism was already separately approved).
+- Reorganized into the plan's exact six sections: Frozen Evaluation
+  Contract (states `MIN_SUPPORT`/`MIN_PRECISION_LOWER_BOUND` before any
+  result, folding in the old "load the 58 labeled studies" step), Naive
+  Keyword Baseline, Assertion-Aware Extractor, Coverage and Error
+  Taxonomy, Labeled-to-Unlabeled Orthographic Comparison, Decision and
+  Modeling Implication.
+- Replaced every "pending first Kaggle run" placeholder with the trusted
+  Phase 2 v2 numbers already recorded in `docs/4_experiments.md` — every
+  cited figure (precision deltas, Wilson lower bounds, the 7.7pp
+  orthographic gap, the 0/12 allowlist) was copied from that already-
+  verified source, not invented or recalculated by hand.
+- Converted the taxonomy section's `for key, count in ...: print(...)`
+  loop into a `taxonomy_table` DataFrame plus one `display()` call, since
+  removing `print()` entirely (to match the now-shared generic policy
+  test) meant the raw-Counter-print pattern couldn't stay as-is.
+- Added a `gap_pp` column to the orthographic-comparison table, computed
+  as `(labeled - unlabeled).abs() * 100` — reproduces the same 7.7/1.7/
+  2.1/2.3/2.1/2.8 percentage-point gaps already recorded in
+  `docs/4_experiments.md`, verified by hand for `ascii_only`
+  (|0.483-0.406|×100 = 7.7) before trusting the general formula.
+- Removed the internal doc-path reference from the intro (previously
+  cited the design spec's file path) to match the same "no internal-
+  document references" rule already applied to the EDA rewrite.
+- Updated the kernel title to `RSNA Knee Abnormality Detection —
+  Weak-Label Evaluation`, matching the new H1 and the EDA kernel's title
+  pattern — not explicitly requested by Task 7's text, but follows the
+  portfolio-consistency precedent Task 6 already established.
+
+**Test changes:** per Task 7 Step 1's explicit instruction, parameterized
+the generic output/guard/privacy/interpretation checks across both public
+notebooks (`test_notebook_is_valid_and_output_free`,
+`test_notebook_retains_guard_without_internal_diagnostics`,
+`test_notebook_avoids_raw_report_and_row_level_display`,
+`test_notebook_interprets_each_aggregate_result`), keeping notebook-
+specific checks (the display-name allowlist, kernel metadata, exact
+narrative content) separate under their own test names. Added
+`test_weak_label_notebook_has_trusted_conclusion`, pinning `0/12`,
+`No-go`, `58`, `7.7`, the unlabeled-study count via a comma-insensitive
+check (`"4349" in markdown.replace(",", "")`, matching Task 7's own
+stated reasoning for why the check should be semantic, not literal), and
+the absence of `pending`/`docs/`.
+
+**Verification performed before treating this as done:** ran the
+notebook's complete logic — frozen contract, both extractors, the
+taxonomy loop, the orthographic comparison, and the allowlist — against a
+synthetic dataset with English, German, French, Greek, and Turkish
+reports, exercising every `display()` call, not just checking syntax.
+`uv run pytest -q`: `130 passed`. `uv run ruff check .`: clean.
+`python3 -m json.tool` on both notebooks: valid. Both notebooks confirmed
+output-free with unique cell ids and null execution counts. `git diff
+--check`: clean.
+
+**Codex review requested,** same as the Task 6 exercise: the frozen-figure
+transcription accuracy (every number should trace back to
+`docs/4_experiments.md`, not be recomputed or approximated by hand), the
+section-boundary mapping against Task 7's plan text, the taxonomy-table
+conversion, the kernel-title change (discretionary, not explicitly
+requested), and general privacy/quality review. Record findings as the
+next numbered round.
