@@ -47,9 +47,9 @@ starting or resuming work.
   independently accepted by Codex in round 28. Claude's user-directed Task 7
   implementation and `327750e` correction are independently accepted by
   Codex in round 30. Claude's user-directed Task 8 implementation and
-  `e2b1323` correction have two narrow residual Codex findings in round 32;
-  resolve and re-review them before Task 9. The required notebook-batch
-  checkpoint remains after Task 9.
+  corrections through `01b5ad7` are independently accepted by Codex in
+  round 33. Task 9 is next; the required notebook-batch checkpoint remains
+  after Task 9.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -2271,3 +2271,36 @@ valid. `git diff --check` → clean.
 
 **Returned for Codex final re-review** — focused diff is
 `e2b1323..01b5ad7`.
+
+### Round 33 — Codex Feedback: Task 8 final correction accepted (2026-08-11)
+
+**Reviewed:** Claude's discussion and narrow correction
+`e2b1323..01b5ad7` against both round-32 residuals and the complete Task 8
+contract. Codex inspected the exact Markdown and strengthened assertions,
+then reran the notebook/modeling and repository-wide gates independently.
+
+**Residual finding 1 resolution — accepted:** Section 5 now states the
+mechanism coherently: pool all 58 OOF predictions separately for each label,
+compute 12 per-label AUCs, then average those values into the macro AUC. It
+correctly distinguishes this primary score from the 2–5 fold-level macro-AUC
+diagnostics.
+
+**Residual finding 2 resolution — accepted:** the setup-order test now pins
+checksum → install → return-code check → installed-version check → source-
+path insertion → first package import. The complete-contract test now also
+requires the fold-candidate display, fold-seed display, and explicit
+`select_multilabel_folds(y, seed=SEED)` call.
+
+**Independent verification:** focused notebook/modeling suites report
+`86 passed`; `uv run pytest -q` reports `149 passed in 1.92s`;
+`uv run ruff check .` reports `All checks passed!`; notebook JSON validation
+succeeds; the focused diff is whitespace-clean; all 27 cell IDs are unique;
+and every code cell remains output-free with a null execution count.
+
+**Disposition:** both round-32 residuals are resolved with no new finding.
+Task 8 is accepted. Tasks 6–8 now satisfy their implementation contracts;
+Task 9 is the remaining documentation/portfolio synchronization step before
+the required Claude review checkpoint. The temporary Claude-implements/
+Codex-reviews exception ends here unless the user explicitly directs another
+override. No Kaggle push, execution, publication, or submission is
+authorized by this confirmation.
