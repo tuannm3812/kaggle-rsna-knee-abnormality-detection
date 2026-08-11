@@ -46,10 +46,10 @@ starting or resuming work.
   user-directed schema/protocol addition and `9606439` correction, is
   independently accepted by Codex in round 28. Claude's user-directed Task 7
   implementation and `327750e` correction are independently accepted by
-  Codex in round 30. Claude's user-directed Task 8 implementation in
-  `a5b3135` has open Codex review findings in round 31; resolve and re-review
-  them before Task 9. The required notebook-batch checkpoint remains after
-  Task 9.
+  Codex in round 30. Claude's user-directed Task 8 implementation and
+  `e2b1323` correction have two narrow residual Codex findings in round 32;
+  resolve and re-review them before Task 9. The required notebook-batch
+  checkpoint remains after Task 9.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -2191,3 +2191,53 @@ notebooks/03_baseline_modeling.ipynb`: valid, 27 unique cell ids, all
 outputs empty, all execution counts null. `git diff --check`: clean.
 
 **Returned for Codex re-review** — focused diff is `a5b3135..e2b1323`.
+
+### Round 32 — Codex Feedback: re-review of round-31 correction (2026-08-11)
+
+**Reviewed:** Claude's discussion and focused correction
+`a5b3135..e2b1323` against every round-31 finding, including the exact setup
+cell, frozen-contract rows, rewritten Markdown, and five new tests.
+
+**Resolved and accepted:** wheel discovery, checksum, offline install,
+explicit return-code handling, version verification, source-path insertion,
+and package imports now execute in the required order. Wheel and source are
+resolved beneath the same attached dataset root. Pip stdout/stderr are
+suppressed, `check=True` is gone, and both nonzero return and process-launch
+failure raise path-free errors. The public contract now displays all approved
+TF-IDF, logistic-regression, one-vs-rest, fold, and seed settings by reading
+the tested factories. The below-0.5 claim is corrected, internal workflow
+phrases are removed, and fold selection now receives `seed=SEED` explicitly.
+
+**Residual finding 1 — one pooled-AUC sentence remains mathematically
+incoherent (blocking):** Section 5 says it "pools every out-of-fold
+prediction into one score before averaging across the 12 labels." One score
+cannot then be averaged across labels. Section 6 states the mechanism
+correctly: pool 58 OOF predictions per label, compute 12 per-label AUCs, then
+average those 12 values. The Section 5 sentence should use that same precise
+ordering. Extend the narrative test to require the per-label pooling wording,
+not only prohibit the old "12 fold scores" phrase.
+
+**Residual finding 2 — the regression tests do not fully protect two
+corrected contracts (requested with the same focused fix):** the dependency-
+ordering test asserts only `subprocess.run < sys.path < first import`; it
+would still pass if checksum or installed-version verification moved after
+package imports. Assert the full relevant order: checksum → install →
+return-code check → installed-version check → `sys.path.insert` → first
+`knee_mri` import. The frozen-contract-completeness test requires all 14
+factory attributes but omits the displayed fold candidates and fold seed,
+and does not require the new explicit `seed=SEED` call. Add those assertions
+so the exact correction cannot silently regress.
+
+**Independent verification:** focused notebook/modeling suites report
+`86 passed`; `uv run pytest -q` reports `149 passed in 2.98s`;
+`uv run ruff check .` reports `All checks passed!`; notebook JSON validation
+succeeds; all 27 cell IDs are unique; all code cells remain output-free with
+null execution counts; the observed source order is checksum → install →
+return-code check → version check → source insertion → package import; and
+`git diff --check a5b3135..e2b1323` is clean.
+
+**Disposition:** the four substantive round-31 findings are fixed, but Task 8
+still requires this small wording/test correction before acceptance and Task
+9. No new runtime, privacy, model-interface, submission, metadata, or
+pre-run-result finding exists. Claude should make a narrow forward commit,
+record it, and return the focused diff for final Codex re-review.
