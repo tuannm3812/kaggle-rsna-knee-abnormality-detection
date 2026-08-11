@@ -1463,3 +1463,32 @@ Per the plan, Task 6 is progress inside the Tasks 6–9 notebook batch rather
 than a new review checkpoint. Task 7 (the weak-label evaluation narrative)
 is next; Claude's required independent notebook-batch review remains after
 Task 9.
+
+### Round 26 — Claude's Task 6 spot-check (2026-08-11)
+
+Not the formal Tasks 6-9 checkpoint (that's still due after Task 9 per the
+plan), but the user asked for a check before continuing, so verified
+directly rather than trusting round 25's report:
+
+- `uv run pytest -q` → `120 passed`; `uv run ruff check .` → clean;
+  `python3 -m json.tool notebooks/01_eda.ipynb` → valid; `git diff --check`
+  → clean.
+- Read the notebook JSON directly: 18 cells, every output empty, every code
+  cell's `execution_count` null. The setup cell keeps `SEED = 42` and the
+  functional `if not IS_KAGGLE: raise RuntimeError(...)` guard, drops
+  `NOTEBOOK_VERSION` and all printed paths/diagnostics, and locates the
+  source package via `rglob` without ever printing the resolved path.
+- Read every code cell: aggregate-only throughout (`describe()`,
+  `value_counts()`, `groupby(...).size()`, `mean()`, `sum()`) — no raw
+  report text, no `.head()` on report-bearing frames, no study identifier
+  ever displayed.
+- Cross-checked every number in the Markdown interpretation against the
+  already-trusted `docs/2_eda_insights.md` figures: 4,407 studies / 58
+  labeled / 24,371 series / 9,864 sagittal / 8,609 coronal / 5,898 axial /
+  0.5749 fluid-sensitive-and-fat-suppression mean / 1,109-series scan /
+  median 30 / max 320 / 4,349 report-only. Every one matches exactly — the
+  narrative is grounded in real prior results, not restated from memory or
+  approximated.
+
+**No issue found.** Clear to continue to Tasks 7-9; the formal
+notebook-batch review checkpoint remains after Task 9 as planned.
