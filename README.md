@@ -19,11 +19,12 @@ format, and scoring details: [`docs/1_instructions.md`](docs/1_instructions.md).
 ## Status
 
 EDA (Phase 1) and weak-label evaluation (Phase 2, verdict: No-go) are
-complete with real trusted results — see
+complete with real results — see
 [`docs/2_eda_insights.md`](docs/2_eda_insights.md) and
 [`docs/4_experiments.md`](docs/4_experiments.md). Phase 3A (report-only
-baseline) is in progress: the package layer and all three public
-notebooks are implemented and reviewed; the first Kaggle run and
+baseline) is in progress: the package layer and all three public-facing
+notebooks (private during development) are implemented and reviewed; the
+first Phase 3A baseline run, a refreshed three-kernel batch, and a real
 submission have not happened yet. Full roadmap:
 [`docs/3_strategy.md`](docs/3_strategy.md). See
 [`docs/5_submissions.md`](docs/5_submissions.md) once a real submission

@@ -130,17 +130,25 @@ Notebooks To Kaggle" below) and should include:
   plus a deterministic seed. The guard itself stays functional and
   unprinted: do not print `IS_KAGGLE`, resolved paths, or a
   `NOTEBOOK_VERSION` string — none of that belongs in public output.
-- Markdown cells labeled "**Interpretation.**" immediately after every
-  displayed table or plot, explaining what it shows and what it does not
-  establish.
+- Markdown insight cells immediately after every displayed table or plot,
+  starting with **Interpretation** (e.g. plain "Interpretation." or a more
+  specific label such as "Interpretation and decision: No-go."),
+  explaining what it shows and what it does not establish.
 - Numbered `##` sections (`## 1. ...`, `## 2. ...`, ...) with clear
   reader-facing headers.
 - Aggregate-only displayed content: no raw report text, study/series
-  identifiers, or row-level predictions — only computed aggregates
-  (counts, rates, distributions, summary statistics).
+  identifiers, or row-level predictions. Computed aggregates (counts,
+  rates, distributions, summary statistics), column schema/dtype
+  information, and hand-authored glossary/reference content are all
+  permitted — the boundary is "no per-row sensitive values," not "nothing
+  but a number."
 
-**Outputs policy:** clear outputs before committing if the notebook code
-changed and hasn't been rerun on Kaggle yet.
+**Outputs policy:** repository notebook copies (the `.ipynb` files
+committed under `notebooks/`) remain output-free — empty `outputs`, null
+`execution_count` — always, regardless of whether they've been run on
+Kaggle. Only the private Kaggle kernel version itself may display real
+aggregate outputs; a trusted run's results get transcribed into the
+repository copy's Markdown, not left as stored cell output.
 **Offline-safety:** submission notebooks must declare every dependency
 explicitly and run with internet disabled — this is a Code Competition.
 **Kernel display titles:** Title Case, matching the notebook's own `#`
@@ -187,10 +195,13 @@ right kernel folder first, so the two never drift.
 plain `kaggle datasets create/version -p .` from the repo root, which
 biohub confirmed does not honor `.kaggleignore` for directory uploads and
 can upload `.venv/`/`.git/` by accident. The script stages `src/`
-(unflattened — see below), `README.md`, `LICENSE`, `pyproject.toml`, and
-`dataset-metadata.json` in a clean temp directory, and passes `-r zip` —
-the Kaggle CLI's default `--dir-mode` is `"skip"`, which silently omits
-directories (including `src/` itself) from the upload if omitted.
+(unflattened — see below), `vendor/` (the pinned offline wheel and its
+license — see "Pin and Package the Offline Stratifier" in
+`docs/superpowers/plans/2026-08-10-phase-3a-report-baseline.md`),
+`README.md`, `LICENSE`, `pyproject.toml`, and `dataset-metadata.json` in
+a clean temp directory, and passes `-r zip` — the Kaggle CLI's default
+`--dir-mode` is `"skip"`, which silently omits directories (including
+`src/` itself) from the upload if omitted.
 
 **Confirmed against a real kernel run** (see
 `docs/6_kaggle_troubleshooting.md`): a personal/private dataset attached
@@ -202,10 +213,16 @@ attached via `competition_sources` does mount at the flat
 `/kaggle/input/competitions/<competition-slug>/`, as originally assumed —
 only the dataset path needed correcting. Within the dataset mount, the
 zip's `src/` wrapper is preserved (`.../rsna-knee-mri-src/src/knee_mri/`),
-matching the staging choice explained above. `01_eda.ipynb`'s config cell
-uses this confirmed path directly and still checks both the `src/`-nested
-and flat forms before importing, raising a clear error (rather than an
-opaque `ModuleNotFoundError`) if neither exists.
+matching the staging choice explained above. `01_eda.ipynb`'s and
+`03_baseline_modeling.ipynb`'s config cells locate the package by
+searching every attached dataset for a unique `knee_mri/__init__.py`
+(`Path("/kaggle/input/datasets").rglob(...)`) rather than assuming a
+fixed relative path, raising a clear error (rather than an opaque
+`ModuleNotFoundError`) if it's missing or ambiguous.
+`02_weak_label_evaluation.ipynb` still uses the original two-candidate
+form (checks both the `src/`-nested and flat layouts directly) — an
+accepted, unchanged legacy detail from before the `rglob` approach was
+adopted, not a defect.
 
 Submit with `scripts/submit_kaggle.sh`, which wraps
 `api.competition_submit_code(...)` against a completed kernel version —

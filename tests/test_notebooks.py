@@ -117,6 +117,32 @@ def test_notebook_interprets_each_aggregate_result(notebook_path: str) -> None:
         assert "Interpretation" in "".join(next_cell.get("source", []))
 
 
+# Repository/planning language that describes review workflow or internal
+# state rather than the analysis -- found leaking into public prose three
+# separate times (weak-label, baseline-modeling, then EDA), each under
+# slightly different exact wording. Checked as one consolidated policy
+# across every public notebook rather than per-notebook ad hoc phrases.
+INTERNAL_WORKFLOW_PHRASES = (
+    "committed output-free",
+    "design spec",
+    "real fork",
+    "not a formality",
+    "not-yet-scoped",
+    "src/knee_mri",
+    "separately reviewed",
+    "trusted",
+)
+
+
+@pytest.mark.parametrize("notebook_path", NOTEBOOK_PATHS)
+def test_notebook_avoids_internal_workflow_language(notebook_path: str) -> None:
+    notebook = _load_json(notebook_path)
+    markdown = _markdown_source(notebook)
+
+    for phrase in INTERNAL_WORKFLOW_PHRASES:
+        assert phrase not in markdown
+
+
 # -- EDA-specific checks --
 
 
@@ -243,23 +269,6 @@ def test_weak_label_notebook_has_trusted_conclusion() -> None:
     assert "4349" in markdown.replace(",", "")
     assert "pending" not in markdown.lower()
     assert "docs/" not in markdown
-
-
-def test_weak_label_notebook_avoids_internal_workflow_language() -> None:
-    notebook = _load_json("notebooks/02_weak_label_evaluation.ipynb")
-    markdown = _markdown_source(notebook)
-
-    # These describe repository/planning state, not the analysis, and
-    # conflict with the public-viewer/portfolio narrative requirement --
-    # pinned so they can't silently return.
-    for phrase in (
-        "committed output-free",
-        "design spec",
-        "real fork",
-        "not a formality",
-        "not-yet-scoped",
-    ):
-        assert phrase not in markdown
 
 
 def test_weak_label_notebook_does_not_claim_ascii_only_is_english() -> None:
@@ -466,14 +475,6 @@ def test_baseline_notebook_does_not_claim_low_auc_is_a_bug() -> None:
     assert "not proof of a scoring error" in markdown
     assert "would indicate a scoring problem" not in markdown
     assert "12 separate small-sample fold scores" not in markdown
-
-
-def test_baseline_notebook_avoids_internal_workflow_language() -> None:
-    notebook = _load_json("notebooks/03_baseline_modeling.ipynb")
-    markdown = _markdown_source(notebook)
-
-    for phrase in ("src/knee_mri", "separately reviewed", "results are trusted"):
-        assert phrase not in markdown
 
 
 def test_baseline_kernel_metadata_is_private_cpu_and_offline() -> None:
