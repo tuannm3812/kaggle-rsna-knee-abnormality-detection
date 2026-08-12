@@ -406,3 +406,87 @@ make clear its tag-over-geometry precedence is an audit/reporting
 convenience only, not an approved modeling-pipeline policy (the actual
 policy is part of the still-unwritten Phase 3B design). Full detail:
 `docs/collaboration/active_task.md` round 48.
+
+## 2026-08-12 — Preflight audit v4 (`04_image_baseline_preflight.ipynb`)
+
+**Why this round exists:** round 49 found the round-48 ordering fix only
+partial — `InstanceNumber` became the first fallback, but a series with
+missing/invalid/duplicate values still silently fell through to filename
+order while the helper claimed "anatomical order." Round 50 (user-approved)
+froze the actual production contract this needed: series ranking within a
+plane, a strict geometry-or-`InstanceNumber` validity gate that marks a
+series **unusable** rather than falling back to filename order, same-plane
+retry across ranked candidates, and the already-approved missing-plane
+fallback only once every candidate is exhausted. This round implements that
+contract and measures it directly against real data, rather than asserting
+it should work.
+
+**Kernel:** `tuannm3812/rsna-knee-image-baseline-preflight-audit`, version
+6, pushed with `scripts/push_kaggle_kernel.sh image-baseline-preflight
+NvidiaTeslaT4`. **Code:** `rsna-knee-mri-src` dataset version **10**,
+published from commit `4bbd2fb`. **Data:** identical sampling to v1-v3
+(seed 42, 150 studies, 822 series) for the series-level ordering-validation
+measurement; the same 150 studies × 3 candidate planes (450 study-plane
+pairs) for the new ranking/retry measurement.
+
+### New — the strict ordering-validation gate passes on every sampled series
+
+`validate_and_order_series` (geometry route: finite/parseable positions and
+orientations, non-degenerate and mutually consistent normals, pairwise-
+distinguishable positions; `InstanceNumber` route as fallback only if every
+value is parseable and unique; otherwise unusable) was run for real on all
+822 sampled series: **usable 1.0 (100%)**, **method geometry 1.0 (100%)**,
+**method `instance_number` 0.0**, **unusable 0.0**. Every single sampled
+series validated via geometry alone — the `InstanceNumber` fallback route
+was never actually needed in this sample, and nothing was rejected as
+unusable. **Design implication**: the strict validity gate isn't overly
+conservative in a way that would reject usable real data — a legitimate
+risk worth checking before adopting a stricter contract, now checked.
+
+### New — series ranking, validation, and retry: the top candidate always won
+
+For all 450 study-plane pairs (150 studies × Sagittal/Coronal/Axial),
+`select_validated_series` (rank by fluid-sensitive preference, then slice
+count, then `SeriesInstanceUID`; validate each ranked candidate in order;
+stop at the first usable one) was run for real: **resolved 1.0 (100%) for
+every plane individually and combined**, **retry needed (of resolved) 0.0**,
+**method geometry (of resolved) 1.0**. In this sample, the *top-ranked*
+candidate for every single plane in every single study validated
+immediately — same-plane retry was never actually exercised, and the
+missing-plane fallback was never actually triggered. **Design implication**:
+this is a real, measured confirmation that the round-50 contract's
+robustness mechanisms (retry, missing-plane fallback) are cheap safety nets
+for a small-sample or hidden-test edge case, not something the design leans
+on for the bulk of studies — reassuring for correctness, though a 150-study
+sample doesn't rule out the mechanisms mattering more on the full ~4,407-
+study train set or the hidden ~1,300-study test set the design will
+actually run against.
+
+Note this measures a different thing from the existing "study laterality
+agreement" numbers (unchanged from v3: 98.7% of studies have a resolved
+laterality call among their first-per-plane series) — laterality resolution
+depends on the 20mm geometric dead-zone and tag validity, independent of
+whether a series passes the *ordering* validity gate; a series can be
+perfectly usable for slice ordering while still landing in that dead-zone
+for laterality. The two are not in tension.
+
+### GPU timing: reconfirmed, materially unchanged
+
+Decode 0.0169s/slice, GPU forward 0.0140s/slice (both close to prior runs —
+normal hardware variance). Lower-bound hours: one series per study 0.0583,
+three series per study 0.1749 (≈10.5 minutes) — still roughly 51× headroom
+against the 9-hour budget for the three-series design.
+
+### Disposition
+
+`uv run pytest -q` → `206 passed` (`test_series_audit.py` and
+`test_dataset.py` together grew by 15 new tests covering the strict
+validation gate and the ranking/retry contract); `uv run ruff check .` →
+clean; kernel version 6 completed (`KernelWorkerStatus.COMPLETE`) on the
+first attempt with an explicitly-requested T4. Returned for the user's and
+Codex's review. This closes round 49's finding 1 with real measurements,
+not just corrected code — the next step is drafting the formal Phase 3B
+design spec covering crop dimensions, intensity transform, geometry-aware
+laterality reflection, exact DINOv2 token embedding, classifier
+regularization, evaluation/refit protocol, codec delivery, notebook
+structure, and release gates (round 47's remaining list).
