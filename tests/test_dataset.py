@@ -298,6 +298,38 @@ def test_select_validated_series_retries_next_candidate_when_top_invalid(tmp_pat
     assert result.ordering_method == "geometry"
 
 
+def test_select_validated_series_retries_when_top_candidate_is_unreadable(tmp_path: Path):
+    series_df = pd.DataFrame(
+        [
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "unreadable_fluid",
+                "Fluid_Sensitive": 1,
+                "Fat_Suppression": 1,
+                "Anatomical_Plane": "Sagittal",
+            },
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "valid_not_fluid",
+                "Fluid_Sensitive": 0,
+                "Fat_Suppression": 0,
+                "Anatomical_Plane": "Sagittal",
+            },
+        ]
+    )
+    # Top-ranked (fluid-sensitive) candidate is a malformed .dcm file --
+    # this must not crash selection, only make that candidate unusable.
+    unreadable_dir = tmp_path / "study_1" / "unreadable_fluid"
+    unreadable_dir.mkdir(parents=True)
+    (unreadable_dir / "1.dcm").write_bytes(b"not a real dicom file")
+    _write_series(tmp_path / "study_1" / "valid_not_fluid", slice_count=3)
+
+    result = select_validated_series(series_df, tmp_path, "study_1", plane="Sagittal")
+
+    assert result.series_instance_uid == "valid_not_fluid"
+    assert result.candidates_tried == 2
+
+
 def test_select_validated_series_missing_plane_when_all_candidates_invalid(tmp_path: Path):
     series_df = pd.DataFrame(
         [

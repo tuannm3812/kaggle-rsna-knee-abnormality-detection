@@ -337,8 +337,33 @@ class SeriesAudit:
     decode_results: tuple[tuple[str, bool], ...]
 
 
+# Minimum cosine similarity each slice's row/column direction cosines must
+# have with the first slice's (round-50-approved full-orientation-agreement
+# contract, not just derived-normal agreement -- round 52, finding 3).
+# 0.999 corresponds to roughly a 2.6-degree misalignment budget: generous
+# enough for real-world floating-point/rounding noise in a single coherent
+# acquisition, tight enough to reject a genuinely different orientation
+# (e.g. a 90-degree in-plane rotation, which agreeing derived normals alone
+# would miss).
 _ORIENTATION_TOLERANCE_DEFAULT = 0.999
+# Minimum spacing (mm) required between any two slices' projected
+# positions, so two slices at (numerically) the same physical location
+# aren't treated as orderable. 0.01mm is far below this dataset's observed
+# pixel spacing range (0.137-1.172mm, docs/7_image_baseline_insights.md) --
+# small enough to only catch genuine duplicates/near-duplicates, not flag
+# real, closely-spaced slices as a problem.
 _POSITION_TOLERANCE_MM_DEFAULT = 0.01
+# Maximum allowed deviation of each direction-cosine vector's norm from 1.0.
+# DICOM's ImageOrientationPatient direction cosines are defined as unit
+# vectors; 0.01 tolerates ordinary floating-point storage/rounding noise
+# without accepting a meaningfully non-unit (and therefore untrustworthy)
+# vector.
+_UNIT_NORM_TOLERANCE_DEFAULT = 0.01
+# Maximum allowed |dot product| between a slice's row and column direction
+# cosines, which the DICOM standard defines as orthogonal (dot product 0).
+# 0.01 tolerates rounding noise without accepting a meaningfully non-
+# orthogonal (and therefore untrustworthy) pair.
+_ORTHOGONALITY_TOLERANCE_DEFAULT = 0.01
 
 
 @dataclass(frozen=True)
@@ -372,8 +397,11 @@ def _validated_geometry_order(
     headers: Sequence[pydicom.Dataset],
     orientation_tolerance: float,
     position_tolerance_mm: float,
+    unit_norm_tolerance: float,
+    orthogonality_tolerance: float,
 ) -> list[Path] | None:
-    orientations: list[tuple[float, ...]] = []
+    row_directions: list[np.ndarray] = []
+    column_directions: list[np.ndarray] = []
     positions_raw: list[tuple[float, ...]] = []
     for dataset in headers:
         if "ImagePositionPatient" not in dataset or "ImageOrientationPatient" not in dataset:
@@ -382,15 +410,37 @@ def _validated_geometry_order(
         position = _finite_floats(dataset.ImagePositionPatient, 3)
         if orientation is None or position is None:
             return None
-        orientations.append(orientation)
+        row_direction = np.asarray(orientation[:3], dtype=float)
+        column_direction = np.asarray(orientation[3:], dtype=float)
+        # The approved contract (docs/collaboration/active_task.md round 50)
+        # requires every slice's full orientation to agree, not just its
+        # derived normal -- comparing normals alone would accept a 90-degree
+        # in-plane rotation between slices, since that preserves the normal
+        # (round 52, finding 3). Also reject direction cosines that aren't
+        # unit-length or mutually orthogonal, which a bare cross-product
+        # degeneracy check (`slice_normal`) doesn't catch either.
+        if (
+            abs(float(np.linalg.norm(row_direction)) - 1.0) > unit_norm_tolerance
+            or abs(float(np.linalg.norm(column_direction)) - 1.0) > unit_norm_tolerance
+        ):
+            return None
+        if abs(float(np.dot(row_direction, column_direction))) > orthogonality_tolerance:
+            return None
+        row_directions.append(row_direction)
+        column_directions.append(column_direction)
         positions_raw.append(position)
 
+    reference_row, reference_column = row_directions[0], column_directions[0]
+    for row_direction, column_direction in zip(row_directions, column_directions, strict=True):
+        if (
+            float(np.dot(row_direction, reference_row)) < orientation_tolerance
+            or float(np.dot(column_direction, reference_column)) < orientation_tolerance
+        ):
+            return None
+
     try:
-        normals = [slice_normal(orientation) for orientation in orientations]
+        reference_normal = slice_normal(np.concatenate([reference_row, reference_column]))
     except ValueError:
-        return None
-    reference_normal = normals[0]
-    if any(float(np.dot(normal, reference_normal)) < orientation_tolerance for normal in normals):
         return None
 
     positions = [slice_position(position, reference_normal) for position in positions_raw]
@@ -426,9 +476,16 @@ def _validate_and_order(
     headers: Sequence[pydicom.Dataset],
     orientation_tolerance: float,
     position_tolerance_mm: float,
+    unit_norm_tolerance: float,
+    orthogonality_tolerance: float,
 ) -> OrderingValidation:
     geometry_order = _validated_geometry_order(
-        dcm_paths, headers, orientation_tolerance, position_tolerance_mm
+        dcm_paths,
+        headers,
+        orientation_tolerance,
+        position_tolerance_mm,
+        unit_norm_tolerance,
+        orthogonality_tolerance,
     )
     if geometry_order is not None:
         return OrderingValidation(
@@ -444,42 +501,82 @@ def _validate_and_order(
     return OrderingValidation(usable=False, method=None, ordered_paths=None)
 
 
+def _require_tolerance_in_range(
+    name: str, value: float, low: float, high: float, low_inclusive: bool = True
+) -> None:
+    if not (low <= value if low_inclusive else low < value) or value > high:
+        bracket = "[" if low_inclusive else "("
+        raise ValueError(f"{name} must be in {bracket}{low}, {high}], got {value}")
+
+
 def validate_and_order_series(
     series_dir: Path,
     orientation_tolerance: float = _ORIENTATION_TOLERANCE_DEFAULT,
     position_tolerance_mm: float = _POSITION_TOLERANCE_MM_DEFAULT,
+    unit_norm_tolerance: float = _UNIT_NORM_TOLERANCE_DEFAULT,
+    orthogonality_tolerance: float = _ORTHOGONALITY_TOLERANCE_DEFAULT,
 ) -> OrderingValidation:
     """Validate whether `series_dir`'s slices can be reliably, anatomically ordered.
 
     Tries true DICOM geometry first: every slice must have finite, parseable
-    `ImagePositionPatient`/`ImageOrientationPatient`, a non-degenerate slice
-    normal consistent with every other slice's (cosine similarity >=
-    `orientation_tolerance`), and projected positions that are pairwise
-    distinguishable (>= `position_tolerance_mm` apart). Falls back to
-    `InstanceNumber` order only if every slice has one, parseable as an
-    integer, with no duplicates. If neither route validates, the series is
-    reported unusable rather than silently falling back to filename order --
-    an ordering this project never labels anatomical without validation
-    (`docs/collaboration/active_task.md` rounds 45 and 49).
+    `ImagePositionPatient`/`ImageOrientationPatient`; unit-length row/column
+    direction cosines (within `unit_norm_tolerance`); row and column
+    direction cosines mutually orthogonal (within `orthogonality_tolerance`);
+    every slice's row *and* column direction cosines individually consistent
+    with the first slice's (cosine similarity >= `orientation_tolerance` for
+    both -- comparing only the derived normal would accept a 90-degree
+    in-plane rotation between slices, since that leaves the normal
+    unchanged); and projected positions that are pairwise distinguishable
+    (>= `position_tolerance_mm` apart). Falls back to `InstanceNumber` order
+    only if every slice has one, parseable as an integer, with no
+    duplicates. If neither route validates, the series is reported unusable
+    rather than silently falling back to filename order -- an ordering this
+    project never labels anatomical without validation
+    (`docs/collaboration/active_task.md` rounds 45, 49, and 52).
 
     Args:
         series_dir: Directory containing one series' `.dcm` slice files.
-        orientation_tolerance: Minimum cosine similarity each slice's
-            geometry-derived normal must have with the first slice's.
+        orientation_tolerance: Minimum cosine similarity each slice's row
+            and column direction cosines must have with the first slice's.
+            Must be in [-1.0, 1.0].
         position_tolerance_mm: Minimum spacing required between any two
-            slices' projected positions.
+            slices' projected positions. Must be >= 0.
+        unit_norm_tolerance: Maximum allowed deviation of a direction-cosine
+            vector's norm from 1.0. Must be >= 0.
+        orthogonality_tolerance: Maximum allowed |dot product| between a
+            slice's row and column direction cosines. Must be >= 0.
 
     Returns:
-        The computed `OrderingValidation`.
+        The computed `OrderingValidation`. An unreadable or malformed
+        `.dcm` file counts as unusable (`usable=False`), the same as failed
+        geometry/`InstanceNumber` validation -- a candidate this project
+        can't read is a candidate it can't trust, not a reason to crash the
+        caller.
 
     Raises:
         FileNotFoundError: If `series_dir` contains no `.dcm` files.
+        ValueError: If any tolerance argument is out of its valid range.
     """
+    _require_tolerance_in_range("orientation_tolerance", orientation_tolerance, -1.0, 1.0)
+    _require_tolerance_in_range("position_tolerance_mm", position_tolerance_mm, 0.0, math.inf)
+    _require_tolerance_in_range("unit_norm_tolerance", unit_norm_tolerance, 0.0, math.inf)
+    _require_tolerance_in_range("orthogonality_tolerance", orthogonality_tolerance, 0.0, math.inf)
+
     dcm_paths = sorted(series_dir.glob("*.dcm"))
     if not dcm_paths:
         raise FileNotFoundError(f"No .dcm files found in {series_dir}")
-    headers = [pydicom.dcmread(path, stop_before_pixels=True) for path in dcm_paths]
-    return _validate_and_order(dcm_paths, headers, orientation_tolerance, position_tolerance_mm)
+    try:
+        headers = [pydicom.dcmread(path, stop_before_pixels=True) for path in dcm_paths]
+    except (pydicom.errors.InvalidDicomError, OSError):
+        return OrderingValidation(usable=False, method=None, ordered_paths=None)
+    return _validate_and_order(
+        dcm_paths,
+        headers,
+        orientation_tolerance,
+        position_tolerance_mm,
+        unit_norm_tolerance,
+        orthogonality_tolerance,
+    )
 
 
 @dataclass(frozen=True)
@@ -531,10 +628,13 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
     """Read every `.dcm` in `series_dir` and compute a geometry/decode audit.
 
     Header tags are read for every slice (cheap, `stop_before_pixels`);
-    pixel data is fully decoded only for a `central_band_indices` sample of
-    the anatomically-ordered stack, matching the sampling the real pipeline
-    intends to use, so decode reliability is measured without paying full-
-    series decode cost.
+    pixel data is fully decoded only for a `central_band_indices` sample, so
+    decode reliability is measured without paying full-series decode cost.
+    The sample is drawn from the series' validated anatomical order when
+    `validate_and_order_series` succeeds; when it doesn't, decode-
+    reliability sampling (which doesn't depend on slice order) falls back
+    to filename order for that narrow purpose only -- see `ordering_usable`/
+    `ordering_method` for whether the order actually validated.
 
     Args:
         series_dir: Directory containing one series' `.dcm` slice files.
@@ -558,15 +658,27 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
         "ImagePositionPatient" in ds and "ImageOrientationPatient" in ds for ds in headers
     )
 
+    # `has_full_geometry_tags` only checks tag *presence* (matching this
+    # field's own contract), not validity -- a present-but-degenerate
+    # orientation or a missing InstanceNumber on some slice must not crash
+    # the whole audit, only leave this one diagnostic value unresolved.
     agreement: float | None = None
     if has_full_geometry_tags:
-        normal = slice_normal(first.ImageOrientationPatient)
-        positions = [slice_position(ds.ImagePositionPatient, normal) for ds in headers]
-        instance_numbers = [int(ds.InstanceNumber) for ds in headers]
-        agreement = order_agreement(instance_numbers, positions)
+        try:
+            normal = slice_normal(first.ImageOrientationPatient)
+            positions = [slice_position(ds.ImagePositionPatient, normal) for ds in headers]
+            instance_numbers = [int(ds.InstanceNumber) for ds in headers]
+            agreement = order_agreement(instance_numbers, positions)
+        except (ValueError, TypeError, AttributeError):
+            agreement = None
 
     ordering_validation = _validate_and_order(
-        dcm_paths, headers, _ORIENTATION_TOLERANCE_DEFAULT, _POSITION_TOLERANCE_MM_DEFAULT
+        dcm_paths,
+        headers,
+        _ORIENTATION_TOLERANCE_DEFAULT,
+        _POSITION_TOLERANCE_MM_DEFAULT,
+        _UNIT_NORM_TOLERANCE_DEFAULT,
+        _ORTHOGONALITY_TOLERANCE_DEFAULT,
     )
     # Decode-reliability sampling doesn't need a validated order (decode
     # success/failure doesn't depend on slice order) -- fall back to
@@ -588,13 +700,16 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
 
     geometry_laterality = None
     if has_full_geometry_tags and "PixelSpacing" in first:
-        geometry_laterality = laterality_from_geometry(
-            first.ImagePositionPatient,
-            first.ImageOrientationPatient,
-            int(first.Rows),
-            int(first.Columns),
-            first.PixelSpacing,
-        )
+        try:
+            geometry_laterality = laterality_from_geometry(
+                first.ImagePositionPatient,
+                first.ImageOrientationPatient,
+                int(first.Rows),
+                int(first.Columns),
+                first.PixelSpacing,
+            )
+        except (ValueError, TypeError, AttributeError):
+            geometry_laterality = None
 
     laterality_conflict = bool(
         laterality_tag and geometry_laterality and laterality_tag != geometry_laterality

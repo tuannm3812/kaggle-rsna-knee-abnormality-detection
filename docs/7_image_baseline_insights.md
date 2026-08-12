@@ -479,8 +479,9 @@ against the 9-hour budget for the three-series design.
 
 ### Disposition
 
-`uv run pytest -q` → `206 passed` (`test_series_audit.py` and
-`test_dataset.py` together grew by 15 new tests covering the strict
+`uv run pytest -q` → `206 passed` (`test_series_audit.py`: 36 → 39, the old
+`anatomically_ordered_paths` suite rewritten, not purely added to;
+`test_dataset.py`: 13 → 28; 18 new tests total, covering the strict
 validation gate and the ranking/retry contract); `uv run ruff check .` →
 clean; kernel version 6 completed (`KernelWorkerStatus.COMPLETE`) on the
 first attempt with an explicitly-requested T4. Returned for the user's and

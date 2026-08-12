@@ -164,6 +164,7 @@ def _write_synthetic_slice(
     laterality: str | None = None,
     image_laterality: str | None = None,
     corrupt_pixel_data: bool = False,
+    omit_instance_number: bool = False,
 ) -> None:
     file_meta = FileMetaDataset()
     file_meta.MediaStorageSOPClassUID = generate_uid()
@@ -176,7 +177,8 @@ def _write_synthetic_slice(
 
     ds.SOPClassUID = file_meta.MediaStorageSOPClassUID
     ds.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
-    ds.InstanceNumber = instance_number
+    if not omit_instance_number:
+        ds.InstanceNumber = instance_number
     ds.Rows = 4
     ds.Columns = 4
     ds.SamplesPerPixel = 1
@@ -435,6 +437,61 @@ def test_audit_series_raises_on_empty_directory(tmp_path: Path):
         audit_series(empty_dir)
 
 
+def test_audit_series_does_not_crash_on_degenerate_present_orientation(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    # Row and column direction cosines identical: geometry tags are present
+    # but the cross product (slice normal) is degenerate.
+    degenerate_orientation = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+    _write_synthetic_slice(
+        series_dir / "1.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 0.0),
+        image_orientation_patient=degenerate_orientation,
+    )
+    _write_synthetic_slice(
+        series_dir / "2.dcm",
+        instance_number=2,
+        image_position_patient=(0.0, 0.0, 1.0),
+        image_orientation_patient=degenerate_orientation,
+    )
+
+    result = audit_series(series_dir)
+
+    assert result.order_agreement is None
+    # Geometry fails (degenerate), but valid unique InstanceNumbers let the
+    # fallback route still validate the series.
+    assert result.ordering_usable is True
+    assert result.ordering_method == "instance_number"
+
+
+def test_audit_series_does_not_crash_on_missing_instance_number(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    orientation = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    _write_synthetic_slice(
+        series_dir / "1.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 0.0),
+        image_orientation_patient=orientation,
+        omit_instance_number=True,
+    )
+    _write_synthetic_slice(
+        series_dir / "2.dcm",
+        instance_number=2,
+        image_position_patient=(0.0, 0.0, 1.0),
+        image_orientation_patient=orientation,
+        omit_instance_number=True,
+    )
+
+    result = audit_series(series_dir)
+
+    assert result.order_agreement is None
+    # Valid geometry lets the series validate even without InstanceNumber.
+    assert result.ordering_usable is True
+    assert result.ordering_method == "geometry"
+
+
 # -- validate_and_order_series --
 
 
@@ -589,6 +646,106 @@ def test_validate_and_order_series_raises_on_empty_directory(tmp_path: Path):
 
     with pytest.raises(FileNotFoundError, match=r"No \.dcm files"):
         validate_and_order_series(empty_dir)
+
+
+def test_validate_and_order_series_unusable_on_unreadable_file(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    (series_dir / "1.dcm").write_bytes(b"not a real dicom file")
+
+    result = validate_and_order_series(series_dir)
+
+    assert result == OrderingValidation(usable=False, method=None, ordered_paths=None)
+
+
+def test_validate_and_order_series_rejects_in_plane_rotation_between_slices(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    # Both slices share the same derived normal (0, 0, 1), but the second is
+    # rotated 90 degrees in-plane -- a normal-only check would wrongly
+    # accept this as one coherent series.
+    _write_synthetic_slice(
+        series_dir / "1.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 0.0),
+        image_orientation_patient=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+    )
+    _write_synthetic_slice(
+        series_dir / "2.dcm",
+        instance_number=1,  # duplicate on purpose to disable the InstanceNumber fallback
+        image_position_patient=(0.0, 0.0, 1.0),
+        image_orientation_patient=(0.0, 1.0, 0.0, -1.0, 0.0, 0.0),
+    )
+
+    result = validate_and_order_series(series_dir)
+
+    assert result == OrderingValidation(usable=False, method=None, ordered_paths=None)
+
+
+def test_validate_and_order_series_rejects_non_unit_orientation_vectors(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    # Direction cosines with norm 2.0, not the DICOM-required 1.0.
+    non_unit_orientation = (2.0, 0.0, 0.0, 0.0, 2.0, 0.0)
+    _write_synthetic_slice(
+        series_dir / "1.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 0.0),
+        image_orientation_patient=non_unit_orientation,
+    )
+    _write_synthetic_slice(
+        series_dir / "2.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 1.0),
+        image_orientation_patient=non_unit_orientation,
+    )
+
+    result = validate_and_order_series(series_dir)
+
+    assert result == OrderingValidation(usable=False, method=None, ordered_paths=None)
+
+
+def test_validate_and_order_series_rejects_non_orthogonal_orientation_vectors(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    # Row and column direction cosines are not orthogonal (45 degrees apart).
+    root_half = 0.7071067811865476
+    non_orthogonal_orientation = (1.0, 0.0, 0.0, root_half, root_half, 0.0)
+    _write_synthetic_slice(
+        series_dir / "1.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 0.0),
+        image_orientation_patient=non_orthogonal_orientation,
+    )
+    _write_synthetic_slice(
+        series_dir / "2.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 1.0),
+        image_orientation_patient=non_orthogonal_orientation,
+    )
+
+    result = validate_and_order_series(series_dir)
+
+    assert result == OrderingValidation(usable=False, method=None, ordered_paths=None)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"orientation_tolerance": 1.5},
+        {"orientation_tolerance": -1.5},
+        {"position_tolerance_mm": -0.01},
+        {"unit_norm_tolerance": -0.01},
+        {"orthogonality_tolerance": -0.01},
+    ],
+)
+def test_validate_and_order_series_rejects_nonsensical_tolerances(tmp_path: Path, kwargs: dict):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    _write_synthetic_slice(series_dir / "1.dcm", instance_number=1)
+
+    with pytest.raises(ValueError, match="must be in"):
+        validate_and_order_series(series_dir, **kwargs)
 
 
 # -- aggregate_group_laterality --
