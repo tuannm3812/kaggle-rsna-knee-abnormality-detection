@@ -333,13 +333,17 @@ The number round 40 originally asked for and v2 didn't deliver: across the
 never persisted), **100% of studies (150/150) have at least one resolved
 laterality call**, and **100% of resolved studies are internally
 consistent** — every series within a study that resolves a call agrees
-with every other. Restricted to just the (up to three) plane-representative
-series a compact multi-plane design would actually select: **98.7%
-(148/150) have at least one resolved call**, still **100% consistent**
-among those. **Design implication**: no internal laterality contradiction
-was found anywhere in this sample, at either the series or study level —
-a tag-plus-geometry laterality resolution pipeline looks reliable at
-exactly the granularity (one call per study) a real pipeline needs.
+with every other. Restricted to just the first sampled series encountered
+per plane (**not** the actual frozen series selector, which prefers
+`Fluid_Sensitive == 1` within a plane — round 42's finding 2, corrected
+after round 45 caught the mislabeling): **98.7% (148/150) have at least
+one resolved call**, still **100% consistent** among those. **Design
+implication**: no internal laterality contradiction was found anywhere in
+this sample, at either the series or study level. The all-series result is
+the more directly applicable one for the now-approved architecture (round
+47): laterality consensus is derived from every available series header at
+the study level, not coupled to which specific series an image selector
+picks.
 
 ### Correction — GPU timing reframed as a measured-component lower bound
 
@@ -386,3 +390,18 @@ established folds, and offline compressed-DICOM codec support planned for,
 since this sample never exercised one) — still not started, and still
 requiring its own write-up, independent review, and user approval before
 any implementation begins.
+
+**Local corrections after round 45 (no rerun needed — Codex's review
+confirmed v5's measurements are unaffected):** `anatomically_ordered_paths`
+fell back to filename order when geometry tags were incomplete, contradicting
+the very evidence that justified writing it (`InstanceNumber`, not filename
+order, is the empirically-reliable proxy in this corpus) — fixed to fall
+back to `InstanceNumber` order, with filename order only as a final,
+deterministic tie-break for missing/duplicate/invalid instance numbers. This
+never affected v3's reported numbers since the audited sample had 1.0
+geometry-tag coverage throughout. `laterality_resolved_call`'s docstring
+overstated its status as "the call a real pipeline would use" — reworded to
+make clear its tag-over-geometry precedence is an audit/reporting
+convenience only, not an approved modeling-pipeline policy (the actual
+policy is part of the still-unwritten Phase 3B design). Full detail:
+`docs/collaboration/active_task.md` round 48.

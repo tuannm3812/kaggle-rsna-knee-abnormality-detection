@@ -292,9 +292,13 @@ class SeriesAudit:
             while `laterality_from_geometry` is resolved -- the case where a
             geometry fallback actually recovers a call the tag alone
             couldn't make.
-        laterality_resolved_call: The series' final laterality call a real
-            pipeline would use -- `laterality_tag` if resolved, else
-            `laterality_from_geometry`, else `None`.
+        laterality_resolved_call: `laterality_tag` if resolved, else
+            `laterality_from_geometry`, else `None` -- one candidate
+            tag-over-geometry precedence for audit/reporting purposes only.
+            This precedence (and whether a cross-tag or tag/geometry
+            conflict should ever be silently resolved rather than left
+            unresolved) is a modeling-pipeline design decision, not yet
+            approved; do not treat this field as production policy.
         pixel_spacing: The first slice's `PixelSpacing`, if present.
         decode_attempted: How many slices a full pixel decode was tried on.
         decode_failures: How many of those decodes raised an exception.
@@ -321,26 +325,52 @@ class SeriesAudit:
     decode_results: tuple[tuple[str, bool], ...]
 
 
+def _instance_number_sort_key(dataset: pydicom.Dataset) -> tuple[int, int]:
+    """Sort key ranking a valid `InstanceNumber` first, ascending.
+
+    Slices with a missing or non-integer `InstanceNumber` sort after every
+    valid one; Python's stable sort then leaves them in their original
+    (filename) relative order as a final deterministic tie-break.
+    """
+    if "InstanceNumber" in dataset:
+        try:
+            return (0, int(dataset.InstanceNumber))
+        except (TypeError, ValueError):
+            pass
+    return (1, 0)
+
+
 def _order_paths_by_geometry(
     dcm_paths: Sequence[Path], headers: Sequence[pydicom.Dataset]
 ) -> list[Path]:
-    """`dcm_paths` reordered by true DICOM geometry, or unchanged if untagged."""
+    """`dcm_paths` reordered by true DICOM geometry.
+
+    Falls back to `InstanceNumber` order when geometry tags aren't complete
+    -- the round-39/41 preflight audit measured `InstanceNumber` order as a
+    reliable proxy for true physical order in this dataset (unlike raw
+    filename/SOP-UID order, previously measured unreliable), and
+    `dicom_io.py::load_series` already relies on the same tag for this
+    reason. Missing/invalid/duplicate `InstanceNumber` values fall back
+    further, deterministically, to filename order.
+    """
     has_full_geometry_tags = all(
         "ImagePositionPatient" in ds and "ImageOrientationPatient" in ds for ds in headers
     )
-    if not has_full_geometry_tags:
-        return list(dcm_paths)
-    normal = slice_normal(headers[0].ImageOrientationPatient)
-    positions = [slice_position(ds.ImagePositionPatient, normal) for ds in headers]
-    rank = np.argsort(positions)
-    return [dcm_paths[i] for i in rank]
+    if has_full_geometry_tags:
+        normal = slice_normal(headers[0].ImageOrientationPatient)
+        positions = [slice_position(ds.ImagePositionPatient, normal) for ds in headers]
+        rank = np.argsort(positions)
+        return [dcm_paths[i] for i in rank]
+    order = sorted(range(len(headers)), key=lambda i: _instance_number_sort_key(headers[i]))
+    return [dcm_paths[i] for i in order]
 
 
 def anatomically_ordered_paths(series_dir: Path) -> list[Path]:
     """Every `.dcm` in `series_dir`, ordered by true DICOM geometry.
 
-    Falls back to filename order when geometry tags aren't available on
-    every slice. Exposed so callers besides `audit_series` (e.g. the actual
+    Falls back to `InstanceNumber` order (then filename order as a final,
+    deterministic tie-break) when geometry tags aren't available on every
+    slice. Exposed so callers besides `audit_series` (e.g. the actual
     slice-sampling pipeline) order slices the same, empirically-checked way
     rather than re-deriving or duplicating this logic.
 

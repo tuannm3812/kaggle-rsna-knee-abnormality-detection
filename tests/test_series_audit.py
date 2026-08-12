@@ -466,13 +466,31 @@ def test_anatomically_ordered_paths_orders_by_geometry_not_filename(tmp_path: Pa
     assert [path.name for path in ordered] == ["c_first.dcm", "b_middle.dcm", "a_last.dcm"]
 
 
-def test_anatomically_ordered_paths_falls_back_to_filename_order_without_geometry(
+def test_anatomically_ordered_paths_falls_back_to_instance_number_without_geometry(
     tmp_path: Path,
 ):
     series_dir = tmp_path / "series"
     series_dir.mkdir()
+    # Filenames deliberately sort opposite to InstanceNumber, so this only
+    # passes if the fallback actually uses InstanceNumber, not filename.
+    _write_synthetic_slice(series_dir / "a_first.dcm", instance_number=3)
+    _write_synthetic_slice(series_dir / "b_middle.dcm", instance_number=2)
+    _write_synthetic_slice(series_dir / "c_last.dcm", instance_number=1)
+
+    ordered = anatomically_ordered_paths(series_dir)
+
+    assert [path.name for path in ordered] == ["c_last.dcm", "b_middle.dcm", "a_first.dcm"]
+
+
+def test_anatomically_ordered_paths_duplicate_instance_numbers_break_ties_by_filename(
+    tmp_path: Path,
+):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    # No geometry, and both slices share the same (duplicate) InstanceNumber:
+    # the final, deterministic tie-break is filename order.
     _write_synthetic_slice(series_dir / "1.dcm", instance_number=1)
-    _write_synthetic_slice(series_dir / "2.dcm", instance_number=2)
+    _write_synthetic_slice(series_dir / "2.dcm", instance_number=1)
 
     ordered = anatomically_ordered_paths(series_dir)
 
