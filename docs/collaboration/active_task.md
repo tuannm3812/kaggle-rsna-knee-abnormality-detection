@@ -149,9 +149,18 @@ starting or resuming work.
   position geometry, else fully-parseable-and-unique `InstanceNumber`, else
   unusable), same-plane retry across ranked candidates, and the
   already-approved missing-plane fallback only once every candidate is
-  exhausted. Implementation, tests, and a real Kaggle GPU validation-rate
-  measurement are in progress. Phase 3B's written design spec still does not
-  exist.
+  exhausted. Round 51 implements this (`validate_and_order_series`,
+  `rank_candidate_series`, `select_validated_series`) and measures it for
+  real: 100% of 822 sampled series pass strict ordering validation (always
+  via geometry), and across all 450 study-plane pairs (150 studies x 3
+  planes) the top-ranked candidate always validated -- retry and the
+  missing-plane fallback were implemented but never actually triggered in
+  this sample. This closes round 49's finding 1 with real measurements.
+  Phase 3B's written design spec still does not exist; remaining sections
+  (crop dimensions, intensity transform, geometry-aware laterality
+  reflection, DINOv2 token embedding, classifier regularization,
+  evaluation/refit protocol, codec delivery, notebook structure, release
+  gates) are next.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -3981,3 +3990,82 @@ structure, and release gates remain to be frozen in later sections. No
 implementation was authorized before this round; implementation of this
 specific contract (with tests and a real-data validation-rate measurement)
 follows immediately after.
+
+### Round 51 — Claude: series ranking/validation/retry contract implemented and measured for real (2026-08-12)
+
+**User authorization:** "review codex discussion and move to next step, I
+prefer to use kaggle kernel to run anytime with GPU to save time" —
+directing implementation of round 50's approved design and a real Kaggle
+GPU measurement rather than treating the local implementation as sufficient
+on its own. The GPU-usage preference is now recorded in persistent memory
+for future sessions.
+
+**Implementation (commits `9731b77`, `e0339f8`, `4bbd2fb`):**
+
+- `src/knee_mri/series_audit.py`: removed the old best-effort
+  `anatomically_ordered_paths`/`_order_paths_by_geometry` (which fell back
+  to filename order); added `validate_and_order_series` — geometry route
+  requires finite/parseable positions and orientations, a non-degenerate
+  normal consistent across every slice within a tolerance, and pairwise-
+  distinguishable projected positions; falls back to `InstanceNumber` only
+  if every value is parseable and unique; otherwise the series is reported
+  **unusable**, never silently ordered by filename. `SeriesAudit` gained
+  `ordering_usable`/`ordering_method` fields; `audit_series`'s own decode-
+  reliability sampling (which doesn't need a validated order, only slices
+  to attempt decoding) falls back to filename order for that narrow purpose
+  only, never exposed elsewhere as anatomical.
+- `src/knee_mri/dataset.py`: new `rank_candidate_series` (extends
+  `select_primary_series`'s existing fluid-sensitive preference to a full
+  ranked list — most slices, then `SeriesInstanceUID`, as tie-breaks) and
+  `select_validated_series`, which tries each ranked candidate against
+  `validate_and_order_series` and returns the first usable one as a
+  `PlaneSelection` (including a new `candidates_tried` field), or
+  `series_instance_uid=None` if every candidate is exhausted — the
+  missing-plane case, unchanged from rounds 46-47's approval.
+- `notebooks/04_image_baseline_preflight.ipynb`: wired the new functions in
+  (fixing the import break from removing `anatomically_ordered_paths`);
+  added `ordering_usable`/`ordering_method` to the main series-level audit
+  table; new section "2b. Series Ranking, Validation, and Retry" runs
+  `select_validated_series` across the same 150 sampled studies × 3 planes
+  (450 study-plane pairs), measuring real resolved/retry/method rates.
+- 18 new tests across `test_series_audit.py` (39, up from 36 -- the old
+  `anatomically_ordered_paths` suite was rewritten, not purely added to)
+  and `test_dataset.py` (28, up from 13).
+
+**Execution:** published `rsna-knee-mri-src` dataset version **10** (commit
+`4bbd2fb`); pushed via `scripts/push_kaggle_kernel.sh image-baseline-
+preflight NvidiaTeslaT4` → kernel version 6 → `KernelWorkerStatus.COMPLETE`
+on the first attempt, Tesla T4 as requested.
+
+**Results — full detail in `docs/7_image_baseline_insights.md`'s new "v4"
+section:**
+
+- **Ordering validation: 100% pass rate on all 822 sampled series** —
+  `usable` 1.0, `method geometry` 1.0, `method instance_number` 0.0,
+  `unusable` 0.0. The strict gate never had to fall back to `InstanceNumber`
+  in this sample, and rejected nothing as unusable — confirms the gate
+  isn't so strict it would reject real, usable data.
+- **Series ranking/retry: the top-ranked candidate always won.** Across all
+  450 study-plane pairs: `resolved` 1.0 for every plane individually and
+  combined, `retry needed (of resolved)` 0.0, `method geometry (of
+  resolved)` 1.0. Same-plane retry and the missing-plane fallback are
+  implemented and available but were never actually exercised in this
+  150-study sample — a positive result for correctness, though not proof
+  they won't matter on the full ~4,407-study train set or the hidden
+  ~1,300-study test set.
+- **GPU timing reconfirmed**, materially unchanged from v2/v3: ≈10.5
+  minutes lower-bound for the three-series-per-study design (≈51× headroom
+  against the 9-hour budget).
+
+**Verification:** `uv run pytest -q` → `206 passed`; `uv run ruff check .`
+→ clean; all four notebooks pass JSON validation, output-free, unique cell
+IDs; `git diff --check` clean at every commit; live `kaggle kernels status`
+confirms kernel version 6 `COMPLETE`; the downloaded
+`preflight_audit_summary.json` was read directly and its values transcribed
+above without rounding beyond what's shown.
+
+**Not yet done:** no Phase 3B design spec written. Round 47's remaining
+list (crop dimensions, intensity transform, geometry-aware laterality
+reflection, exact DINOv2 token embedding, classifier regularization,
+evaluation/refit protocol, fallback thresholds, codec delivery, notebook
+structure, release gates) is next. Returned for Codex's review.
