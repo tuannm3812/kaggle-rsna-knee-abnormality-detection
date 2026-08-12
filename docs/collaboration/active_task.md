@@ -178,7 +178,14 @@ starting or resuming work.
   asymmetric false rejection within the allowed unit-norm tolerance. Public
   tolerance arguments also still accept infinite or requirement-defeating
   values. These local corrections remain before production readiness; the
-  accepted v5 sample does not need to be discarded.
+  accepted v5 sample does not need to be discarded. Round 56 independently
+  reproduced and fixed all three round-55 findings: `audit_series` now reads
+  headers per file under the same narrow exception policy as the selector,
+  tracks a new `header_read_failures` aggregate, and forces ordering
+  unusable when any series member is unreadable; the geometry orientation
+  check now normalizes row/column direction cosines before the
+  cosine-similarity comparison; and all four tolerance arguments now reject
+  non-finite and requirement-defeating values. Returned for Codex's review.
   Phase 3B's written design spec still does not exist; remaining sections
   (crop dimensions, intensity transform, geometry-aware laterality
   reflection, DINOv2 token embedding, classifier regularization,
@@ -4418,3 +4425,93 @@ final Phase 3B spec until findings 1-3 are corrected and reviewed. The next
 step is a small TDD correction round, followed by targeted early Kaggle
 validation only if the run can test the changed behavior. No submission is
 authorized.
+
+### Round 56 — Claude: all three round-55 findings independently reproduced and fixed (2026-08-13)
+
+**User authorization:** "help me to check codex feedback and implement the
+next step" — reviewing round 55 and, per this project's established
+discipline, independently reproducing each finding before accepting and
+fixing it rather than accepting on description alone.
+
+**Independent reproduction (before any fix), using the actual project code:**
+
+- Finding 1: `audit_series(series_dir)` on a directory containing one
+  malformed `.dcm` file raised `pydicom.errors.InvalidDicomError` directly
+  out of its own unguarded header-read list comprehension, confirmed
+  separate from (and bypassing) `validate_and_order_series`'s already-fixed
+  narrow exception handling.
+- Finding 2: two identical-orientation slices with direction-cosine norm
+  `0.995` (within the default `0.01` unit-norm tolerance) validated as
+  `usable=False`, while the same construction with norm `1.005` validated
+  as `usable=True, method="geometry"` -- the exact asymmetry Codex
+  described, reproduced by comparing `0.995**2 == 0.990025` and
+  `1.005**2 == 1.010025` against the `0.999` orientation tolerance.
+- Finding 3: `validate_and_order_series(series_dir, unit_norm_tolerance=
+  math.inf)` was accepted rather than raising, silently disabling the
+  unit-norm check it configures.
+
+**Fixes (commit `aee97d7`):**
+
+1. **Finding 1:** `audit_series` now reads each `.dcm` header individually
+   under the same narrow `except (pydicom.errors.InvalidDicomError,
+   OSError)` policy `validate_and_order_series` already uses, instead of
+   one atomic list comprehension. A new `header_read_failures: int` field
+   on `SeriesAudit` counts unreadable headers. Any series with at least one
+   unreadable member has `ordering_usable` forced to `False` (a partial
+   read cannot be validated as a complete anatomical order); the remaining
+   diagnostics (laterality, pixel spacing, `order_agreement`) are computed
+   only from whichever headers were read successfully, and degrade to their
+   empty/`None` defaults if every header is unreadable rather than
+   crashing. Wired into the preflight notebook's persisted aggregate JSON:
+   two new aggregate-only stats, `Series with >=1 unreadable header` and
+   `Header read failure rate (of slices)`, both fractions with no series or
+   study identifiers attached.
+2. **Finding 2:** `_validated_geometry_order` now normalizes the accepted
+   row/column direction-cosine vectors (dividing by their own norm)
+   immediately after the unit-norm check passes, and uses the normalized
+   vectors for both the orthogonality check and the per-slice orientation-
+   consistency comparison against the first slice -- a true cosine
+   similarity rather than a raw dot product that's only equivalent to one
+   for exactly unit vectors. The raw (non-normalized) norms are still what
+   the unit-norm check itself compares against.
+3. **Finding 3:** `_require_tolerance_in_range` now takes a `high_inclusive`
+   parameter and unconditionally rejects non-finite values via
+   `math.isfinite`. All four `validate_and_order_series` tolerance
+   arguments were tightened to finite, requirement-preserving ranges:
+   `orientation_tolerance` to `[0.0, 1.0]`, `position_tolerance_mm` to
+   `(0.0, 1000.0]` (excludes zero, which would admit duplicate positions via
+   the strict `<` spacing check), `unit_norm_tolerance` to `[0.0, 1.0)`, and
+   `orthogonality_tolerance` to `[0.0, 1.0)` (both exclude 1.0, which would
+   accept a degenerate zero vector). The docstring's `Args:` section states
+   the new exact ranges.
+
+10 new regression tests: a mixed (some-readable, some-not) series and a
+wholly-unreadable series for Finding 1; identical slightly-under-unit-norm
+vectors correctly validating via geometry for Finding 2 (the existing
+in-plane-rotation test already covers "genuinely misaligned is still
+rejected" for the same normalized comparison); and an expanded
+tolerance-boundary parametrization (`math.inf`, `0.0` position, `1.0`
+unit-norm/orthogonality) for Finding 3. `test_series_audit.py` now has 228
+tests, up from 218.
+
+**Verification:** `uv run pytest -q` -> `228 passed`; `uv run ruff check .`
+-> `All checks passed!`; `git diff --check` clean; all four notebooks still
+pass every `tests/test_notebooks.py` policy check (valid JSON, output-free,
+aggregate-only `display()` calls, no identifiers, every result followed by
+an `Interpretation` cell). Independently re-reproduced Finding 1's original
+crash against the fixed code and confirmed it no longer raises (`header_
+read_failures=1, ordering_usable=False` instead).
+
+**Not yet done -- deliberately gated:** no Kaggle rerun yet this round, no
+Phase 3B design spec written, no submission. Codex's round-55 workflow
+guidance was that a full v6-style rerun isn't independently useful for these
+three findings alone, since the existing fixed 150-study sample contains
+none of their adverse inputs -- but it explicitly named "aggregate
+header-failure reporting" as an early run worth doing once the local fix
+lands, which this round's notebook wiring now supports (the new `Series
+with >=1 unreadable header` / `Header read failure rate` stats). Returned
+for Codex's review; a private rerun on the real 150-study sample is a
+reasonable next step to confirm both fields report zero on well-formed real
+data and nothing else regressed -- not to claim the failure paths
+themselves were exercised on real data, which would still need a
+deliberately adversarial or broader sample.
