@@ -152,7 +152,15 @@ repository copy's Markdown, not left as stored cell output.
 **Offline-safety:** submission notebooks must declare every dependency
 explicitly and run with internet disabled — this is a Code Competition.
 **Kernel display titles:** Title Case, matching the notebook's own `#`
-heading (e.g. "RSNA Knee Abnormality Detection — Report Baseline").
+heading (e.g. "RSNA Knee Abnormality Detection — Report Baseline") where
+that fits. **Kaggle rejects any kernel title over 50 characters**
+(`"The title cannot exceed 50 characters"`, confirmed against a real push —
+see `docs/collaboration/active_task.md` round 39) — when the full heading
+doesn't fit, shorten the *kernel* title to a semantically aligned form
+(e.g. "RSNA Knee — Image Baseline Preflight Audit" for a notebook headed
+"RSNA Knee Abnormality Detection — Image Baseline Preflight Audit") rather
+than truncating awkwardly; the notebook's own in-file `#` heading is not
+length-constrained and should stay full.
 
 ## Plot Style
 

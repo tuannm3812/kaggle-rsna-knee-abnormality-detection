@@ -99,17 +99,13 @@ sub-phases — **not** to be confused with the A/B/C strategy choice
 above, this is a delivery decomposition within strategy A itself,
 proposed by Codex's round-1 task audit and accepted:
 
-### Phase 3A — Report Baseline — local implementation complete, Kaggle execution next
+### Phase 3A — Report Baseline — implemented, but cannot be submitted as designed
 
 Deterministic 5-fold iterative multilabel-stratified CV over the 58
 labeled studies (preflight both classes present per label per fold,
 falling back to fewer folds if not); a frozen character n-gram TF-IDF
 plus regularized one-vs-rest logistic regression, trained on report text
 only; pooled out-of-fold macro-AUC as the primary internal score.
-Explicitly disclosed as internal CV on the only 58 labels, not an
-independent confirmation set — the small model list is frozen before any
-result is viewed, with no repeated tuning against these folds or the
-public leaderboard.
 
 - Design: `docs/superpowers/specs/2026-08-10-phase-3a-report-baseline-design.md`
   — approved by the user after Claude's whole-spec review.
@@ -117,29 +113,44 @@ public leaderboard.
   — 12 tasks, approved for execution. Full review history (33+ Codex/
   Claude rounds across design, plan, and implementation):
   `docs/collaboration/active_task.md`.
-- **Status:** local Tasks 1–9 are complete and independently accepted —
-  the package layer (offline dependency, shared validation, fold
-  selection, frozen report model, submission construction), all three
-  public-facing notebooks (`01_eda.ipynb`, `02_weak_label_evaluation.ipynb`,
-  `03_baseline_modeling.ipynb`, private during development), and the
-  documentation/portfolio sync. Task 10 (private Kaggle execution) is the
-  next gated step: refresh/inspect the private source dataset, run the
-  EDA and weak-label kernels, then the baseline kernel, inspecting only
-  aggregate output plus submission schema/shape/range. Reproducibility
-  confirmation and the real competition submission (Tasks 11–12) remain
-  after that — no Phase 3A result exists yet.
+- **Status:** all 9 local implementation tasks were completed and
+  independently accepted, and Task 10 (private Kaggle execution) ran the
+  EDA and weak-label kernels successfully. The baseline kernel's first real
+  run then surfaced a design-breaking fact no earlier review could see
+  locally: the real competition `test.csv` has no `Report` column at all
+  (`docs/1_instructions.md`, round 37). A model that only accepts report
+  text as input cannot produce test-time predictions, so this design **can
+  never be submitted as originally specified** — Task 10 is stopped at this
+  step, not proceeding to Tasks 11–12. The implementation itself is not
+  discarded: its pooled out-of-fold macro-AUC on the 58 labeled studies
+  remains a valid **train-only signal audit**, and it's a candidate
+  "teacher" for a future weak-label pipeline if that path is ever reopened
+  (its own reliability gate, not assumed) — but not a component that can be
+  blended into a real submission the way Phase 3C originally assumed (round
+  40, finding 1).
 
-### Phase 3B — Frozen Image-Embedding Baseline — not started
+### Phase 3B — Frozen Image-Embedding Baseline — design proposed, not yet approved
 
-Choose and freeze a pretrained image encoder; evaluate on the exact same
-Phase 3A folds. Not designed or scoped yet — begins only once Phase 3A
-produces a working, submitted baseline.
+Since Phase 3A cannot be submitted, this phase is being pulled forward to
+be the actual first submittable baseline: a frozen pretrained image
+encoder evaluated on the exact same Phase 3A folds. **Not yet designed or
+approved** — a proposal exists (round 37) and a project-owned DICOM/series
+preflight audit has run twice to inform it (rounds 39–41,
+`docs/7_image_baseline_insights.md`), but the formal design spec, plan, and
+implementation have not started. No dataset publication, kernel run, or
+submission beyond this preflight work is authorized until that design is
+written and independently reviewed.
 
-### Phase 3C — Late Fusion — not started
+### Phase 3C — Late Fusion — not started, premise needs revisiting
 
-One predefined blend rule combining Phase 3A and Phase 3B's out-of-fold
-predictions, attempted only after both exist. Not designed or scoped
-yet.
+Originally scoped as one predefined blend rule combining Phase 3A and
+Phase 3B's out-of-fold predictions for the real submission. Since Phase 3A
+has no test-time predictions to blend, a direct submission-time fusion of
+the two is not viable as originally described — any fusion role for Phase
+3A's signal (e.g. as a weak-label teacher feeding Phase 3B's training
+targets) would need its own design and reliability gate, not an assumed
+blend rule. Still not designed or scoped; revisit only after Phase 3B
+exists.
 
 ---
 

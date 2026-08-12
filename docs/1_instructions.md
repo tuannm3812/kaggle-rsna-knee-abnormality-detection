@@ -34,9 +34,15 @@ original free-text radiology report.
   tail to a few hundred. Mixed transfer syntaxes: uncompressed Explicit VR
   Little Endian, JPEG Lossless, JPEG 2000, Implicit VR Little Endian.
   Stripped to an allowlisted set of 86 metadata tags.
-- **`test.csv` / `test_series.csv` / `test_series/`** — same schema; the
-  local copies are 3 example studies only. Real scoring test set is
-  ~1300 studies.
+- **`test.csv`** — **not** the same schema as `train.csv`: real Kaggle
+  execution confirms it has only `StudyInstanceUID`, no `Report` column at
+  all (verified directly against the live mounted competition data, not
+  assumed — see `docs/collaboration/active_task.md` round 37). A model that
+  needs report text at inference time cannot be built against this file.
+- **`test_series.csv` / `test_series/`** — same schema as
+  `train_series.csv`/`train_series/` (also verified against real data, round
+  39's preflight audit). The local copies are 3 example studies only. Real
+  scoring test set is ~1300 studies.
 - **`sample_submission.csv`** — all label columns set to 0.5.
 - **Size**: 569.76 GB total. Class prevalence is not guaranteed consistent
   across train / public LB / private LB.
