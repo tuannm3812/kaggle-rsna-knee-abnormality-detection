@@ -160,10 +160,10 @@ starting or resuming work.
   selection rather than retrying, `audit_series` can crash before recording
   present-but-invalid geometry or missing `InstanceNumber`, and the geometry
   gate compares only slice normals rather than the approved full
-  orientation. These corrections must close before the selector is
-  production-ready. Round 53 independently reproduced all three findings
-  locally before fixing them (each reproduced exactly as Codex described),
-  fixed all three, and added regression tests. The user chose to rerun on
+  orientation. Round 53 independently reproduced all three findings and
+  corrected selector retry, guarded the two reproduced audit computations,
+  and strengthened full-orientation validation with regression tests. The
+  user chose to rerun on
   Kaggle immediately rather than wait for review, and explicitly changed
   the project workflow: push a real Kaggle GPU run earlier in the cycle
   going forward, not just after local TDD feels complete (saved to
@@ -171,6 +171,14 @@ starting or resuming work.
   the stricter validation still passes 100% of the real 822-series sample
   -- the tightened check isn't overly conservative for real data, though
   the fixed failure paths themselves remain unexercised by this sample.
+  Codex's round-55 review accepts that remote evidence and closes selector
+  retry, but finds two residual contract gaps: `audit_series` still aborts
+  on an unreadable header before it can count the series, and the stated
+  cosine-similarity check compares unnormalized vectors, producing
+  asymmetric false rejection within the allowed unit-norm tolerance. Public
+  tolerance arguments also still accept infinite or requirement-defeating
+  values. These local corrections remain before production readiness; the
+  accepted v5 sample does not need to be discarded.
   Phase 3B's written design spec still does not exist; remaining sections
   (crop dimensions, intensity transform, geometry-aware laterality
   reflection, DINOv2 token embedding, classifier regularization,
@@ -4311,3 +4319,102 @@ section:**
 **Not yet done:** no Phase 3B design spec written. Returned for Codex's
 review, now covering both the round-53 code fixes and this round's
 confirmatory real-data rerun together.
+
+### Round 55 — Codex Feedback: v5 evidence accepted; two validation-contract gaps remain (2026-08-13)
+
+**Scope reviewed:** Claude's commits `3fa0055` through `c3ac942`; every
+source, test, insight, and collaboration-log change since round 52; the
+round-52 requirements; fresh adversarial local reproductions; and a fresh
+private Kaggle status/output query. No identifier, pixel, report, row-level
+result, prediction, or submission row was displayed or persisted.
+
+**Accepted fixes:** finding 1 is closed for the production selector.
+`validate_and_order_series` narrowly converts `InvalidDicomError` and
+`OSError` during header reading into an unusable candidate, so the existing
+same-plane loop advances rather than aborting; the dataset-level regression
+test proves the valid second candidate is selected and records two attempts.
+The two specific audit crashes previously reproduced—degenerate present
+orientation and missing `InstanceNumber` with valid geometry—are now
+independently guarded and covered. Full row/column agreement, unit-norm, and
+orthogonality checks correctly reject the prior 90-degree in-plane rotation,
+non-unit, and non-orthogonal adversarial cases. The docstring and 18-test
+count corrections are also accurate.
+
+**Independent remote evidence:** a fresh status query reports
+`KernelWorkerStatus.COMPLETE`. The freshly downloaded aggregate JSON matches
+round 54: 822/822 sampled series validate by geometry; all 450 study-plane
+pairs resolve through the first candidate; no `InstanceNumber`, retry, or
+missing-plane path occurs; and the three-series decode plus frozen-encoder
+projection is 0.1942345472 hours. The log contains only debugger/nbconvert
+warnings. This accepts preflight-v5 as evidence that the strengthened default
+gate does not reject the sampled normal data. Claude correctly limits the
+interpretation: it does not show any adverse path executing on real data.
+
+**Finding 1 — `audit_series` still cannot count an unreadable header
+(blocking the promised audit resilience):** the public validator now catches
+header-read failures, but `audit_series` has its own unguarded list
+comprehension calling `pydicom.dcmread` before it reaches `_validate_and_order`.
+Codex reran the round-52 malformed-DICOM case directly against
+`audit_series`; it still raises `InvalidDicomError`. Consequently a private
+preflight containing the adverse case would terminate rather than increase
+an aggregate header-failure/unusable count, so round 52 finding 2 is only
+partially closed. Read headers per file under the same narrow exception
+policy, expose an aggregate-safe `header_read_failures`/failure reason, make
+ordering unusable if any series member cannot be read, and compute optional
+diagnostics only from safely read headers. Add an `audit_series` regression
+test for a mixed or wholly unreadable series and wire its aggregate count
+into the preflight output without identifiers.
+
+**Finding 2 — the orientation check is not actually cosine similarity
+(blocking the advertised geometry contract):** after separately accepting
+row/column norms within `unit_norm_tolerance`, the implementation compares
+their raw dot products to `orientation_tolerance`. A raw dot product is only
+cosine similarity for exactly unit vectors. Codex reproduced the resulting
+asymmetry with identical orientations and duplicate `InstanceNumber` values
+to disable fallback: direction-vector norm `0.995` is allowed by the 0.01
+unit-norm tolerance but is rejected as unusable because `0.995² < 0.999`,
+whereas identical norm `1.005` vectors pass because `1.005² > 0.999`.
+Normalize the accepted row/column vectors for the agreement comparison (or
+compute explicit cosine similarity), while retaining raw norms for the
+unit-norm check. Add a regression test proving identical, slightly under-
+unit vectors use the geometry route and a genuinely misaligned orientation
+does not.
+
+**Finding 3 — tolerance validation remains incomplete (non-blocking API
+cleanup, but required before the spec freezes these values):** the new range
+helper rejects negative values but accepts positive infinity for position,
+unit-norm, and orthogonality tolerances. Codex confirmed all three are
+accepted; infinite unit/orthogonality tolerances disable their respective
+validity checks, while infinite position tolerance forces otherwise valid
+geometry to fall back. A zero position tolerance also permits duplicate
+positions because the comparison uses `<`, and negative orientation
+tolerances can admit oppositely directed axes. These are public arguments,
+so either remove unnecessary configurability and keep reviewed internal
+constants, or require finite, requirement-preserving ranges (for example
+orientation in `[0, 1]`, position finite and `> 0`, and finite bounded
+unit/orthogonality tolerances). Record the final exact bounds/defaults in the
+Phase 3B spec.
+
+**Workflow discussion:** the user's round-54 preference to run Kaggle earlier
+is compatible with the project gates. Apply it after focused local TDD and a
+basic notebook/privacy smoke check whenever a change can materially alter
+real-data behavior; it does not authorize submissions, public datasets, or
+publishing private artifacts. The v7 run met those boundaries. No immediate
+v6-style repeat is useful for findings 1-3 because the fixed 150-study sample
+contains none of their inputs; after local correction, an early private
+kernel run should instead include aggregate header-failure reporting or an
+explicitly approved broader/adversarial audit capable of exercising the
+changed path.
+
+**Independent local verification:** `.venv/bin/pytest -q` reports `218
+passed in 1.95s`; `.venv/bin/ruff check .` reports `All checks passed!`;
+`bash -n scripts/push_kaggle_kernel.sh` succeeds; all four notebooks parse
+as JSON, are output-free, have null execution counts, and have complete
+unique cell IDs; `git diff --check` is clean.
+
+**Disposition:** accept preflight-v5 and the selector's retry behavior; do
+not call the full validation/audit contract production-ready or write the
+final Phase 3B spec until findings 1-3 are corrected and reviewed. The next
+step is a small TDD correction round, followed by targeted early Kaggle
+validation only if the run can test the changed behavior. No submission is
+authorized.
