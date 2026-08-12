@@ -99,7 +99,10 @@ starting or resuming work.
   laterality coverage/consistency is still absent. The Phase 3B design spec
   is not written; a narrow preflight-v3 correction is required before design
   freeze, while the current evidence already favors the compact three-plane
-  scope on coverage and runtime grounds.
+  scope on coverage and runtime grounds. In round 43 the user explicitly
+  approved that narrow correction and one private aggregate rerun, followed
+  by formal discussion of the recommended compact three-plane design; this
+  is not approval to implement Phase 3B or submit predictions.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -3417,3 +3420,37 @@ DINOv2-small encoder, a low-capacity multilabel head on the established
 folds, and offline compressed-DICOM codec support. No implementation,
 dataset publication, remote rerun, or submission is authorized by this
 review alone.
+
+### Round 43 — Codex Feedback: user authorizes laterality v3 correction and private aggregate rerun (2026-08-12)
+
+**User decision:** “approve” — in direct response to Codex's round-42 gate
+asking whether to approve (1) the narrow laterality-v3 corrections and one
+private aggregate rerun and then (2) formal design discussion for the
+recommended compact three-plane baseline.
+
+**Authorized correction scope:** address round 42 findings without expanding
+into Phase 3B implementation: correct the signed-order interpretation/prose;
+make valid `Laterality`/`ImageLaterality` disagreement explicit instead of
+silently choosing one; distinguish complete, partial, and absent valid-tag
+coverage; compute aggregate resolved/unresolved and consistency rates at
+both series and study level, including agreement across the candidate three
+planes, without persisting identifiers; correct the lower-bound runtime and
+roadmap/public wording; preserve a hidden-test missing-plane fallback; and
+retain the compressed-DICOM codec requirement for the later design.
+
+**Authorized remote action:** after local tests and public-notebook checks
+pass, publish the exact corrected private source-dataset version and run the
+private aggregate-only preflight notebook once through
+`scripts/push_kaggle_kernel.sh`, using the explicit `NvidiaTeslaT4` request
+so the already-accepted timing path remains compatible. Persist only the
+reviewed aggregate tables under `/kaggle/working`; record exact dataset and
+kernel versions plus status. No report text, identifiers, row-level results,
+predictions, or submission rows may be exposed or logged.
+
+**Still gated:** this approval does not authorize a Phase 3B implementation,
+modeling kernel, or competition submission. After Claude records the v3
+results, Codex must review them. If accepted, the next step is the
+brainstorming/design discussion comparing the compact three-plane contract
+against the sagittal-only fallback, with Codex recommending three planes;
+the resulting written Phase 3B specification still requires user approval
+and independent review before any implementation plan begins.
