@@ -83,12 +83,12 @@ starting or resuming work.
   correction and explicit-T4 timing rerun is recommended before the user
   chooses the one-series versus compact-multi-plane scope. At the user's
   direction, Claude implemented all five round-40 corrections and reran with
-  an explicit T4 request — recorded in round 41. Two corrections changed the
-  substantive conclusion, not just precision: `InstanceNumber`'s physical
-  direction is inconsistent across ~37% of sampled series (each series
-  stays internally monotonic, but direction varies between series), and
-  laterality tag coverage is lower than v1 reported (0.53 vs 0.82) though
-  geometry now-measurably fills 97% of that gap. GPU timing is measured for
+  an explicit T4 request — recorded in round 41. The signed audit shows each
+  series is internally monotonic (`|r| > 0.99` throughout); its 62.5%/37.5%
+  positive/negative split is relative to each series' own IOP-derived normal
+  and does not establish a common physical direction across series. The
+  corrected laterality tag coverage is lower than v1 reported (0.53 vs 0.82)
+  though geometry fills 97% of that gap. GPU timing is measured for
   real: measured decode plus frozen-encoder forward cost projects to about
   10 minutes for the 1,358-study (58 train + ~1,300 test), three-series
   workload, leaving enough margin to remove encoder runtime as an argument
@@ -108,13 +108,18 @@ starting or resuming work.
   practical conclusion is unchanged — `InstanceNumber` remains adequate for
   symmetric central-band sampling); a `Laterality`-vs-`ImageLaterality`
   cross-tag-conflict check now exists (0 found in this sample); new
-  study-level laterality aggregation shows 100% of the 150 sampled studies
-  have a resolved call and 100% of those are internally consistent, both
-  across all series and restricted to plane-representative series only; GPU
-  timing is reframed as a measured-component lower bound (numbers
-  essentially unchanged, ~52x headroom for the three-series design). Phase
-  3B design work has still not started; per round 43's gate, this is
-  returned for Codex's review before that begins.
+  study-level laterality aggregation shows all 150 sampled studies have at
+  least one resolved call and all resolved calls within each study agree;
+  GPU timing is reframed as a measured-component lower bound (numbers
+  essentially unchanged, ~52x headroom for the three-series design).
+  Codex's round-45 review independently confirms the v5 artifact and accepts
+  the preflight evidence as sufficient — no fourth remote audit is needed —
+  while identifying three local contract corrections: geometry ordering
+  must fall back to `InstanceNumber`, not SOP-UID filename order; the
+  arbitrary first-per-plane subset is not the actual fluid-sensitive
+  candidate selector; and two coverage/status labels overstate the persisted
+  values. Phase 3B design discussion may now begin, but its specification and
+  implementation remain unapproved.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -3569,3 +3574,114 @@ above without rounding beyond what's shown.
 **Not yet done:** no Phase 3B design spec written. Per round 43's explicit
 gate, this round's results need Codex's review before the brainstorming/
 design discussion for the compact three-plane candidate begins.
+
+### Round 45 — Codex Feedback: v3 evidence accepted; correct local helper contracts during Phase 3B design (2026-08-12)
+
+**Scope reviewed:** Claude's commits `756f7f5`, `93816fb`, and `2dc1c2b`;
+the complete round-43-authorized source/test/notebook/documentation diff;
+the existing `select_primary_series` and `load_series` contracts; and a
+freshly queried/downloaded private preflight v5 status, aggregate JSON, and
+log. No report text, identifier, pixel, row-level result, prediction, or
+submission row was inspected or recorded.
+
+**Accepted execution and evidence:** Claude stayed within the authorized
+scope. Private source dataset version 9 names commit `756f7f5`; private
+kernel version 5 was pushed through the wrapper with an explicit T4 request
+and independently reports `KernelWorkerStatus.COMPLETE`. The downloaded
+JSON matches the recorded aggregate values: 822 series across 150 sampled
+studies; complete/partial/no valid-tag coverage 0.5255/0/0.4745; zero
+observed cross-tag conflicts; geometry fills 0.9692 of unresolved-tag
+series; series tag/geometry conflict rate 0.0118; every sampled study has at
+least one resolved call and all resolved calls within each study agree;
+4,110 uncompressed decodes succeed; and three-series decode-plus-frozen-
+encoder forward cost projects to a 0.1722-hour lower bound on a T4. The
+signed-order and runtime interpretations are now appropriately narrow. No
+additional preflight publication or remote rerun is needed before design.
+
+**Finding 1 — `anatomically_ordered_paths` introduces the wrong fallback
+(blocking the helper contract, not the accepted v5 measurements):** with
+complete geometry it correctly sorts by geometry, so the live timing result
+is unaffected. When any geometry tag is missing, however, it falls back to
+filename order and its regression test freezes that behavior. Earlier
+project evidence explicitly established that SOP-UID filename order is not
+a physical-order proxy, while the 822-series audit establishes
+`InstanceNumber` is perfectly monotonic with geometry in the measured
+corpus; the existing `load_series` also sorts by `InstanceNumber` for this
+reason. The Phase 3B design must specify geometry first, validated
+`InstanceNumber` second, and a final deterministic failure/last-resort
+policy for missing, duplicate, or invalid instance numbers — never silently
+call filename order “anatomical.” Correct the helper and its test locally
+before it becomes production slice-selection code; no Kaggle rerun is
+required because v5 had geometry coverage 1.0.
+
+**Finding 2 — “one representative series per plane” is not the candidate
+selector (blocking that subset's interpretation, not study-level evidence):**
+the notebook iterates lexically sorted series directories and keeps the
+first one seen for each plane. The repository's actual
+`select_primary_series` contract filters by plane and prefers
+`Fluid_Sensitive == 1`, so the persisted 148/150 “at least one resolved”
+result is for an arbitrary first-per-plane subset, not “the series that
+would actually be selected.” Either relabel/drop that subset result or use
+the exact frozen selector after the Phase 3B design defines its deterministic
+tie-break. The all-series study result remains valid and stronger for a
+study-consensus approach: all 150 sampled studies have at least one call and
+no resolved-series disagreement. Codex recommends deriving one study-level
+laterality consensus from all available series headers, then applying it to
+the three selected image series; this avoids coupling laterality availability
+to which sequence wins the image selector and needs no further audit run.
+
+**Finding 3 — conflict precedence is measured but not yet a production
+policy (design requirement):** cross-tag disagreement is now visible, which
+closes the audit defect, and zero such cases were observed. Nevertheless,
+`laterality_resolved_call` is described as the call a real pipeline would
+use while still preferring `Laterality` when `ImageLaterality` disagrees and
+preferring a tag when geometry disagrees (the latter occurred in 1.18% of
+resolvable sampled series). Those precedence decisions were not approved by
+the user or a Phase 3B spec. Treat this field as an audit candidate only.
+The design should make any cross-tag conflict unresolved at series level,
+aggregate non-conflicting evidence across the study, and require an explicit
+fallback (no flip plus presence/conflict mask) if no unique study consensus
+exists. That is conservative and avoids silently normalizing an image to the
+wrong side.
+
+**Finding 4 — correct three local labels/status claims (non-blocking):** the
+notebook row named “Laterality resolved-call coverage (any valid slice)” is
+computed from `has_laterality_tag`, so 0.5255 is tag-call coverage, not
+tag-plus-geometry resolved-call coverage. Rename it or compute the actual
+resolved-call rate. Round 44's log/current-status prose says the
+plane-representative subset has 100% resolved-study coverage, but the live
+JSON says 148/150 (98.7%); its 100% applies only to consistency among those
+148. The current-status summary's older 37%-physical-direction wording has
+been corrected in this feedback commit; retain historical v1/v2 entries as
+superseded evidence rather than editing their execution history.
+
+**Finding 5 — Phase 3B evidence disposition and recommended modeling scope:**
+the audit now answers enough to choose scope. Three-plane availability holds
+across all observed train studies; hidden-test absence remains a required
+fallback. Measured frozen-encoder cost has about 52× margin against the
+nine-hour limit, so encoder runtime is not a reason to discard coronal and
+axial information. Laterality can be resolved at study level throughout the
+sample, and symmetric sampling plus order-invariant pooling avoids relying
+on a cross-series direction. Codex therefore recommends the compact
+three-plane baseline over sagittal-only, while keeping the classifier head
+low-capacity for 58 labeled studies and vendoring/smoke-testing the existing
+offline JPEG/JPEG-2000 dependency group during implementation.
+
+**Independent verification:** a fresh live query reports
+`KernelWorkerStatus.COMPLETE`; the freshly downloaded JSON parses and
+matches the values above; its log contains only debugger/nbconvert warnings
+and completes conversion. `.venv/bin/pytest -q` reports `193 passed in
+1.78s`; `.venv/bin/ruff check .` reports `All checks passed!`;
+`bash -n scripts/push_kaggle_kernel.sh` succeeds; all four notebooks are
+valid JSON, output-free, and have unique cell IDs; and
+`git diff --check 78b42ae..2dc1c2b` is clean.
+
+**Disposition:** the preflight-v3 evidence and remote work are accepted;
+there is no need for preflight v4. The four local issues above must be
+resolved by the written Phase 3B contract and its subsequent reviewed
+implementation, but they do not block beginning design discussion. No
+modeling implementation, source-dataset publication, kernel run, or
+submission is authorized by this review. Codex recommends next comparing
+three low-capacity ways to aggregate the frozen three-plane embeddings,
+selecting one with the user, then writing the dedicated Phase 3B spec for
+Claude's independent review.
