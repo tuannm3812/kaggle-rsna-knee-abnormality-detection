@@ -8,9 +8,9 @@ from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 
 from knee_mri.series_audit import (
     GroupLateralityAgreement,
+    OrderingValidation,
     SeriesAudit,
     aggregate_group_laterality,
-    anatomically_ordered_paths,
     audit_series,
     central_band_indices,
     fluid_fat_suppression_agreement,
@@ -19,6 +19,7 @@ from knee_mri.series_audit import (
     plane_series_counts,
     slice_normal,
     slice_position,
+    validate_and_order_series,
 )
 
 # -- slice_normal / slice_position --
@@ -434,10 +435,10 @@ def test_audit_series_raises_on_empty_directory(tmp_path: Path):
         audit_series(empty_dir)
 
 
-# -- anatomically_ordered_paths --
+# -- validate_and_order_series --
 
 
-def test_anatomically_ordered_paths_orders_by_geometry_not_filename(tmp_path: Path):
+def test_validate_and_order_series_uses_geometry_when_valid(tmp_path: Path):
     series_dir = tmp_path / "series"
     series_dir.mkdir()
     orientation = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
@@ -461,12 +462,18 @@ def test_anatomically_ordered_paths_orders_by_geometry_not_filename(tmp_path: Pa
         image_orientation_patient=orientation,
     )
 
-    ordered = anatomically_ordered_paths(series_dir)
+    result = validate_and_order_series(series_dir)
 
-    assert [path.name for path in ordered] == ["c_first.dcm", "b_middle.dcm", "a_last.dcm"]
+    assert result.usable is True
+    assert result.method == "geometry"
+    assert [path.name for path in result.ordered_paths] == [
+        "c_first.dcm",
+        "b_middle.dcm",
+        "a_last.dcm",
+    ]
 
 
-def test_anatomically_ordered_paths_falls_back_to_instance_number_without_geometry(
+def test_validate_and_order_series_falls_back_to_instance_number_without_geometry(
     tmp_path: Path,
 ):
     series_dir = tmp_path / "series"
@@ -477,32 +484,111 @@ def test_anatomically_ordered_paths_falls_back_to_instance_number_without_geomet
     _write_synthetic_slice(series_dir / "b_middle.dcm", instance_number=2)
     _write_synthetic_slice(series_dir / "c_last.dcm", instance_number=1)
 
-    ordered = anatomically_ordered_paths(series_dir)
+    result = validate_and_order_series(series_dir)
 
-    assert [path.name for path in ordered] == ["c_last.dcm", "b_middle.dcm", "a_first.dcm"]
+    assert result.usable is True
+    assert result.method == "instance_number"
+    assert [path.name for path in result.ordered_paths] == [
+        "c_last.dcm",
+        "b_middle.dcm",
+        "a_first.dcm",
+    ]
 
 
-def test_anatomically_ordered_paths_duplicate_instance_numbers_break_ties_by_filename(
-    tmp_path: Path,
-):
+def test_validate_and_order_series_unusable_on_duplicate_instance_numbers(tmp_path: Path):
     series_dir = tmp_path / "series"
     series_dir.mkdir()
-    # No geometry, and both slices share the same (duplicate) InstanceNumber:
-    # the final, deterministic tie-break is filename order.
+    # No geometry, and both slices share the same InstanceNumber: this must
+    # be reported unusable, not silently fall back to filename order.
     _write_synthetic_slice(series_dir / "1.dcm", instance_number=1)
     _write_synthetic_slice(series_dir / "2.dcm", instance_number=1)
 
-    ordered = anatomically_ordered_paths(series_dir)
+    result = validate_and_order_series(series_dir)
 
-    assert [path.name for path in ordered] == ["1.dcm", "2.dcm"]
+    assert result == OrderingValidation(usable=False, method=None, ordered_paths=None)
 
 
-def test_anatomically_ordered_paths_raises_on_empty_directory(tmp_path: Path):
+def test_validate_and_order_series_unusable_on_inconsistent_orientation(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    # Two slices with very different orientation -- not one coherent series.
+    _write_synthetic_slice(
+        series_dir / "1.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 0.0),
+        image_orientation_patient=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+    )
+    _write_synthetic_slice(
+        series_dir / "2.dcm",
+        instance_number=2,
+        image_position_patient=(0.0, 0.0, 5.0),
+        image_orientation_patient=(0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+    )
+
+    result = validate_and_order_series(series_dir)
+
+    # Geometry route fails (inconsistent orientation); InstanceNumber route
+    # is valid and unique, so it's the accepted fallback.
+    assert result.usable is True
+    assert result.method == "instance_number"
+
+
+def test_validate_and_order_series_unusable_on_duplicate_positions(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    orientation = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    # Both slices at the identical physical position -- geometry can't order them.
+    _write_synthetic_slice(
+        series_dir / "1.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 0.0),
+        image_orientation_patient=orientation,
+    )
+    _write_synthetic_slice(
+        series_dir / "2.dcm",
+        instance_number=2,
+        image_position_patient=(0.0, 0.0, 0.0),
+        image_orientation_patient=orientation,
+    )
+
+    result = validate_and_order_series(series_dir)
+
+    # Geometry route fails (duplicate position); InstanceNumber route is
+    # valid and unique, so it's the accepted fallback.
+    assert result.usable is True
+    assert result.method == "instance_number"
+
+
+def test_validate_and_order_series_unusable_when_neither_route_validates(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    orientation = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    # Duplicate position (geometry fails) AND duplicate InstanceNumber
+    # (InstanceNumber fails too): genuinely unusable.
+    _write_synthetic_slice(
+        series_dir / "1.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 0.0),
+        image_orientation_patient=orientation,
+    )
+    _write_synthetic_slice(
+        series_dir / "2.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 0.0),
+        image_orientation_patient=orientation,
+    )
+
+    result = validate_and_order_series(series_dir)
+
+    assert result == OrderingValidation(usable=False, method=None, ordered_paths=None)
+
+
+def test_validate_and_order_series_raises_on_empty_directory(tmp_path: Path):
     empty_dir = tmp_path / "empty_series"
     empty_dir.mkdir()
 
     with pytest.raises(FileNotFoundError, match=r"No \.dcm files"):
-        anatomically_ordered_paths(empty_dir)
+        validate_and_order_series(empty_dir)
 
 
 # -- aggregate_group_laterality --

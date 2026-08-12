@@ -1,14 +1,70 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
+from pydicom.dataset import FileDataset, FileMetaDataset
+from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 
 from knee_mri.dataset import (
+    PlaneSelection,
     prepare_modeling_inputs,
+    rank_candidate_series,
     select_primary_series,
+    select_validated_series,
     series_for_study,
     split_labeled_studies,
 )
 from knee_mri.labels import LABEL_COLUMNS
+
+
+def _write_synthetic_slice(
+    path: Path,
+    instance_number: int,
+    *,
+    image_position_patient: tuple[float, float, float] | None = None,
+    image_orientation_patient: tuple[float, ...] | None = None,
+) -> None:
+    file_meta = FileMetaDataset()
+    file_meta.MediaStorageSOPClassUID = generate_uid()
+    file_meta.MediaStorageSOPInstanceUID = generate_uid()
+    file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
+
+    ds = FileDataset(str(path), {}, file_meta=file_meta, preamble=b"\x00" * 128)
+    ds.is_little_endian = True
+    ds.is_implicit_VR = False
+    ds.SOPClassUID = file_meta.MediaStorageSOPClassUID
+    ds.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+    ds.InstanceNumber = instance_number
+    ds.Rows = 4
+    ds.Columns = 4
+    ds.SamplesPerPixel = 1
+    ds.PhotometricInterpretation = "MONOCHROME2"
+    ds.BitsAllocated = 16
+    ds.BitsStored = 16
+    ds.HighBit = 15
+    ds.PixelRepresentation = 0
+
+    if image_position_patient is not None:
+        ds.ImagePositionPatient = list(image_position_patient)
+    if image_orientation_patient is not None:
+        ds.ImageOrientationPatient = list(image_orientation_patient)
+
+    pixels = np.full((4, 4), instance_number, dtype=np.uint16)
+    ds.PixelData = pixels.tobytes()
+    ds.save_as(str(path), write_like_original=False)
+
+
+def _write_series(series_dir: Path, slice_count: int, *, valid_geometry: bool = True) -> None:
+    series_dir.mkdir(parents=True)
+    orientation = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0) if valid_geometry else None
+    for i in range(slice_count):
+        _write_synthetic_slice(
+            series_dir / f"{i}.dcm",
+            instance_number=i + 1,
+            image_position_patient=(0.0, 0.0, float(i)) if valid_geometry else None,
+            image_orientation_patient=orientation,
+        )
 
 
 def _series_frame() -> pd.DataFrame:
@@ -62,6 +118,215 @@ def test_select_primary_series_returns_none_when_plane_missing():
     chosen = select_primary_series(_series_frame(), "study_2", plane="Sagittal")
 
     assert chosen is None
+
+
+# -- rank_candidate_series --
+
+
+def test_rank_candidate_series_prefers_fluid_sensitive_over_slice_count(tmp_path: Path):
+    series_df = pd.DataFrame(
+        [
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "fewer_slices_fluid",
+                "Fluid_Sensitive": 1,
+                "Fat_Suppression": 1,
+                "Anatomical_Plane": "Sagittal",
+            },
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "more_slices_not_fluid",
+                "Fluid_Sensitive": 0,
+                "Fat_Suppression": 0,
+                "Anatomical_Plane": "Sagittal",
+            },
+        ]
+    )
+    _write_series(tmp_path / "study_1" / "fewer_slices_fluid", slice_count=2)
+    _write_series(tmp_path / "study_1" / "more_slices_not_fluid", slice_count=10)
+
+    ranked = rank_candidate_series(series_df, tmp_path, "study_1", plane="Sagittal")
+
+    assert ranked == ["fewer_slices_fluid", "more_slices_not_fluid"]
+
+
+def test_rank_candidate_series_tie_breaks_by_slice_count(tmp_path: Path):
+    series_df = pd.DataFrame(
+        [
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "series_a",
+                "Fluid_Sensitive": 1,
+                "Fat_Suppression": 1,
+                "Anatomical_Plane": "Sagittal",
+            },
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "series_b",
+                "Fluid_Sensitive": 1,
+                "Fat_Suppression": 1,
+                "Anatomical_Plane": "Sagittal",
+            },
+        ]
+    )
+    _write_series(tmp_path / "study_1" / "series_a", slice_count=5)
+    _write_series(tmp_path / "study_1" / "series_b", slice_count=20)
+
+    ranked = rank_candidate_series(series_df, tmp_path, "study_1", plane="Sagittal")
+
+    assert ranked == ["series_b", "series_a"]
+
+
+def test_rank_candidate_series_final_tie_break_is_series_id(tmp_path: Path):
+    series_df = pd.DataFrame(
+        [
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "series_z",
+                "Fluid_Sensitive": 0,
+                "Fat_Suppression": 0,
+                "Anatomical_Plane": "Sagittal",
+            },
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "series_a",
+                "Fluid_Sensitive": 0,
+                "Fat_Suppression": 0,
+                "Anatomical_Plane": "Sagittal",
+            },
+        ]
+    )
+    _write_series(tmp_path / "study_1" / "series_z", slice_count=5)
+    _write_series(tmp_path / "study_1" / "series_a", slice_count=5)
+
+    ranked = rank_candidate_series(series_df, tmp_path, "study_1", plane="Sagittal")
+
+    assert ranked == ["series_a", "series_z"]
+
+
+def test_rank_candidate_series_empty_when_plane_missing(tmp_path: Path):
+    ranked = rank_candidate_series(_series_frame(), tmp_path, "study_2", plane="Sagittal")
+
+    assert ranked == []
+
+
+def test_rank_candidate_series_treats_missing_directory_as_zero_slices(tmp_path: Path):
+    series_df = pd.DataFrame(
+        [
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "on_disk",
+                "Fluid_Sensitive": 0,
+                "Fat_Suppression": 0,
+                "Anatomical_Plane": "Sagittal",
+            },
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "not_on_disk",
+                "Fluid_Sensitive": 0,
+                "Fat_Suppression": 0,
+                "Anatomical_Plane": "Sagittal",
+            },
+        ]
+    )
+    _write_series(tmp_path / "study_1" / "on_disk", slice_count=3)
+
+    ranked = rank_candidate_series(series_df, tmp_path, "study_1", plane="Sagittal")
+
+    assert ranked == ["on_disk", "not_on_disk"]
+
+
+# -- select_validated_series --
+
+
+def test_select_validated_series_returns_top_candidate_when_valid(tmp_path: Path):
+    series_df = pd.DataFrame(
+        [
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "series_1",
+                "Fluid_Sensitive": 1,
+                "Fat_Suppression": 1,
+                "Anatomical_Plane": "Sagittal",
+            },
+        ]
+    )
+    _write_series(tmp_path / "study_1" / "series_1", slice_count=3)
+
+    result = select_validated_series(series_df, tmp_path, "study_1", plane="Sagittal")
+
+    assert result == PlaneSelection(
+        plane="Sagittal",
+        series_instance_uid="series_1",
+        ordering_method="geometry",
+        ordered_paths=result.ordered_paths,
+    )
+    assert result.ordered_paths is not None and len(result.ordered_paths) == 3
+
+
+def test_select_validated_series_retries_next_candidate_when_top_invalid(tmp_path: Path):
+    series_df = pd.DataFrame(
+        [
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "invalid_fluid",
+                "Fluid_Sensitive": 1,
+                "Fat_Suppression": 1,
+                "Anatomical_Plane": "Sagittal",
+            },
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "valid_not_fluid",
+                "Fluid_Sensitive": 0,
+                "Fat_Suppression": 0,
+                "Anatomical_Plane": "Sagittal",
+            },
+        ]
+    )
+    # Top-ranked (fluid-sensitive) candidate: no geometry, duplicate
+    # InstanceNumber -- unusable under either validation route.
+    invalid_dir = tmp_path / "study_1" / "invalid_fluid"
+    invalid_dir.mkdir(parents=True)
+    _write_synthetic_slice(invalid_dir / "1.dcm", instance_number=1)
+    _write_synthetic_slice(invalid_dir / "2.dcm", instance_number=1)
+    _write_series(tmp_path / "study_1" / "valid_not_fluid", slice_count=3)
+
+    result = select_validated_series(series_df, tmp_path, "study_1", plane="Sagittal")
+
+    assert result.series_instance_uid == "valid_not_fluid"
+    assert result.ordering_method == "geometry"
+
+
+def test_select_validated_series_missing_plane_when_all_candidates_invalid(tmp_path: Path):
+    series_df = pd.DataFrame(
+        [
+            {
+                "StudyInstanceUID": "study_1",
+                "SeriesInstanceUID": "invalid_only",
+                "Fluid_Sensitive": 0,
+                "Fat_Suppression": 0,
+                "Anatomical_Plane": "Sagittal",
+            },
+        ]
+    )
+    invalid_dir = tmp_path / "study_1" / "invalid_only"
+    invalid_dir.mkdir(parents=True)
+    _write_synthetic_slice(invalid_dir / "1.dcm", instance_number=1)
+    _write_synthetic_slice(invalid_dir / "2.dcm", instance_number=1)
+
+    result = select_validated_series(series_df, tmp_path, "study_1", plane="Sagittal")
+
+    assert result == PlaneSelection(
+        plane="Sagittal", series_instance_uid=None, ordering_method=None, ordered_paths=None
+    )
+
+
+def test_select_validated_series_missing_plane_when_no_candidates(tmp_path: Path):
+    result = select_validated_series(_series_frame(), tmp_path, "study_2", plane="Sagittal")
+
+    assert result == PlaneSelection(
+        plane="Sagittal", series_instance_uid=None, ordering_method=None, ordered_paths=None
+    )
 
 
 def test_split_labeled_studies_separates_missing_labels():

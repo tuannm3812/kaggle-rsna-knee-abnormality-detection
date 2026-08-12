@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import pandas as pd
 
 from knee_mri.labels import LABEL_COLUMNS
+from knee_mri.series_audit import validate_and_order_series
 from knee_mri.validation import validate_labeled_studies
 
 
@@ -75,6 +77,125 @@ def select_primary_series(
             candidates = fluid_sensitive
 
     return str(candidates.iloc[0]["SeriesInstanceUID"])
+
+
+def rank_candidate_series(
+    series_df: pd.DataFrame,
+    series_root: Path,
+    study_id: str,
+    plane: str,
+    prefer_fluid_sensitive: bool = True,
+) -> list[str]:
+    """Rank a study's candidate series for one plane, most to least preferred.
+
+    Preference order: `Fluid_Sensitive == 1` before `== 0` (the same
+    preference `select_primary_series` uses); more `.dcm` slices before
+    fewer, a cheap deterministic proxy for series completeness;
+    `SeriesInstanceUID` ascending as a final, fully deterministic tie-break.
+    Unlike `select_primary_series`, this returns every candidate in
+    preference order (not just the top pick), so a caller can retry the
+    next one if the top choice fails validation.
+
+    Args:
+        series_df: A `train_series.csv`/`test_series.csv`-shaped frame.
+        series_root: Directory containing
+            `<StudyInstanceUID>/<SeriesInstanceUID>/` DICOM subdirectories
+            -- read only to count each candidate's slices for ranking.
+        study_id: The `StudyInstanceUID` to rank candidates for.
+        plane: The `Anatomical_Plane` to require.
+        prefer_fluid_sensitive: If `True`, rank `Fluid_Sensitive == 1`
+            series ahead of `== 0` ones.
+
+    Returns:
+        `SeriesInstanceUID`s in preference order (most to least); empty if
+        the study has no series in `plane`.
+    """
+    candidates = series_for_study(series_df, study_id)
+    candidates = candidates.loc[candidates["Anatomical_Plane"] == plane]
+    if candidates.empty:
+        return []
+
+    def _slice_count(series_id: str) -> int:
+        series_dir = series_root / study_id / series_id
+        return len(list(series_dir.glob("*.dcm"))) if series_dir.is_dir() else 0
+
+    def _sort_key(row: dict) -> tuple[int, int, str]:
+        series_id = str(row["SeriesInstanceUID"])
+        fluid_rank = 0 if (prefer_fluid_sensitive and row["Fluid_Sensitive"] == 1) else 1
+        return (fluid_rank, -_slice_count(series_id), series_id)
+
+    ranked_rows = sorted(candidates.to_dict("records"), key=_sort_key)
+    return [str(row["SeriesInstanceUID"]) for row in ranked_rows]
+
+
+@dataclass(frozen=True)
+class PlaneSelection:
+    """The outcome of selecting one usable series for a plane.
+
+    Attributes:
+        plane: The `Anatomical_Plane` this selection is for.
+        series_instance_uid: The selected series, or `None` if no ranked
+            candidate validated (the missing-plane case).
+        ordering_method: `"geometry"` or `"instance_number"` if a series was
+            selected, else `None`.
+        ordered_paths: The selected series' validated slice order, or
+            `None` if no candidate validated.
+    """
+
+    plane: str
+    series_instance_uid: str | None
+    ordering_method: str | None
+    ordered_paths: tuple[Path, ...] | None
+
+
+def select_validated_series(
+    series_df: pd.DataFrame,
+    series_root: Path,
+    study_id: str,
+    plane: str,
+    prefer_fluid_sensitive: bool = True,
+) -> PlaneSelection:
+    """Rank `plane`'s candidates and return the first that validates.
+
+    Tries each of `rank_candidate_series`'s candidates in order, validating
+    each with `series_audit.validate_and_order_series`, and returns the
+    first usable one. If no candidate validates (or none exist), returns a
+    `PlaneSelection` with `series_instance_uid=None` -- the missing-plane
+    case, to be excluded from the study embedding with its presence flag
+    set to 0 (`docs/collaboration/active_task.md` rounds 46-47). A series
+    that fails validation is never used and never falls back to an
+    unvalidated (e.g. filename) order.
+
+    Args:
+        series_df: A `train_series.csv`/`test_series.csv`-shaped frame.
+        series_root: Directory containing
+            `<StudyInstanceUID>/<SeriesInstanceUID>/` DICOM subdirectories.
+        study_id: The `StudyInstanceUID` to select a series for.
+        plane: The `Anatomical_Plane` to require.
+        prefer_fluid_sensitive: Passed through to `rank_candidate_series`.
+
+    Returns:
+        The computed `PlaneSelection`.
+    """
+    candidates = rank_candidate_series(
+        series_df, series_root, study_id, plane, prefer_fluid_sensitive
+    )
+    for series_id in candidates:
+        series_dir = series_root / study_id / series_id
+        try:
+            validation = validate_and_order_series(series_dir)
+        except FileNotFoundError:
+            continue
+        if validation.usable:
+            return PlaneSelection(
+                plane=plane,
+                series_instance_uid=series_id,
+                ordering_method=validation.method,
+                ordered_paths=validation.ordered_paths,
+            )
+    return PlaneSelection(
+        plane=plane, series_instance_uid=None, ordering_method=None, ordered_paths=None
+    )
 
 
 def split_labeled_studies(

@@ -10,8 +10,10 @@ identifiers alongside the results.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
@@ -265,6 +267,14 @@ class SeriesAudit:
             consistently monotonic; the sign alone does not indicate which
             physical direction `InstanceNumber` increases in without a
             separately fixed geometry-axis convention.
+        ordering_usable: Whether `validate_and_order_series`'s stricter
+            production-grade gate (finite/parseable/non-degenerate/
+            consistent-orientation/unique-position geometry, or else a
+            fully-parseable-and-unique `InstanceNumber` sequence) passed --
+            a stronger requirement than `has_full_geometry_tags`, which only
+            checks tag presence, not validity.
+        ordering_method: `"geometry"` or `"instance_number"` if
+            `ordering_usable`, else `None`.
         laterality_tag_present_fraction: Fraction of slices carrying a valid
             (`L`/`R`) `Laterality` or `ImageLaterality` value. `0.0` is "no
             slice has a valid tag", `1.0` is "every slice does" (complete
@@ -311,6 +321,8 @@ class SeriesAudit:
     slice_count: int
     has_full_geometry_tags: bool
     order_agreement: float | None
+    ordering_usable: bool
+    ordering_method: str | None
     laterality_tag_present_fraction: float
     laterality_tag: str | None
     laterality_tag_consistent: bool
@@ -325,60 +337,140 @@ class SeriesAudit:
     decode_results: tuple[tuple[str, bool], ...]
 
 
-def _instance_number_sort_key(dataset: pydicom.Dataset) -> tuple[int, int]:
-    """Sort key ranking a valid `InstanceNumber` first, ascending.
+_ORIENTATION_TOLERANCE_DEFAULT = 0.999
+_POSITION_TOLERANCE_MM_DEFAULT = 0.01
 
-    Slices with a missing or non-integer `InstanceNumber` sort after every
-    valid one; Python's stable sort then leaves them in their original
-    (filename) relative order as a final deterministic tie-break.
+
+@dataclass(frozen=True)
+class OrderingValidation:
+    """Whether a series' slices validate for reliable anatomical ordering.
+
+    Attributes:
+        usable: Whether either validation route succeeded.
+        method: `"geometry"` or `"instance_number"` if `usable`, else
+            `None`.
+        ordered_paths: The validated slice order, or `None` if not usable.
     """
-    if "InstanceNumber" in dataset:
-        try:
-            return (0, int(dataset.InstanceNumber))
-        except (TypeError, ValueError):
-            pass
-    return (1, 0)
+
+    usable: bool
+    method: str | None
+    ordered_paths: tuple[Path, ...] | None
 
 
-def _order_paths_by_geometry(
+def _finite_floats(raw: Sequence[object], expected_length: int) -> tuple[float, ...] | None:
+    try:
+        values = tuple(float(v) for v in raw)
+    except (TypeError, ValueError):
+        return None
+    if len(values) != expected_length or not all(math.isfinite(v) for v in values):
+        return None
+    return values
+
+
+def _validated_geometry_order(
+    dcm_paths: Sequence[Path],
+    headers: Sequence[pydicom.Dataset],
+    orientation_tolerance: float,
+    position_tolerance_mm: float,
+) -> list[Path] | None:
+    orientations: list[tuple[float, ...]] = []
+    positions_raw: list[tuple[float, ...]] = []
+    for dataset in headers:
+        if "ImagePositionPatient" not in dataset or "ImageOrientationPatient" not in dataset:
+            return None
+        orientation = _finite_floats(dataset.ImageOrientationPatient, 6)
+        position = _finite_floats(dataset.ImagePositionPatient, 3)
+        if orientation is None or position is None:
+            return None
+        orientations.append(orientation)
+        positions_raw.append(position)
+
+    try:
+        normals = [slice_normal(orientation) for orientation in orientations]
+    except ValueError:
+        return None
+    reference_normal = normals[0]
+    if any(float(np.dot(normal, reference_normal)) < orientation_tolerance for normal in normals):
+        return None
+
+    positions = [slice_position(position, reference_normal) for position in positions_raw]
+    sorted_positions = sorted(positions)
+    if any(
+        (later - earlier) < position_tolerance_mm for earlier, later in pairwise(sorted_positions)
+    ):
+        return None
+
+    rank = np.argsort(positions)
+    return [dcm_paths[i] for i in rank]
+
+
+def _validated_instance_number_order(
     dcm_paths: Sequence[Path], headers: Sequence[pydicom.Dataset]
-) -> list[Path]:
-    """`dcm_paths` reordered by true DICOM geometry.
-
-    Falls back to `InstanceNumber` order when geometry tags aren't complete
-    -- the round-39/41 preflight audit measured `InstanceNumber` order as a
-    reliable proxy for true physical order in this dataset (unlike raw
-    filename/SOP-UID order, previously measured unreliable), and
-    `dicom_io.py::load_series` already relies on the same tag for this
-    reason. Missing/invalid/duplicate `InstanceNumber` values fall back
-    further, deterministically, to filename order.
-    """
-    has_full_geometry_tags = all(
-        "ImagePositionPatient" in ds and "ImageOrientationPatient" in ds for ds in headers
-    )
-    if has_full_geometry_tags:
-        normal = slice_normal(headers[0].ImageOrientationPatient)
-        positions = [slice_position(ds.ImagePositionPatient, normal) for ds in headers]
-        rank = np.argsort(positions)
-        return [dcm_paths[i] for i in rank]
-    order = sorted(range(len(headers)), key=lambda i: _instance_number_sort_key(headers[i]))
+) -> list[Path] | None:
+    instance_numbers: list[int] = []
+    for dataset in headers:
+        if "InstanceNumber" not in dataset:
+            return None
+        try:
+            instance_numbers.append(int(dataset.InstanceNumber))
+        except (TypeError, ValueError):
+            return None
+    if len(set(instance_numbers)) != len(instance_numbers):
+        return None
+    order = sorted(range(len(headers)), key=lambda i: instance_numbers[i])
     return [dcm_paths[i] for i in order]
 
 
-def anatomically_ordered_paths(series_dir: Path) -> list[Path]:
-    """Every `.dcm` in `series_dir`, ordered by true DICOM geometry.
+def _validate_and_order(
+    dcm_paths: Sequence[Path],
+    headers: Sequence[pydicom.Dataset],
+    orientation_tolerance: float,
+    position_tolerance_mm: float,
+) -> OrderingValidation:
+    geometry_order = _validated_geometry_order(
+        dcm_paths, headers, orientation_tolerance, position_tolerance_mm
+    )
+    if geometry_order is not None:
+        return OrderingValidation(
+            usable=True, method="geometry", ordered_paths=tuple(geometry_order)
+        )
 
-    Falls back to `InstanceNumber` order (then filename order as a final,
-    deterministic tie-break) when geometry tags aren't available on every
-    slice. Exposed so callers besides `audit_series` (e.g. the actual
-    slice-sampling pipeline) order slices the same, empirically-checked way
-    rather than re-deriving or duplicating this logic.
+    instance_order = _validated_instance_number_order(dcm_paths, headers)
+    if instance_order is not None:
+        return OrderingValidation(
+            usable=True, method="instance_number", ordered_paths=tuple(instance_order)
+        )
+
+    return OrderingValidation(usable=False, method=None, ordered_paths=None)
+
+
+def validate_and_order_series(
+    series_dir: Path,
+    orientation_tolerance: float = _ORIENTATION_TOLERANCE_DEFAULT,
+    position_tolerance_mm: float = _POSITION_TOLERANCE_MM_DEFAULT,
+) -> OrderingValidation:
+    """Validate whether `series_dir`'s slices can be reliably, anatomically ordered.
+
+    Tries true DICOM geometry first: every slice must have finite, parseable
+    `ImagePositionPatient`/`ImageOrientationPatient`, a non-degenerate slice
+    normal consistent with every other slice's (cosine similarity >=
+    `orientation_tolerance`), and projected positions that are pairwise
+    distinguishable (>= `position_tolerance_mm` apart). Falls back to
+    `InstanceNumber` order only if every slice has one, parseable as an
+    integer, with no duplicates. If neither route validates, the series is
+    reported unusable rather than silently falling back to filename order --
+    an ordering this project never labels anatomical without validation
+    (`docs/collaboration/active_task.md` rounds 45 and 49).
 
     Args:
         series_dir: Directory containing one series' `.dcm` slice files.
+        orientation_tolerance: Minimum cosine similarity each slice's
+            geometry-derived normal must have with the first slice's.
+        position_tolerance_mm: Minimum spacing required between any two
+            slices' projected positions.
 
     Returns:
-        Paths sorted into anatomical order.
+        The computed `OrderingValidation`.
 
     Raises:
         FileNotFoundError: If `series_dir` contains no `.dcm` files.
@@ -387,7 +479,7 @@ def anatomically_ordered_paths(series_dir: Path) -> list[Path]:
     if not dcm_paths:
         raise FileNotFoundError(f"No .dcm files found in {series_dir}")
     headers = [pydicom.dcmread(path, stop_before_pixels=True) for path in dcm_paths]
-    return _order_paths_by_geometry(dcm_paths, headers)
+    return _validate_and_order(dcm_paths, headers, orientation_tolerance, position_tolerance_mm)
 
 
 @dataclass(frozen=True)
@@ -472,7 +564,19 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
         positions = [slice_position(ds.ImagePositionPatient, normal) for ds in headers]
         instance_numbers = [int(ds.InstanceNumber) for ds in headers]
         agreement = order_agreement(instance_numbers, positions)
-    ordered_paths = _order_paths_by_geometry(dcm_paths, headers)
+
+    ordering_validation = _validate_and_order(
+        dcm_paths, headers, _ORIENTATION_TOLERANCE_DEFAULT, _POSITION_TOLERANCE_MM_DEFAULT
+    )
+    # Decode-reliability sampling doesn't need a validated order (decode
+    # success/failure doesn't depend on slice order) -- fall back to
+    # filename order only for that narrow purpose when validation fails,
+    # never presented elsewhere as anatomical.
+    ordered_paths = (
+        ordering_validation.ordered_paths
+        if ordering_validation.usable and ordering_validation.ordered_paths is not None
+        else dcm_paths
+    )
 
     slice_laterality_tags = [_slice_laterality_tag(ds) for ds in headers]
     has_cross_tag_conflict = any(_slice_laterality_cross_tag_conflict(ds) for ds in headers)
@@ -527,6 +631,8 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
         slice_count=slice_count,
         has_full_geometry_tags=has_full_geometry_tags,
         order_agreement=agreement,
+        ordering_usable=ordering_validation.usable,
+        ordering_method=ordering_validation.method,
         laterality_tag_present_fraction=laterality_tag_present_fraction,
         laterality_tag=laterality_tag,
         laterality_tag_consistent=laterality_tag_consistent,
