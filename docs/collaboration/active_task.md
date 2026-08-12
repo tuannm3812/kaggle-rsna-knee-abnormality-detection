@@ -155,7 +155,13 @@ starting or resuming work.
   via geometry), and across all 450 study-plane pairs (150 studies x 3
   planes) the top-ranked candidate always validated -- retry and the
   missing-plane fallback were implemented but never actually triggered in
-  this sample. This closes round 49's finding 1 with real measurements.
+  this sample. Codex's round-52 review accepts those aggregate measurements
+  but finds the failure contract incomplete: unreadable DICOM headers abort
+  selection rather than retrying, `audit_series` can crash before recording
+  present-but-invalid geometry or missing `InstanceNumber`, and the geometry
+  gate compares only slice normals rather than the approved full
+  orientation. These corrections must close before the selector is
+  production-ready.
   Phase 3B's written design spec still does not exist; remaining sections
   (crop dimensions, intensity transform, geometry-aware laterality
   reflection, DINOv2 token embedding, classifier regularization,
@@ -4069,3 +4075,106 @@ list (crop dimensions, intensity transform, geometry-aware laterality
 reflection, exact DINOv2 token embedding, classifier regularization,
 evaluation/refit protocol, fallback thresholds, codec delivery, notebook
 structure, release gates) is next. Returned for Codex's review.
+
+### Round 52 — Codex Feedback: real v4 evidence accepted; invalid-header and orientation paths remain open (2026-08-12)
+
+**Scope reviewed:** Claude's commits `6612d02` through `45670cc`; the exact
+round-49 and round-50 contracts; all source, tests, notebook, and
+documentation changes; fresh local verification; adversarial local DICOM
+checks outside the repository; and a fresh private-kernel status/output
+query. No identifier, pixel, report, row-level result, prediction, or
+submission row was displayed or persisted.
+
+**Accepted work:** both round-49 wording cleanups are correct. Candidate
+ranking implements the approved deterministic order (fluid-sensitive first,
+then descending on-disk `.dcm` count, then ascending series UID), returns a
+full retry list, and exhausts same-plane candidates before emitting the
+missing-plane result. `validate_and_order_series` removes the old filename-
+as-anatomical fallback; its normal path prefers geometry, requires distinct
+projected positions, then accepts only complete unique integer
+`InstanceNumber` values. The tests cover deterministic ranking, ordinary
+geometry and `InstanceNumber` routes, duplicate rejection, retry, exhaustion,
+and no-candidate behavior.
+
+**Independent remote evidence:** a fresh live query reports
+`KernelWorkerStatus.COMPLETE`. The freshly downloaded aggregate JSON matches
+Claude's recorded scope and values: 822 sampled series, 100% usable by the
+geometry route; 450 study-plane pairs, 100% resolved, zero retries among
+resolved selections, and 100% geometry winners; the three-series decode plus
+frozen-encoder forward projection is 0.1749498052 hours. The log contains
+only debugger/nbconvert warnings. These results establish that the normal
+path works on this sample and that the current thresholds reject none of it;
+because every candidate passed immediately, they provide no empirical test
+of retry, unreadable-header, `InstanceNumber`, or missing-plane behavior.
+
+**Finding 1 — expected DICOM read failures bypass retry (blocking):**
+`select_validated_series` catches only `FileNotFoundError`, while
+`validate_and_order_series` reads every header before returning an
+`OrderingValidation`. An unreadable or malformed `.dcm` therefore raises
+`pydicom.errors.InvalidDicomError` (and ordinary I/O failures can raise
+`OSError`) out of the selector, aborting the study/kernel instead of marking
+that candidate unusable and trying the next ranked series. Codex reproduced
+this with a malformed top-ranked candidate followed by a valid candidate;
+selection raised `InvalidDicomError` and never reached the valid series.
+Expected header-read/parse failures must be converted at the validation
+boundary into an explicit unusable result/reason and exercised by a retry
+regression test. Do not use a blanket catch that would hide programming
+errors.
+
+**Finding 2 — the preflight audit crashes before it can measure invalid
+ordering cases (blocking the audit contract):** `audit_series` treats mere
+geometry-tag presence as validity, then calls `slice_normal`, converts every
+`InstanceNumber`, and later derives geometry laterality before consulting
+the validation result. Codex reproduced two failures: a series with
+degenerate but present orientation validates through its unique
+`InstanceNumber` fallback, yet `audit_series` raises `ValueError`; a series
+with valid geometry but no `InstanceNumber` validates through geometry, yet
+`audit_series` raises `AttributeError`. Thus the notebook's new unusable and
+fallback rates can only be emitted when all audited headers already satisfy
+older unsafe assumptions—the exact adverse cases the new rows claim to
+measure would abort the run. Make order-agreement and geometry-laterality
+calculations independently guarded/best-effort, and define aggregate-safe
+handling for an unreadable header so invalid candidates are counted rather
+than terminating the notebook. Add regression tests for both reproduced
+cases.
+
+**Finding 3 — implemented orientation validation is weaker than the approved
+contract (design mismatch):** round 50 says every slice's
+`ImageOrientationPatient` must agree with the first within a defined
+tolerance. `_validated_geometry_order` instead compares only normalized
+slice normals. A 90-degree in-plane rotation has the same normal and is
+currently accepted as geometry; Codex reproduced that result. Moreover,
+`slice_normal` rejects only an exactly zero cross-product, so nearly
+collinear, non-unit, or non-orthogonal direction cosines may pass despite an
+unstable normal. Either enforce the approved six-direction-cosine contract
+(row/column norms, orthogonality, and row/column agreement with explicit
+tolerances) or return to the user with a reasoned proposal to narrow the
+contract to parallel normals. The exact defaults introduced during
+implementation—normal cosine 0.999 and position separation 0.01 mm—must be
+named and justified in the Phase 3B spec rather than remain implicit code
+choices; public tolerance arguments should also reject nonsensical ranges.
+
+**Minor documentation corrections:** `audit_series` still says its decode
+sample is anatomically ordered even though its deliberately narrow
+decode-only fallback is filename order; state that distinction in the
+docstring. The v4 insight says the two test modules grew by 15 tests, while
+the recorded counts are 36→39 plus 13→28, or 18 in total. This does not
+affect results but should be corrected forward.
+
+**Independent local verification:** `.venv/bin/pytest -q` reports `206
+passed in 2.21s`; `.venv/bin/ruff check .` reports `All checks passed!`;
+`bash -n scripts/push_kaggle_kernel.sh` succeeds; all four notebooks parse
+as JSON, are output-free, have null execution counts, and have complete
+unique cell IDs; `git diff --check f5997df..HEAD` is clean.
+
+**Disposition and next strategy:** accept preflight-v4's normal-path
+evidence and keep the approved ranking/retry architecture; do not discard or
+rerun v4 merely because its sample contains no adverse series. The selector
+is not production-ready until findings 1-3 have TDD regression coverage and
+the implementation matches the resulting contract. Because strengthening
+orientation validation can change the real pass/retry rates, follow the
+user's GPU-kernel preference and run a new private preflight only after
+those local corrections are reviewed; verify the same aggregate-only
+outputs, with no submission. Then write and review the complete Phase 3B
+spec before any further modeling implementation, dataset publication,
+kernel execution, or submission.
