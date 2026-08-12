@@ -491,3 +491,60 @@ design spec covering crop dimensions, intensity transform, geometry-aware
 laterality reflection, exact DINOv2 token embedding, classifier
 regularization, evaluation/refit protocol, codec delivery, notebook
 structure, and release gates (round 47's remaining list).
+
+## 2026-08-12 — Preflight audit v5 (`04_image_baseline_preflight.ipynb`)
+
+**Why this round exists:** Codex's round-52 review of v4 reproduced three
+real bugs the "100% usable" v4 result had never actually exercised: an
+unreadable/malformed `.dcm` file could crash `select_validated_series`
+instead of triggering retry; `audit_series` could itself crash on a
+degenerate-but-present orientation or a missing `InstanceNumber` (meaning
+the true "unusable" rate on real data was genuinely unknown — a crash, not
+a graceful "unusable" count, is what a pathological series would have
+produced); and the geometry validity check compared only derived slice
+normals, which a 90-degree in-plane rotation between slices leaves
+unchanged, accepting a case the approved contract should reject. Round 53
+independently reproduced all three with the actual project code, fixed
+them, and added regression tests (`docs/collaboration/active_task.md`
+round 53). This round reruns the corrected code against real data — per
+the user's explicit workflow change ("test with kaggle running to find any
+issue earlier") — before another review round, not after.
+
+**Kernel:** `tuannm3812/rsna-knee-image-baseline-preflight-audit`, version
+7, pushed with `scripts/push_kaggle_kernel.sh image-baseline-preflight
+NvidiaTeslaT4`. **Code:** `rsna-knee-mri-src` dataset version **11**,
+published from commit `3fa0055`. **Data:** identical sampling to v1-v4.
+
+### The stricter validation gate still passes 100% of the real sample
+
+Despite Finding 3's fix meaningfully tightening the geometry route (full
+row-and-column orientation consistency, unit-norm, and orthogonality
+checks, not just derived-normal agreement), the real-data result is
+unchanged from v4: **usable 1.0 (100%), method geometry 1.0, method
+`instance_number` 0.0, unusable 0.0** across all 822 sampled series; **all
+450 study-plane pairs still resolve with zero retries needed**, unchanged
+across every individual plane and combined. **This is a meaningful
+confirmation, not a null result**: it shows the tightened check isn't
+overly conservative for this dataset's real, legitimately-acquired DICOM
+series — genuine acquisitions have internally consistent orientation, so
+requiring that consistency doesn't reject real usable data. The three
+fixed crash paths (unreadable header, degenerate orientation, missing
+`InstanceNumber`) were still not exercised by this sample, same caveat as
+before: this proves the fixes don't regress the happy path, not that the
+failure paths themselves have been exercised for real. That would need
+either a much larger/different sample or a deliberately adversarial one.
+
+### GPU timing: reconfirmed again, materially unchanged
+
+Decode 0.0202s/slice, GPU forward 0.0141s/slice. Lower-bound hours: one
+series per study 0.0647, three series per study 0.1942 (≈11.7 minutes) —
+still roughly 46× headroom against the 9-hour budget.
+
+### Disposition
+
+`uv run pytest -q` → `218 passed`; `uv run ruff check .` → clean; kernel
+version 7 completed (`KernelWorkerStatus.COMPLETE`) on the first attempt.
+Returned for Codex's review. The series ranking/validation/retry contract
+is now implemented, tested against reproduced adversarial cases locally,
+and confirmed not to regress real-data pass rates — the next step remains
+drafting the formal Phase 3B design spec (round 47's remaining list).
