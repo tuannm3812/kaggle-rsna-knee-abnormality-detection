@@ -163,9 +163,14 @@ starting or resuming work.
   orientation. These corrections must close before the selector is
   production-ready. Round 53 independently reproduced all three findings
   locally before fixing them (each reproduced exactly as Codex described),
-  fixed all three, and added regression tests. No Kaggle rerun yet -- Codex's
-  own disposition recommends a rerun only after these local corrections are
-  reviewed.
+  fixed all three, and added regression tests. The user chose to rerun on
+  Kaggle immediately rather than wait for review, and explicitly changed
+  the project workflow: push a real Kaggle GPU run earlier in the cycle
+  going forward, not just after local TDD feels complete (saved to
+  persistent memory). Round 54's rerun (kernel v7, dataset v11) confirms
+  the stricter validation still passes 100% of the real 822-series sample
+  -- the tightened check isn't overly conservative for real data, though
+  the fixed failure paths themselves remain unexercised by this sample.
   Phase 3B's written design spec still does not exist; remaining sections
   (crop dimensions, intensity transform, geometry-aware laterality
   reflection, DINOv2 token embedding, classifier regularization,
@@ -4258,3 +4263,51 @@ are reviewed, not immediately once local tests pass. No dataset publish or
 kernel push has happened this round. This is a genuine tension with the
 user's stated GPU-kernel-early preference (round 51) -- surfaced back to
 the user rather than resolved unilaterally.
+
+### Round 54 — Claude: round-53 fixes reran on Kaggle; user changes the workflow to test earlier (2026-08-12)
+
+**User decision:** "choose A and I want to change the workflow that to
+test with kaggle running to find any issue earlier" — choosing to rerun on
+Kaggle immediately (round 53's option A) rather than wait for a further
+Codex review pass on the local fix, and explicitly changing the project's
+default workflow going forward: push a real Kaggle GPU run earlier in the
+development cycle, not only after a feature feels locally complete. Saved
+to persistent memory (`user_prefers_kaggle_only_execution.md`) as a
+sharpened, dated addendum to the existing Kaggle-execution preference, with
+a concrete "how to apply" note for future sessions on this repo.
+
+**Execution:** published `rsna-knee-mri-src` dataset version **11** (commit
+`3fa0055`, round 53's three fixes); pushed via `scripts/push_kaggle_
+kernel.sh image-baseline-preflight NvidiaTeslaT4` → kernel version 7 →
+`KernelWorkerStatus.COMPLETE` on the first attempt.
+
+**Results — full detail in `docs/7_image_baseline_insights.md`'s new "v5"
+section:**
+
+- **The stricter Finding-3 orientation check still passes 100% of the real
+  822-series sample** (usable 1.0, method geometry 1.0, unusable 0.0) --
+  unchanged from v4 despite the check now requiring full row-and-column
+  orientation consistency, unit-norm, and orthogonality rather than just
+  derived-normal agreement. This is a genuine confirmation, not a null
+  result: the tightened contract isn't overly conservative for this
+  dataset's real, legitimately-acquired series.
+- **Plane selection results also unchanged**: all 450 study-plane pairs
+  still resolve with zero retries needed, across every plane individually
+  and combined.
+- **Still true, and explicitly re-flagged**: this sample doesn't exercise
+  the three fixed *failure* paths (unreadable header, degenerate
+  orientation, missing `InstanceNumber`) for real -- it confirms the fixes
+  didn't regress the happy path, not that the failure-handling code has
+  been exercised against genuinely bad real data. Confirming that would
+  need a much larger sample, a different sample, or a deliberately
+  adversarial one.
+- **GPU timing reconfirmed again**: ≈11.7 minutes lower-bound for the
+  three-series design (≈46× headroom against the 9-hour budget).
+
+**Verification:** `uv run pytest -q` → `218 passed`; `uv run ruff check .`
+→ clean; kernel version 7 `COMPLETE`; the downloaded
+`preflight_audit_summary.json` read and transcribed directly.
+
+**Not yet done:** no Phase 3B design spec written. Returned for Codex's
+review, now covering both the round-53 code fixes and this round's
+confirmatory real-data rerun together.
