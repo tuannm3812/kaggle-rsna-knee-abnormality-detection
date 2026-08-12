@@ -127,3 +127,137 @@ notebook-type kernels, only files written to `/kaggle/working` and a plain
 stderr/traceback log, discovered only after version 2's crash left nothing
 retrievable; version 3 added the persisted-JSON step this project should now
 carry forward to future GPU/notebook kernels needing result retrieval.
+
+**Superseded by v2 below**: the "InstanceNumber order agrees with true DICOM
+geometry order" and "Laterality tag: reliable when present, missing ~18% of
+the time" and "Decode reliability... one open caveat" sections above used
+absolute-value order-agreement, first-slice-only laterality checks, and
+wrong codec module names respectively — each corrected with materially
+different real numbers in v2. This v1 entry is left as-written (not edited)
+per this file's own append-only convention; treat v2's numbers as
+authoritative for design decisions.
+
+## 2026-08-12 — Preflight audit v2 (`04_image_baseline_preflight.ipynb`)
+
+**Why this round exists:** Codex's round-40 review of v1 found five real
+problems — absolute-value order-agreement can't show slice direction,
+laterality was only checked on each series' first slice (contradicting
+`SeriesAudit`'s own docstring) and never validated tag values, the codec
+probe used two module names that don't exist, the GPU timing projection
+targeted all 4,407 train studies instead of the actual workload, and
+several documentation/prose issues (detailed in
+`docs/collaboration/active_task.md` round 40). All five are fixed in
+`src/knee_mri/series_audit.py` and the notebook (round 41). Two of the
+"fixes" turned out to change the substantive conclusion, not just its
+precision — flagged explicitly below.
+
+**Kernel:** `tuannm3812/rsna-knee-image-baseline-preflight-audit`, version 4,
+pushed with `scripts/push_kaggle_kernel.sh image-baseline-preflight
+NvidiaTeslaT4` (an explicit accelerator request, per round 40 finding 4 —
+this got a compatible Tesla T4 instead of another P100). **Code:**
+`rsna-knee-mri-src` dataset version **8**, published from commit `7e814ef`
+(exact version number now recorded per round 40 finding 5's ask). **Data:**
+same sampling as v1 — full `train_series.csv`/`test_series.csv` for the
+metadata checks, the same seed-42 150-study/822-series sample for the
+geometry/decode audit, the same 30-series sub-sample for GPU timing.
+
+### Correction — `InstanceNumber` order is monotonic per series, but its physical direction varies across series
+
+Signed order agreement: mean **0.2506** (not the ~1.0 v1's `|r|` framing
+implied), fraction monotonic (`|r| > 0.99`) **1.0** (unchanged — every
+individual series is still perfectly internally ordered, in one direction
+or its exact reverse), fraction same-direction (`r > 0`) **0.6253**,
+fraction reversed (`r < 0`) **0.3747**. **This changes the practical
+conclusion, not just its precision**: `InstanceNumber` does **not**
+reliably indicate a fixed physical direction (e.g. "always superior-to-
+inferior") across series — about 3 in 8 sampled series have it running the
+opposite way from the rest. **Design implication:** for a symmetric
+central-band slice sample pooled by an order-invariant operation (e.g. mean
+pooling — the round-37 proposal's plan), this doesn't matter, since a
+central band around the middle of the stack is the same set of slices
+regardless of direction. It would matter for anything that assumes a
+consistent physical direction across series (e.g. directional attention
+over ordered positions, or stacking slices as ordered channels) — that kind
+of design would need geometry-based ordering, not `InstanceNumber`, per
+series.
+
+### Correction — laterality coverage is lower than v1 measured, but geometry fills nearly all of the gap
+
+`Laterality`/`ImageLaterality` tag coverage (validated `L`/`R` values, every
+slice checked): **0.5255** — materially lower than v1's 0.8187, because v1
+only checked the first slice and counted *any* value (including empty/
+invalid ones) as "present"; v2 checks every slice and rejects anything but
+a valid `L`/`R`. Tag-internal consistency **1.0** (includes series with no
+valid tag at all, trivially consistent). The number that actually answers
+"does geometry fill the gap": **`laterality_filled_by_geometry` among
+tag-missing series is 0.9692** — of the ~47% of series without a usable
+tag, geometry resolves 96.9% of them. Combined effective coverage
+(tag-or-geometry) is therefore ≈98.5%. Conflict rate among series where
+both are resolvable: **0.0118** (comparable to v1's 0.0076 — the tag
+remains reliable when present). **Design implication:** the geometry
+fallback is not a minor supplement, it's doing the majority of the work for
+the ~47% of series the tag alone can't call — a tag-plus-geometry pipeline
+needs the geometry path to be correct and always attempted, not treated as
+a rare edge case.
+
+### Correction — decode reliability is now fully explained, not just observed
+
+`decode_by_transfer_syntax` shows **every single one of the 4,110 attempted
+decodes used transfer syntax `1.2.840.10008.1.2.1` (Explicit VR Little
+Endian, uncompressed)** — zero JPEG Lossless or JPEG 2000 slices appeared
+in this sample at all. That fully explains v1's "0% failures despite no
+codec package available" caveat: no codec was needed because nothing
+compressed was encountered, not because decoding compressed data
+mysteriously worked. The (corrected) codec-availability check still shows
+none of `pylibjpeg`, `libjpeg`, `openjpeg`, or `gdcm` importable in this
+Kaggle kernel environment. **Design implication:** this sample says nothing
+about whether compressed-syntax slices (which the competition description
+says exist) would decode successfully here — if a real pipeline run
+encounters one, it would very likely fail given no codec package is
+present. A future preflight pass (or the real pipeline itself) should
+either sample specifically for compressed syntaxes or vendor a codec
+package offline as a precaution, not assume this 0%-observed rate
+generalizes.
+
+### New — `PixelSpacing` tag coverage
+
+**1.0** — every one of the 822 audited series carries a `PixelSpacing` tag
+(v1 only reported the *range* among series that had it, not whether all did
+— now closed).
+
+### Resolved — GPU timing, measured for real
+
+With a Tesla T4 (compute capability 7.5, compatible with the installed
+`torch==2.10.0+cu128`): decode 0.0105s/slice, DINOv2-small GPU forward pass
+0.0185s/slice, ≈0.145s/series (5 slices) including both. Projected against
+the **actual workload** (58 gold-labeled train studies + the documented
+~1,300-study hidden test set = 1,358 studies, not all 4,407 train studies —
+round 40 finding 4's correction): **one series per study ≈ 0.055 hours
+(≈3.3 minutes)**; **three series per study, the compact multi-plane
+candidate (one selected series per anatomical plane) ≈ 0.164 hours (≈9.8
+minutes)**. Both are a small fraction of the competition's 9-hour budget —
+roughly 55× headroom even for the more expensive three-series design. This
+is a lower-bound estimate: it measures only DICOM decode and the encoder's
+GPU forward pass on already-selected series, not series-selection logic,
+a training dataloader, or concurrent I/O contention.
+
+**Design implication — this materially changes the single-series-vs-
+multi-plane scope question**: round 37 proposed a minimal single-series
+design partly on complexity/speed grounds; that reasoning no longer holds
+on the runtime axis specifically. Combined with plane coverage being 1.0
+(every study has all three planes — v1 finding, unchanged) and the
+compact multi-plane design costing under 10 minutes end to end, runtime is
+not a real constraint against choosing the compact three-series design over
+the minimal one-series design. This doesn't decide the choice by itself —
+model complexity, code complexity, and expected accuracy still matter — but
+the runtime argument for staying minimal is gone.
+
+### Disposition
+
+`uv run pytest -q` → `181 passed` (23 in `test_series_audit.py`, up from
+18, covering the new laterality/decode-result fields); `uv run ruff check .`
+→ clean; kernel version 4 completed (`KernelWorkerStatus.COMPLETE`) on the
+first T4-targeted attempt. Returned for the user's and Codex's review —
+still no Phase 3B design spec written; the single-series-vs-multi-plane
+choice is now well-informed on both plane-coverage and runtime grounds but
+remains the user's call to make.
