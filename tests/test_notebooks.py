@@ -517,6 +517,7 @@ def test_preflight_notebook_displays_only_aggregate_objects() -> None:
         "codec_availability",
         "geometry_summary",
         "study_laterality_summary",
+        "plane_selection_summary",
         "pixel_spacing_summary",
         "slice_count_summary",
         "decode_by_transfer_syntax",
