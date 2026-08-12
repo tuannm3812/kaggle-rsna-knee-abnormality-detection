@@ -120,16 +120,45 @@ def laterality_from_geometry(
     iop = np.asarray(image_orientation_patient, dtype=float)
     row_direction, column_direction = iop[:3], iop[3:]
     row_spacing, column_spacing = (float(value) for value in pixel_spacing)
+    # DICOM's pixel-to-patient mapping indexes pixel centers from 0, so the
+    # image's center pixel index is (columns - 1) / 2 and (rows - 1) / 2, not
+    # columns / 2 and rows / 2.
     center = (
         ipp
-        + (columns / 2) * column_spacing * row_direction
-        + (rows / 2) * row_spacing * column_direction
+        + ((columns - 1) / 2) * column_spacing * row_direction
+        + ((rows - 1) / 2) * row_spacing * column_direction
     )
     x = center[0]
     if x > dead_zone_mm:
         return "L"
     if x < -dead_zone_mm:
         return "R"
+    return None
+
+
+_VALID_LATERALITY_VALUES = frozenset({"L", "R"})
+
+# `Laterality` (0020,0060) is the general DICOM laterality tag; the newer,
+# more specific `ImageLaterality` (0020,0062) is checked as a fallback when
+# `Laterality` is absent or invalid on a given slice.
+_LATERALITY_TAGS = ("Laterality", "ImageLaterality")
+
+
+def _normalize_laterality(raw: object) -> str | None:
+    """Validate a raw DICOM laterality value, rejecting anything but L/R."""
+    if raw is None:
+        return None
+    value = str(raw).strip().upper()
+    return value if value in _VALID_LATERALITY_VALUES else None
+
+
+def _slice_laterality_tag(dataset: pydicom.Dataset) -> str | None:
+    """A single slice's validated laterality, preferring `Laterality`."""
+    for tag_name in _LATERALITY_TAGS:
+        if tag_name in dataset:
+            normalized = _normalize_laterality(getattr(dataset, tag_name))
+            if normalized is not None:
+                return normalized
     return None
 
 
@@ -210,29 +239,50 @@ class SeriesAudit:
         slice_count: Number of `.dcm` files found.
         has_full_geometry_tags: Whether every slice carries both
             `ImagePositionPatient` and `ImageOrientationPatient`.
-        order_agreement: `InstanceNumber`-vs-geometry rank correlation, or
-            `None` if geometry tags are missing or there are <2 slices.
-        has_laterality_tag: Whether every slice carries a `Laterality` tag.
-        laterality_tag: The first slice's `Laterality` value, if present.
+        order_agreement: Signed `InstanceNumber`-vs-geometry Spearman rank
+            correlation, or `None` if geometry tags are missing or there are
+            <2 slices. A value near +1 or -1 both mean the two orderings are
+            consistently monotonic; the sign alone does not indicate which
+            physical direction `InstanceNumber` increases in without a
+            separately fixed geometry-axis convention.
+        laterality_tag_present_fraction: Fraction of slices carrying a valid
+            (`L`/`R`) `Laterality` or `ImageLaterality` value.
+        laterality_tag: The validated laterality value shared by every
+            tag-bearing slice, or `None` if no slice has a valid tag, or if
+            tag-bearing slices disagree with each other.
+        laterality_tag_consistent: Whether every tag-bearing slice agrees
+            (trivially `True` if no slice has a valid tag).
         laterality_from_geometry: The geometry-derived laterality call, if
             resolvable.
-        laterality_conflict: Whether the tag and geometry calls disagree
-            (only meaningful when both are present).
+        laterality_conflict: Whether `laterality_tag` and
+            `laterality_from_geometry` are both resolved and disagree.
+        laterality_filled_by_geometry: Whether `laterality_tag` is
+            unresolved (missing, invalid, or inconsistent across slices)
+            while `laterality_from_geometry` is resolved -- the case where a
+            geometry fallback actually recovers a call the tag alone
+            couldn't make.
         pixel_spacing: The first slice's `PixelSpacing`, if present.
         decode_attempted: How many slices a full pixel decode was tried on.
         decode_failures: How many of those decodes raised an exception.
+        decode_results: One `(transfer_syntax_uid, succeeded)` pair per
+            attempted decode, so failures can be attributed to specific
+            transfer syntaxes rather than reported as one undifferentiated
+            rate.
     """
 
     slice_count: int
     has_full_geometry_tags: bool
     order_agreement: float | None
-    has_laterality_tag: bool
+    laterality_tag_present_fraction: float
     laterality_tag: str | None
+    laterality_tag_consistent: bool
     laterality_from_geometry: str | None
     laterality_conflict: bool
+    laterality_filled_by_geometry: bool
     pixel_spacing: tuple[float, float] | None
     decode_attempted: int
     decode_failures: int
+    decode_results: tuple[tuple[str, bool], ...]
 
 
 def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
@@ -276,8 +326,12 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
         rank = np.argsort(positions)
         ordered_paths = [dcm_paths[i] for i in rank]
 
-    has_laterality_tag = "Laterality" in first
-    laterality_tag = str(first.Laterality) if has_laterality_tag else None
+    slice_laterality_tags = [_slice_laterality_tag(ds) for ds in headers]
+    present_tags = [tag for tag in slice_laterality_tags if tag is not None]
+    laterality_tag_present_fraction = len(present_tags) / slice_count if slice_count else 0.0
+    distinct_tags = set(present_tags)
+    laterality_tag_consistent = len(distinct_tags) <= 1
+    laterality_tag = present_tags[0] if laterality_tag_consistent and present_tags else None
 
     geometry_laterality = None
     if has_full_geometry_tags and "PixelSpacing" in first:
@@ -290,8 +344,9 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
         )
 
     laterality_conflict = bool(
-        laterality_tag and geometry_laterality and laterality_tag[0].upper() != geometry_laterality
+        laterality_tag and geometry_laterality and laterality_tag != geometry_laterality
     )
+    laterality_filled_by_geometry = bool(laterality_tag is None and geometry_laterality is not None)
 
     pixel_spacing = (
         (float(first.PixelSpacing[0]), float(first.PixelSpacing[1]))
@@ -300,22 +355,36 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
     )
 
     sample_indices = central_band_indices(len(ordered_paths), decode_sample_size)
-    decode_failures = 0
+    decode_results: list[tuple[str, bool]] = []
     for index in sample_indices:
+        path = ordered_paths[index]
         try:
-            _ = pydicom.dcmread(ordered_paths[index]).pixel_array
+            dataset = pydicom.dcmread(path)
+            transfer_syntax = str(dataset.file_meta.TransferSyntaxUID)
+            _ = dataset.pixel_array
+            decode_results.append((transfer_syntax, True))
         except Exception:
-            decode_failures += 1
+            try:
+                transfer_syntax = str(
+                    pydicom.dcmread(path, stop_before_pixels=True).file_meta.TransferSyntaxUID
+                )
+            except Exception:
+                transfer_syntax = "unknown"
+            decode_results.append((transfer_syntax, False))
+    decode_failures = sum(1 for _, succeeded in decode_results if not succeeded)
 
     return SeriesAudit(
         slice_count=slice_count,
         has_full_geometry_tags=has_full_geometry_tags,
         order_agreement=agreement,
-        has_laterality_tag=has_laterality_tag,
+        laterality_tag_present_fraction=laterality_tag_present_fraction,
         laterality_tag=laterality_tag,
+        laterality_tag_consistent=laterality_tag_consistent,
         laterality_from_geometry=geometry_laterality,
         laterality_conflict=laterality_conflict,
+        laterality_filled_by_geometry=laterality_filled_by_geometry,
         pixel_spacing=pixel_spacing,
         decode_attempted=len(sample_indices),
         decode_failures=decode_failures,
+        decode_results=tuple(decode_results),
     )

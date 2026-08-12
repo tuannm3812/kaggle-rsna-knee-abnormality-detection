@@ -158,6 +158,7 @@ def _write_synthetic_slice(
     image_orientation_patient: tuple[float, ...] | None = None,
     pixel_spacing: tuple[float, float] | None = None,
     laterality: str | None = None,
+    image_laterality: str | None = None,
     corrupt_pixel_data: bool = False,
 ) -> None:
     file_meta = FileMetaDataset()
@@ -189,6 +190,8 @@ def _write_synthetic_slice(
         ds.PixelSpacing = list(pixel_spacing)
     if laterality is not None:
         ds.Laterality = laterality
+    if image_laterality is not None:
+        ds.ImageLaterality = image_laterality
 
     if corrupt_pixel_data:
         ds.PixelData = b"\x00\x00"  # far too short for a 4x4x16-bit slice
@@ -219,13 +222,101 @@ def test_audit_series_reports_geometry_order_and_laterality(tmp_path: Path):
     assert result.slice_count == 3
     assert result.has_full_geometry_tags is True
     assert result.order_agreement == pytest.approx(1.0)
-    assert result.has_laterality_tag is True
+    assert result.laterality_tag_present_fraction == pytest.approx(1.0)
     assert result.laterality_tag == "L"
+    assert result.laterality_tag_consistent is True
     assert result.laterality_from_geometry == "L"
     assert result.laterality_conflict is False
+    assert result.laterality_filled_by_geometry is False
     assert result.pixel_spacing == (1.0, 1.0)
     assert result.decode_attempted == 3
     assert result.decode_failures == 0
+    assert len(result.decode_results) == 3
+    assert all(succeeded for _, succeeded in result.decode_results)
+
+
+def test_audit_series_reports_consistent_reversal_as_negative_correlation(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    orientation = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    # InstanceNumber increases while geometry position decreases: a
+    # consistent reversal, not disagreement.
+    for instance_number, z in [(1, 10.0), (2, 5.0), (3, 0.0)]:
+        _write_synthetic_slice(
+            series_dir / f"{instance_number}.dcm",
+            instance_number=instance_number,
+            image_position_patient=(30.0, 0.0, z),
+            image_orientation_patient=orientation,
+            pixel_spacing=(1.0, 1.0),
+        )
+
+    result = audit_series(series_dir)
+
+    assert result.order_agreement == pytest.approx(-1.0)
+
+
+def test_audit_series_falls_back_to_image_laterality(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    for instance_number in (1, 2):
+        _write_synthetic_slice(
+            series_dir / f"{instance_number}.dcm",
+            instance_number=instance_number,
+            image_laterality="R",
+        )
+
+    result = audit_series(series_dir)
+
+    assert result.laterality_tag_present_fraction == pytest.approx(1.0)
+    assert result.laterality_tag == "R"
+    assert result.laterality_tag_consistent is True
+
+
+def test_audit_series_rejects_invalid_laterality_values(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    _write_synthetic_slice(series_dir / "1.dcm", instance_number=1, laterality="")
+    _write_synthetic_slice(series_dir / "2.dcm", instance_number=2, laterality="U")
+
+    result = audit_series(series_dir)
+
+    assert result.laterality_tag_present_fraction == pytest.approx(0.0)
+    assert result.laterality_tag is None
+    assert result.laterality_tag_consistent is True
+
+
+def test_audit_series_flags_inconsistent_laterality_across_slices(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    _write_synthetic_slice(series_dir / "1.dcm", instance_number=1, laterality="L")
+    _write_synthetic_slice(series_dir / "2.dcm", instance_number=2, laterality="R")
+
+    result = audit_series(series_dir)
+
+    assert result.laterality_tag_present_fraction == pytest.approx(1.0)
+    assert result.laterality_tag_consistent is False
+    assert result.laterality_tag is None
+
+
+def test_audit_series_reports_geometry_filling_a_missing_laterality_tag(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    orientation = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    for instance_number, z in [(1, 0.0), (2, 5.0)]:
+        _write_synthetic_slice(
+            series_dir / f"{instance_number}.dcm",
+            instance_number=instance_number,
+            image_position_patient=(30.0, 0.0, z),
+            image_orientation_patient=orientation,
+            pixel_spacing=(1.0, 1.0),
+        )
+
+    result = audit_series(series_dir)
+
+    assert result.laterality_tag is None
+    assert result.laterality_from_geometry == "L"
+    assert result.laterality_filled_by_geometry is True
+    assert result.laterality_conflict is False
 
 
 def test_audit_series_handles_missing_geometry_tags(tmp_path: Path):
@@ -238,9 +329,10 @@ def test_audit_series_handles_missing_geometry_tags(tmp_path: Path):
 
     assert result.has_full_geometry_tags is False
     assert result.order_agreement is None
-    assert result.has_laterality_tag is False
+    assert result.laterality_tag_present_fraction == pytest.approx(0.0)
     assert result.laterality_from_geometry is None
     assert result.laterality_conflict is False
+    assert result.laterality_filled_by_geometry is False
     assert result.pixel_spacing is None
 
 
@@ -254,6 +346,9 @@ def test_audit_series_counts_pixel_decode_failures(tmp_path: Path):
 
     assert result.decode_attempted == 2
     assert result.decode_failures == 1
+    assert len(result.decode_results) == 2
+    assert sum(1 for _, succeeded in result.decode_results if not succeeded) == 1
+    assert all(transfer_syntax != "unknown" for transfer_syntax, _ in result.decode_results)
 
 
 def test_audit_series_raises_on_empty_directory(tmp_path: Path):

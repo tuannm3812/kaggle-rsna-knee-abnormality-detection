@@ -119,10 +119,11 @@ def test_notebook_interprets_each_aggregate_result(notebook_path: str) -> None:
 
 
 # Repository/planning language that describes review workflow or internal
-# state rather than the analysis -- found leaking into public prose three
-# separate times (weak-label, baseline-modeling, then EDA), each under
-# slightly different exact wording. Checked as one consolidated policy
-# across every public notebook rather than per-notebook ad hoc phrases.
+# state rather than the analysis -- found leaking into public prose four
+# separate times (weak-label, baseline-modeling, EDA, then the image
+# baseline preflight), each under slightly different exact wording. Checked
+# as one consolidated policy across every public notebook rather than
+# per-notebook ad hoc phrases.
 INTERNAL_WORKFLOW_PHRASES = (
     "committed output-free",
     "design spec",
@@ -132,6 +133,7 @@ INTERNAL_WORKFLOW_PHRASES = (
     "src/knee_mri",
     "separately reviewed",
     "trusted",
+    "review workflow",
 )
 
 
@@ -516,6 +518,7 @@ def test_preflight_notebook_displays_only_aggregate_objects() -> None:
         "geometry_summary",
         "pixel_spacing_summary",
         "slice_count_summary",
+        "decode_by_transfer_syntax",
         "environment_summary",
         "timing_summary",
     }
