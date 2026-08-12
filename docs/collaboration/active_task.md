@@ -141,8 +141,17 @@ starting or resuming work.
   helper promises anatomical order. Production preprocessing must validate
   the complete geometry or complete unique `InstanceNumber` sequence and
   otherwise reject that series (trying the next same-plane candidate before
-  declaring the plane missing). Phase 3B's written design spec still does
-  not exist.
+  declaring the plane missing). Round 48 applied round 49's two minor label
+  fixes. In round 50 the user approved Claude's proposed design section
+  closing this: rank same-plane candidates (fluid-sensitive preferred, most
+  slices, then `SeriesInstanceUID` as a final tie-break), a strict validity
+  gate (finite/parseable/non-degenerate/consistent-orientation/unique-
+  position geometry, else fully-parseable-and-unique `InstanceNumber`, else
+  unusable), same-plane retry across ranked candidates, and the
+  already-approved missing-plane fallback only once every candidate is
+  exhausted. Implementation, tests, and a real Kaggle GPU validation-rate
+  measurement are in progress. Phase 3B's written design spec still does not
+  exist.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -3921,3 +3930,54 @@ No remote rerun, dataset publication, kernel execution, or submission is
 needed or authorized. The next discussion should freeze series ranking,
 validated ordering, same-plane retry, and missing-plane behavior together so
 these paths form one testable preprocessing contract.
+
+### Round 50 — User approval: series ranking, validated ordering, retry, and missing-plane fallback (2026-08-12)
+
+**Context:** round 49 accepted findings 2-4 as closed (commit `6612d02`
+applies the two minor label fixes) but left finding 1 open, explicitly
+scoped as a design decision rather than an isolated patch: "the next
+discussion should freeze series ranking, validated ordering, same-plane
+retry, and missing-plane behavior together so these paths form one testable
+preprocessing contract."
+
+**Design proposed by Claude:**
+
+1. **Series ranking within a plane** (extends the existing, already-tested
+   `select_primary_series`): prefer `Fluid_Sensitive == 1`; tie-break by
+   slice count, most first (a cheap, deterministic completeness proxy);
+   final tie-break `SeriesInstanceUID` ascending (fully deterministic).
+   Returns a ranked list, not just a top pick, so retry has somewhere to go.
+2. **Series validity gate**: a series is usable only if either (a) every
+   slice has finite, parseable `ImagePositionPatient`/`ImageOrientationPatient`,
+   the derived normal is non-degenerate, every slice's orientation is
+   consistent with the first slice's within a defined tolerance, and
+   projected positions are unique within a defined tolerance ("geometry
+   route"); or, failing that, (b) every slice has a parseable integer
+   `InstanceNumber` and all values are unique ("`InstanceNumber` route").
+   If neither validates, the series is unusable for sampling — it never
+   falls through to filename order.
+3. **Same-plane retry**: if the top-ranked candidate for a plane fails
+   validation, try the next-ranked one, and so on through the ranked list.
+4. **Missing-plane fallback**: only once every candidate for a plane is
+   exhausted does that plane get excluded from the mean with its presence
+   flag set to 0 (already approved, rounds 46-47) — unchanged.
+
+**User decision:** "approve."
+
+**Also recorded:** the user's explicit workflow preference, stated in this
+round: "I prefer to use kaggle kernel to run anytime with GPU to save
+time" — read as: don't economize on Kaggle GPU kernel runs; prefer a real
+run once local TDD is solid over batching many local-only iterations.
+Saved to persistent memory for future sessions. Consistent with that,
+Claude's implementation plan for this round includes pushing a real Kaggle
+GPU kernel run to measure, on real data, what fraction of sampled series
+pass strict validation — not just implementing the logic locally.
+
+**Still under design:** this approval covers ranking/validation/retry/
+fallback only. Crop dimensions, intensity transform, geometry-aware
+laterality reflection, exact DINOv2 token embedding, classifier
+regularization, evaluation/refit protocol, codec delivery, notebook
+structure, and release gates remain to be frozen in later sections. No
+implementation was authorized before this round; implementation of this
+specific contract (with tests and a real-data validation-rate measurement)
+follows immediately after.
