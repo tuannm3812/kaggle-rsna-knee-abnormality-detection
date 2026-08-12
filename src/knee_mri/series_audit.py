@@ -259,8 +259,15 @@ class SeriesAudit:
 
     Attributes:
         slice_count: Number of `.dcm` files found.
-        has_full_geometry_tags: Whether every slice carries both
-            `ImagePositionPatient` and `ImageOrientationPatient`.
+        header_read_failures: Number of those files whose header could not
+            be read (malformed DICOM or an OS-level read error). Any value
+            above 0 means `ordering_usable` is forced `False` -- a series
+            this project can't fully read isn't one it can validate the
+            order of -- while the other diagnostics are still computed from
+            whichever headers were read successfully (round 55, finding 1).
+        has_full_geometry_tags: Whether every successfully-read slice
+            carries both `ImagePositionPatient` and
+            `ImageOrientationPatient`.
         order_agreement: Signed `InstanceNumber`-vs-geometry Spearman rank
             correlation, or `None` if geometry tags are missing or there are
             <2 slices. A value near +1 or -1 both mean the two orderings are
@@ -319,6 +326,7 @@ class SeriesAudit:
     """
 
     slice_count: int
+    header_read_failures: int
     has_full_geometry_tags: bool
     order_agreement: float | None
     ordering_usable: bool
@@ -412,6 +420,8 @@ def _validated_geometry_order(
             return None
         row_direction = np.asarray(orientation[:3], dtype=float)
         column_direction = np.asarray(orientation[3:], dtype=float)
+        row_norm = float(np.linalg.norm(row_direction))
+        column_norm = float(np.linalg.norm(column_direction))
         # The approved contract (docs/collaboration/active_task.md round 50)
         # requires every slice's full orientation to agree, not just its
         # derived normal -- comparing normals alone would accept a 90-degree
@@ -420,14 +430,22 @@ def _validated_geometry_order(
         # unit-length or mutually orthogonal, which a bare cross-product
         # degeneracy check (`slice_normal`) doesn't catch either.
         if (
-            abs(float(np.linalg.norm(row_direction)) - 1.0) > unit_norm_tolerance
-            or abs(float(np.linalg.norm(column_direction)) - 1.0) > unit_norm_tolerance
+            abs(row_norm - 1.0) > unit_norm_tolerance
+            or abs(column_norm - 1.0) > unit_norm_tolerance
         ):
             return None
-        if abs(float(np.dot(row_direction, column_direction))) > orthogonality_tolerance:
+        # Normalize before any angle-based (dot-product) comparison: a raw
+        # dot product is only a true cosine similarity for exactly unit
+        # vectors, and this project deliberately accepts some unit-norm
+        # slack above -- comparing un-normalized vectors against a cosine-
+        # similarity threshold produces an asymmetric false rejection
+        # entirely within that allowed slack (round 55, finding 2).
+        unit_row = row_direction / row_norm
+        unit_column = column_direction / column_norm
+        if abs(float(np.dot(unit_row, unit_column))) > orthogonality_tolerance:
             return None
-        row_directions.append(row_direction)
-        column_directions.append(column_direction)
+        row_directions.append(unit_row)
+        column_directions.append(unit_column)
         positions_raw.append(position)
 
     reference_row, reference_column = row_directions[0], column_directions[0]
@@ -502,11 +520,21 @@ def _validate_and_order(
 
 
 def _require_tolerance_in_range(
-    name: str, value: float, low: float, high: float, low_inclusive: bool = True
+    name: str,
+    value: float,
+    low: float,
+    high: float,
+    low_inclusive: bool = True,
+    high_inclusive: bool = True,
 ) -> None:
-    if not (low <= value if low_inclusive else low < value) or value > high:
-        bracket = "[" if low_inclusive else "("
-        raise ValueError(f"{name} must be in {bracket}{low}, {high}], got {value}")
+    if not math.isfinite(value):
+        raise ValueError(f"{name} must be finite, got {value}")
+    below = value < low if low_inclusive else value <= low
+    above = value > high if high_inclusive else value >= high
+    if below or above:
+        low_bracket = "[" if low_inclusive else "("
+        high_bracket = "]" if high_inclusive else ")"
+        raise ValueError(f"{name} must be in {low_bracket}{low}, {high}{high_bracket}, got {value}")
 
 
 def validate_and_order_series(
@@ -538,13 +566,14 @@ def validate_and_order_series(
         series_dir: Directory containing one series' `.dcm` slice files.
         orientation_tolerance: Minimum cosine similarity each slice's row
             and column direction cosines must have with the first slice's.
-            Must be in [-1.0, 1.0].
+            Must be in [0.0, 1.0].
         position_tolerance_mm: Minimum spacing required between any two
-            slices' projected positions. Must be >= 0.
+            slices' projected positions. Must be in (0.0, 1000.0].
         unit_norm_tolerance: Maximum allowed deviation of a direction-cosine
-            vector's norm from 1.0. Must be >= 0.
+            vector's norm from 1.0. Must be in [0.0, 1.0).
         orthogonality_tolerance: Maximum allowed |dot product| between a
-            slice's row and column direction cosines. Must be >= 0.
+            slice's (normalized) row and column direction cosines. Must be
+            in [0.0, 1.0).
 
     Returns:
         The computed `OrderingValidation`. An unreadable or malformed
@@ -557,10 +586,27 @@ def validate_and_order_series(
         FileNotFoundError: If `series_dir` contains no `.dcm` files.
         ValueError: If any tolerance argument is out of its valid range.
     """
-    _require_tolerance_in_range("orientation_tolerance", orientation_tolerance, -1.0, 1.0)
-    _require_tolerance_in_range("position_tolerance_mm", position_tolerance_mm, 0.0, math.inf)
-    _require_tolerance_in_range("unit_norm_tolerance", unit_norm_tolerance, 0.0, math.inf)
-    _require_tolerance_in_range("orthogonality_tolerance", orthogonality_tolerance, 0.0, math.inf)
+    # Bounds are deliberately tighter than "any non-negative float": an
+    # infinite or requirement-defeating value (e.g. a unit-norm/orthogonality
+    # tolerance >= 1.0 accepts a zero/degenerate vector; a zero position
+    # tolerance admits exact duplicate positions via the strict "<" spacing
+    # check; a negative orientation tolerance can admit oppositely-directed
+    # axes) would silently disable the very check it configures rather than
+    # raising (round 55, finding 3).
+    _require_tolerance_in_range("orientation_tolerance", orientation_tolerance, 0.0, 1.0)
+    _require_tolerance_in_range(
+        "position_tolerance_mm",
+        position_tolerance_mm,
+        0.0,
+        1000.0,
+        low_inclusive=False,
+    )
+    _require_tolerance_in_range(
+        "unit_norm_tolerance", unit_norm_tolerance, 0.0, 1.0, high_inclusive=False
+    )
+    _require_tolerance_in_range(
+        "orthogonality_tolerance", orthogonality_tolerance, 0.0, 1.0, high_inclusive=False
+    )
 
     dcm_paths = sorted(series_dir.glob("*.dcm"))
     if not dcm_paths:
@@ -627,8 +673,11 @@ def aggregate_group_laterality(resolved_calls: Sequence[str | None]) -> GroupLat
 def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
     """Read every `.dcm` in `series_dir` and compute a geometry/decode audit.
 
-    Header tags are read for every slice (cheap, `stop_before_pixels`);
-    pixel data is fully decoded only for a `central_band_indices` sample, so
+    Header tags are read for every slice (cheap, `stop_before_pixels`) under
+    the same narrow exception policy `validate_and_order_series` uses --
+    malformed or unreadable files don't crash the audit, they're counted in
+    `header_read_failures` and excluded from the diagnostics computed below.
+    Pixel data is fully decoded only for a `central_band_indices` sample, so
     decode reliability is measured without paying full-series decode cost.
     The sample is drawn from the series' validated anatomical order when
     `validate_and_order_series` succeeds; when it doesn't, decode-
@@ -650,78 +699,105 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
     if not dcm_paths:
         raise FileNotFoundError(f"No .dcm files found in {series_dir}")
 
-    headers = [pydicom.dcmread(path, stop_before_pixels=True) for path in dcm_paths]
-    slice_count = len(headers)
-    first = headers[0]
-
-    has_full_geometry_tags = all(
-        "ImagePositionPatient" in ds and "ImageOrientationPatient" in ds for ds in headers
-    )
-
-    # `has_full_geometry_tags` only checks tag *presence* (matching this
-    # field's own contract), not validity -- a present-but-degenerate
-    # orientation or a missing InstanceNumber on some slice must not crash
-    # the whole audit, only leave this one diagnostic value unresolved.
-    agreement: float | None = None
-    if has_full_geometry_tags:
+    headers: list[pydicom.Dataset] = []
+    header_read_failures = 0
+    for path in dcm_paths:
         try:
-            normal = slice_normal(first.ImageOrientationPatient)
-            positions = [slice_position(ds.ImagePositionPatient, normal) for ds in headers]
-            instance_numbers = [int(ds.InstanceNumber) for ds in headers]
-            agreement = order_agreement(instance_numbers, positions)
-        except (ValueError, TypeError, AttributeError):
-            agreement = None
+            headers.append(pydicom.dcmread(path, stop_before_pixels=True))
+        except (pydicom.errors.InvalidDicomError, OSError):
+            header_read_failures += 1
+    slice_count = len(dcm_paths)
 
-    ordering_validation = _validate_and_order(
-        dcm_paths,
-        headers,
-        _ORIENTATION_TOLERANCE_DEFAULT,
-        _POSITION_TOLERANCE_MM_DEFAULT,
-        _UNIT_NORM_TOLERANCE_DEFAULT,
-        _ORTHOGONALITY_TOLERANCE_DEFAULT,
-    )
-    # Decode-reliability sampling doesn't need a validated order (decode
-    # success/failure doesn't depend on slice order) -- fall back to
-    # filename order only for that narrow purpose when validation fails,
-    # never presented elsewhere as anatomical.
-    ordered_paths = (
-        ordering_validation.ordered_paths
-        if ordering_validation.usable and ordering_validation.ordered_paths is not None
-        else dcm_paths
-    )
+    if not headers:
+        # Every file was unreadable: nothing to compute header-derived
+        # diagnostics from. Decode sampling below still legitimately runs
+        # against the original files and will itself report the failures.
+        has_full_geometry_tags = False
+        agreement: float | None = None
+        ordering_validation = OrderingValidation(usable=False, method=None, ordered_paths=None)
+        ordered_paths = dcm_paths
+        laterality_tag_present_fraction = 0.0
+        laterality_tag = None
+        laterality_tag_consistent = True
+        has_cross_tag_conflict = False
+        geometry_laterality = None
+        pixel_spacing = None
+    else:
+        first = headers[0]
 
-    slice_laterality_tags = [_slice_laterality_tag(ds) for ds in headers]
-    has_cross_tag_conflict = any(_slice_laterality_cross_tag_conflict(ds) for ds in headers)
-    present_tags = [tag for tag in slice_laterality_tags if tag is not None]
-    laterality_tag_present_fraction = len(present_tags) / slice_count if slice_count else 0.0
-    distinct_tags = set(present_tags)
-    laterality_tag_consistent = len(distinct_tags) <= 1
-    laterality_tag = present_tags[0] if laterality_tag_consistent and present_tags else None
+        has_full_geometry_tags = all(
+            "ImagePositionPatient" in ds and "ImageOrientationPatient" in ds for ds in headers
+        )
 
-    geometry_laterality = None
-    if has_full_geometry_tags and "PixelSpacing" in first:
-        try:
-            geometry_laterality = laterality_from_geometry(
-                first.ImagePositionPatient,
-                first.ImageOrientationPatient,
-                int(first.Rows),
-                int(first.Columns),
-                first.PixelSpacing,
+        # `has_full_geometry_tags` only checks tag *presence* (matching this
+        # field's own contract), not validity -- a present-but-degenerate
+        # orientation or a missing InstanceNumber on some slice must not
+        # crash the whole audit, only leave this one diagnostic unresolved.
+        agreement = None
+        if has_full_geometry_tags:
+            try:
+                normal = slice_normal(first.ImageOrientationPatient)
+                positions = [slice_position(ds.ImagePositionPatient, normal) for ds in headers]
+                instance_numbers = [int(ds.InstanceNumber) for ds in headers]
+                agreement = order_agreement(instance_numbers, positions)
+            except (ValueError, TypeError, AttributeError):
+                agreement = None
+
+        if header_read_failures > 0:
+            # Can't validate a complete anatomical order when at least one
+            # member's data is missing entirely (round 55, finding 1).
+            ordering_validation = OrderingValidation(usable=False, method=None, ordered_paths=None)
+        else:
+            ordering_validation = _validate_and_order(
+                dcm_paths,
+                headers,
+                _ORIENTATION_TOLERANCE_DEFAULT,
+                _POSITION_TOLERANCE_MM_DEFAULT,
+                _UNIT_NORM_TOLERANCE_DEFAULT,
+                _ORTHOGONALITY_TOLERANCE_DEFAULT,
             )
-        except (ValueError, TypeError, AttributeError):
-            geometry_laterality = None
+        # Decode-reliability sampling doesn't need a validated order (decode
+        # success/failure doesn't depend on slice order) -- fall back to
+        # filename order only for that narrow purpose when validation fails,
+        # never presented elsewhere as anatomical.
+        ordered_paths = (
+            ordering_validation.ordered_paths
+            if ordering_validation.usable and ordering_validation.ordered_paths is not None
+            else dcm_paths
+        )
+
+        slice_laterality_tags = [_slice_laterality_tag(ds) for ds in headers]
+        has_cross_tag_conflict = any(_slice_laterality_cross_tag_conflict(ds) for ds in headers)
+        present_tags = [tag for tag in slice_laterality_tags if tag is not None]
+        laterality_tag_present_fraction = len(present_tags) / len(headers)
+        distinct_tags = set(present_tags)
+        laterality_tag_consistent = len(distinct_tags) <= 1
+        laterality_tag = present_tags[0] if laterality_tag_consistent and present_tags else None
+
+        geometry_laterality = None
+        if has_full_geometry_tags and "PixelSpacing" in first:
+            try:
+                geometry_laterality = laterality_from_geometry(
+                    first.ImagePositionPatient,
+                    first.ImageOrientationPatient,
+                    int(first.Rows),
+                    int(first.Columns),
+                    first.PixelSpacing,
+                )
+            except (ValueError, TypeError, AttributeError):
+                geometry_laterality = None
+
+        pixel_spacing = (
+            (float(first.PixelSpacing[0]), float(first.PixelSpacing[1]))
+            if "PixelSpacing" in first
+            else None
+        )
 
     laterality_conflict = bool(
         laterality_tag and geometry_laterality and laterality_tag != geometry_laterality
     )
     laterality_filled_by_geometry = bool(laterality_tag is None and geometry_laterality is not None)
     laterality_resolved_call = laterality_tag if laterality_tag is not None else geometry_laterality
-
-    pixel_spacing = (
-        (float(first.PixelSpacing[0]), float(first.PixelSpacing[1]))
-        if "PixelSpacing" in first
-        else None
-    )
 
     sample_indices = central_band_indices(len(ordered_paths), decode_sample_size)
     decode_results: list[tuple[str, bool]] = []
@@ -744,6 +820,7 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
 
     return SeriesAudit(
         slice_count=slice_count,
+        header_read_failures=header_read_failures,
         has_full_geometry_tags=has_full_geometry_tags,
         order_agreement=agreement,
         ordering_usable=ordering_validation.usable,

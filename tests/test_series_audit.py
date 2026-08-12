@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import numpy as np
@@ -492,6 +493,64 @@ def test_audit_series_does_not_crash_on_missing_instance_number(tmp_path: Path):
     assert result.ordering_method == "geometry"
 
 
+def test_audit_series_counts_unreadable_header_in_mixed_series(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    orientation = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    _write_synthetic_slice(
+        series_dir / "1.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 0.0),
+        image_orientation_patient=orientation,
+        pixel_spacing=(1.0, 1.0),
+        laterality="L",
+    )
+    _write_synthetic_slice(
+        series_dir / "2.dcm",
+        instance_number=2,
+        image_position_patient=(0.0, 0.0, 1.0),
+        image_orientation_patient=orientation,
+        pixel_spacing=(1.0, 1.0),
+        laterality="L",
+    )
+    (series_dir / "3.dcm").write_bytes(b"not a real dicom file")
+
+    result = audit_series(series_dir)
+
+    assert result.slice_count == 3
+    assert result.header_read_failures == 1
+    # A series missing one member's data entirely cannot be validated as a
+    # complete order, even though the two readable slices agree.
+    assert result.ordering_usable is False
+    assert result.ordering_method is None
+    # Diagnostics computed only from the two successfully-read headers.
+    assert result.laterality_tag_present_fraction == pytest.approx(1.0)
+    assert result.laterality_tag == "L"
+
+
+def test_audit_series_handles_wholly_unreadable_series(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    (series_dir / "1.dcm").write_bytes(b"not a real dicom file")
+    (series_dir / "2.dcm").write_bytes(b"also not a real dicom file")
+
+    result = audit_series(series_dir)
+
+    assert result.slice_count == 2
+    assert result.header_read_failures == 2
+    assert result.ordering_usable is False
+    assert result.ordering_method is None
+    assert result.has_full_geometry_tags is False
+    assert result.order_agreement is None
+    assert result.laterality_tag_present_fraction == pytest.approx(0.0)
+    assert result.laterality_tag is None
+    assert result.laterality_from_geometry is None
+    assert result.pixel_spacing is None
+    # Decode sampling still runs against the original files and reports
+    # the same underlying unreadability as a decode failure.
+    assert result.decode_failures == result.decode_attempted
+
+
 # -- validate_and_order_series --
 
 
@@ -729,14 +788,60 @@ def test_validate_and_order_series_rejects_non_orthogonal_orientation_vectors(tm
     assert result == OrderingValidation(usable=False, method=None, ordered_paths=None)
 
 
+def test_validate_and_order_series_accepts_slightly_under_unit_identical_orientation(
+    tmp_path: Path,
+):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    # Norm 0.995 is within the default 0.01 unit-norm tolerance. Both slices
+    # share the exact same (scaled) direction cosines, so a true cosine-
+    # similarity comparison between them must be 1.0 regardless of the
+    # shared norm -- a raw (non-normalized) dot product would instead
+    # compare 0.995**2 == 0.990025 against the 0.999 orientation tolerance
+    # and wrongly reject this series (round 55, finding 2).
+    scale = 0.995
+    orientation = (scale, 0.0, 0.0, 0.0, scale, 0.0)
+    _write_synthetic_slice(
+        series_dir / "1.dcm",
+        instance_number=1,  # duplicate on purpose to disable the InstanceNumber fallback
+        image_position_patient=(0.0, 0.0, 0.0),
+        image_orientation_patient=orientation,
+    )
+    _write_synthetic_slice(
+        series_dir / "2.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 1.0),
+        image_orientation_patient=orientation,
+    )
+
+    result = validate_and_order_series(series_dir)
+
+    assert result.usable is True
+    assert result.method == "geometry"
+
+    # A genuinely misaligned orientation -- not merely under-unit-norm --
+    # is still correctly rejected once vectors are normalized before the
+    # cosine-similarity comparison; see
+    # test_validate_and_order_series_rejects_in_plane_rotation_between_slices
+    # for that case (exactly unit-norm, orthogonal per-slice, but rotated
+    # relative to each other).
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
         {"orientation_tolerance": 1.5},
         {"orientation_tolerance": -1.5},
+        {"orientation_tolerance": math.inf},
         {"position_tolerance_mm": -0.01},
+        {"position_tolerance_mm": 0.0},
+        {"position_tolerance_mm": math.inf},
         {"unit_norm_tolerance": -0.01},
+        {"unit_norm_tolerance": 1.0},
+        {"unit_norm_tolerance": math.inf},
         {"orthogonality_tolerance": -0.01},
+        {"orthogonality_tolerance": 1.0},
+        {"orthogonality_tolerance": math.inf},
     ],
 )
 def test_validate_and_order_series_rejects_nonsensical_tolerances(tmp_path: Path, kwargs: dict):
@@ -744,7 +849,7 @@ def test_validate_and_order_series_rejects_nonsensical_tolerances(tmp_path: Path
     series_dir.mkdir()
     _write_synthetic_slice(series_dir / "1.dcm", instance_number=1)
 
-    with pytest.raises(ValueError, match="must be in"):
+    with pytest.raises(ValueError, match=r"must be (in|finite)"):
         validate_and_order_series(series_dir, **kwargs)
 
 
