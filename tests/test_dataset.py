@@ -260,6 +260,7 @@ def test_select_validated_series_returns_top_candidate_when_valid(tmp_path: Path
         series_instance_uid="series_1",
         ordering_method="geometry",
         ordered_paths=result.ordered_paths,
+        candidates_tried=1,
     )
     assert result.ordered_paths is not None and len(result.ordered_paths) == 3
 
@@ -317,7 +318,11 @@ def test_select_validated_series_missing_plane_when_all_candidates_invalid(tmp_p
     result = select_validated_series(series_df, tmp_path, "study_1", plane="Sagittal")
 
     assert result == PlaneSelection(
-        plane="Sagittal", series_instance_uid=None, ordering_method=None, ordered_paths=None
+        plane="Sagittal",
+        series_instance_uid=None,
+        ordering_method=None,
+        ordered_paths=None,
+        candidates_tried=1,
     )
 
 
@@ -325,7 +330,11 @@ def test_select_validated_series_missing_plane_when_no_candidates(tmp_path: Path
     result = select_validated_series(_series_frame(), tmp_path, "study_2", plane="Sagittal")
 
     assert result == PlaneSelection(
-        plane="Sagittal", series_instance_uid=None, ordering_method=None, ordered_paths=None
+        plane="Sagittal",
+        series_instance_uid=None,
+        ordering_method=None,
+        ordered_paths=None,
+        candidates_tried=0,
     )
 
 

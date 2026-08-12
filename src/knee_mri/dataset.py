@@ -140,12 +140,16 @@ class PlaneSelection:
             selected, else `None`.
         ordered_paths: The selected series' validated slice order, or
             `None` if no candidate validated.
+        candidates_tried: How many ranked candidates were validated before
+            returning (including the winner, if any) -- `1` means the
+            top-ranked candidate validated with no retry needed.
     """
 
     plane: str
     series_instance_uid: str | None
     ordering_method: str | None
     ordered_paths: tuple[Path, ...] | None
+    candidates_tried: int
 
 
 def select_validated_series(
@@ -180,8 +184,10 @@ def select_validated_series(
     candidates = rank_candidate_series(
         series_df, series_root, study_id, plane, prefer_fluid_sensitive
     )
+    candidates_tried = 0
     for series_id in candidates:
         series_dir = series_root / study_id / series_id
+        candidates_tried += 1
         try:
             validation = validate_and_order_series(series_dir)
         except FileNotFoundError:
@@ -192,9 +198,14 @@ def select_validated_series(
                 series_instance_uid=series_id,
                 ordering_method=validation.method,
                 ordered_paths=validation.ordered_paths,
+                candidates_tried=candidates_tried,
             )
     return PlaneSelection(
-        plane=plane, series_instance_uid=None, ordering_method=None, ordered_paths=None
+        plane=plane,
+        series_instance_uid=None,
+        ordering_method=None,
+        ordered_paths=None,
+        candidates_tried=candidates_tried,
     )
 
 
