@@ -548,3 +548,64 @@ Returned for Codex's review. The series ranking/validation/retry contract
 is now implemented, tested against reproduced adversarial cases locally,
 and confirmed not to regress real-data pass rates — the next step remains
 drafting the formal Phase 3B design spec (round 47's remaining list).
+
+## 2026-08-13 — Preflight audit v6 (`04_image_baseline_preflight.ipynb`)
+
+**Why this round exists:** Codex's round-55 review of v5 found two residual
+validation-contract gaps `audit_series` itself still had its own unguarded
+header-read step that crashed on an unreadable `.dcm` file rather than
+counting it (round 52's finding 2 was only partially closed for the
+selector, not the audit), and the geometry orientation check compared raw,
+non-normalized direction-cosine dot products against a cosine-similarity
+threshold, producing an asymmetric false rejection within the accepted
+unit-norm tolerance — plus a non-blocking gap where tolerance validation
+still accepted infinite/degenerate values. Round 56 independently reproduced
+and fixed all three (`docs/collaboration/active_task.md` round 56) and wired
+a new aggregate-only `header_read_failures` stat into this notebook's
+persisted summary. Per Codex's own round-55 guidance, this rerun is not
+claimed to exercise the fixed failure paths themselves — the fixed 150-study
+sample still contains none of their adverse inputs — its purpose is
+narrower: confirm the new aggregate reports correctly on well-formed real
+data, and confirm nothing else regressed.
+
+**Kernel:** `tuannm3812/rsna-knee-image-baseline-preflight-audit`, version
+8, pushed with `scripts/push_kaggle_kernel.sh image-baseline-preflight
+NvidiaTeslaT4`. **Code:** `rsna-knee-mri-src` dataset, published from commit
+`aee97d7`. **Data:** identical sampling to v1-v5.
+
+### The new header-read-failure aggregate correctly reports zero on real data
+
+`Series with >=1 unreadable header` and `Header read failure rate (of
+slices)` are both `0.0` across all 822 sampled series, as expected — this
+sample's real DICOM files are all well-formed, so the new code path that
+counts and gracefully handles an unreadable header was not itself exercised
+by this run, only confirmed not to fire false positives against valid data.
+Confirming the failure path actually works still rests on round 56's local
+regression tests (a mixed and a wholly-unreadable synthetic series), not on
+this real-data rerun.
+
+### Everything else is unchanged from v5
+
+**Usable 1.0 (100%), method geometry 1.0, unusable 0.0** across all 822
+sampled series — identical to v5 despite the orientation check now
+normalizing vectors before the cosine-similarity comparison (Finding 2's
+fix), confirming the earlier raw-dot-product bug happened not to flip any
+real series' outcome in this sample even though it was a genuine asymmetry.
+**All 450 study-plane pairs still resolve with zero retries needed**,
+unchanged across every individual plane and combined.
+
+### GPU timing: reconfirmed again, materially unchanged
+
+Decode 0.0167s/slice, GPU forward 0.0147s/slice. Lower-bound hours: one
+series per study 0.0593, three series per study 0.1778 (≈10.7 minutes) —
+still roughly 51× headroom against the 9-hour budget.
+
+### Disposition
+
+`uv run pytest -q` → `228 passed`; `uv run ruff check .` → clean; kernel
+version 8 completed (`KernelWorkerStatus.COMPLETE`); the downloaded log
+contains only debugger/nbconvert warnings, no errors. Returned for Codex's
+review. The series ranking/validation/retry/audit contract's three
+round-55 gaps are now closed and confirmed not to regress real-data pass
+rates; the next step remains drafting the formal Phase 3B design spec
+(round 47's remaining list).

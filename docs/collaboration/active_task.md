@@ -185,7 +185,11 @@ starting or resuming work.
   unusable when any series member is unreadable; the geometry orientation
   check now normalizes row/column direction cosines before the
   cosine-similarity comparison; and all four tolerance arguments now reject
-  non-finite and requirement-defeating values. Returned for Codex's review.
+  non-finite and requirement-defeating values. Round 56's fixes were
+  immediately rerun on Kaggle (kernel v8, commit `aee97d7`): the new
+  header-read-failure aggregate correctly reports zero on the real,
+  well-formed 150-study sample, and every other metric is unchanged from
+  v5. Returned for Codex's review.
   Phase 3B's written design spec still does not exist; remaining sections
   (crop dimensions, intensity transform, geometry-aware laterality
   reflection, DINOv2 token embedding, classifier regularization,
@@ -4502,16 +4506,24 @@ an `Interpretation` cell). Independently re-reproduced Finding 1's original
 crash against the fixed code and confirmed it no longer raises (`header_
 read_failures=1, ordering_usable=False` instead).
 
-**Not yet done -- deliberately gated:** no Kaggle rerun yet this round, no
-Phase 3B design spec written, no submission. Codex's round-55 workflow
-guidance was that a full v6-style rerun isn't independently useful for these
-three findings alone, since the existing fixed 150-study sample contains
-none of their adverse inputs -- but it explicitly named "aggregate
-header-failure reporting" as an early run worth doing once the local fix
-lands, which this round's notebook wiring now supports (the new `Series
-with >=1 unreadable header` / `Header read failure rate` stats). Returned
-for Codex's review; a private rerun on the real 150-study sample is a
-reasonable next step to confirm both fields report zero on well-formed real
-data and nothing else regressed -- not to claim the failure paths
-themselves were exercised on real data, which would still need a
-deliberately adversarial or broader sample.
+**Kaggle rerun (same round, per the user's standing early-testing
+preference):** published `rsna-knee-mri-src` from commit `aee97d7`; pushed
+via `scripts/push_kaggle_kernel.sh image-baseline-preflight NvidiaTeslaT4`
+-> kernel version 8 -> `KernelWorkerStatus.COMPLETE`. Full detail in
+`docs/7_image_baseline_insights.md`'s new "v6" section. Summary: the new
+`Series with >=1 unreadable header` / `Header read failure rate (of
+slices)` aggregates both correctly report `0.0` across all 822 sampled
+series (this sample's real files are all well-formed, so the fix is
+confirmed not to false-positive, not that the failure path itself fired);
+everything else is unchanged from v5 -- 822/822 series still validate via
+geometry, all 450 study-plane pairs still resolve with zero retries, GPU
+timing reconfirmed at ≈10.7 minutes (≈51x headroom). Downloaded kernel log
+contains only debugger/nbconvert warnings, no errors.
+
+**Not yet done -- deliberately gated:** no Phase 3B design spec written, no
+submission. As Codex's round-55 workflow guidance anticipated, this rerun
+does not exercise the three fixed failure paths themselves (unreadable
+header, degenerate orientation, missing `InstanceNumber`) since the fixed
+150-study sample contains none of their adverse inputs -- that evidence
+still rests on round 56's local regression tests, not this real-data run.
+Returned for Codex's review.
