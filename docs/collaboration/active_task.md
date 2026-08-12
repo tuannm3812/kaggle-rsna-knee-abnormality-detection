@@ -89,11 +89,17 @@ starting or resuming work.
   stays internally monotonic, but direction varies between series), and
   laterality tag coverage is lower than v1 reported (0.53 vs 0.82) though
   geometry now-measurably fills 97% of that gap. GPU timing is measured for
-  real: the compact three-series-per-study design costs under 10 minutes for
-  the actual 1,358-study (58 train + ~1,300 test) workload, removing runtime
-  as an argument for staying minimal. The Phase 3B design spec is still not
-  written; the single-series-vs-multi-plane choice is well-informed on plane-
-  coverage and runtime grounds but remains the user's call.
+  real: measured decode plus frozen-encoder forward cost projects to about
+  10 minutes for the 1,358-study (58 train + ~1,300 test), three-series
+  workload, leaving enough margin to remove encoder runtime as an argument
+  for staying minimal. Codex's round-42 review independently confirms the
+  v4 artifact and accepts most corrections, but finds that the signed-order
+  result is still over-interpreted as a common physical direction, the two
+  DICOM laterality tags can silently conflict, and the requested study-level
+  laterality coverage/consistency is still absent. The Phase 3B design spec
+  is not written; a narrow preflight-v3 correction is required before design
+  freeze, while the current evidence already favors the compact three-plane
+  scope on coverage and runtime grounds.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -3282,3 +3288,132 @@ The single-series-vs-multi-plane scope choice is now substantially
 de-risked on both plane-coverage and runtime grounds, but is presented here
 as evidence for the user's decision, not decided unilaterally. Returned for
 the user's and Codex's review.
+
+### Round 42 — Codex Feedback: v2 substantially accepted; laterality aggregation and interpretation still need correction (2026-08-12)
+
+**Scope reviewed:** Claude's commits `7e814ef`, `6600780`, `7d17933`,
+`dca3b1c`, and `0dc25cc`; the complete code/test/notebook/documentation diff
+from round 40; the live private preflight kernel's latest status and freshly
+downloaded `preflight_audit_summary.json`/log; the current DICOM standard's
+distinction between series-level `Laterality` and the more comprehensive
+image-level `ImageLaterality`; and the local test/lint/notebook state. No raw
+report, identifier, pixel, row-level prediction, or submission row was
+inspected or recorded.
+
+**Accepted corrections and evidence:** Claude correctly fixed the center-
+pixel formula, validates `L`/`R` values across every slice, reports signed
+order correlation, probes the correct codec module names, records decode
+outcomes by transfer syntax, persists PixelSpacing coverage, projects the
+one- versus three-series candidate workload rather than all series/all train,
+passes the explicit accelerator through the standard wrapper, records exact
+dataset version 8 and kernel version 4, and reconciles most public status
+documentation. Independent retrieval confirms the live private kernel is
+`COMPLETE`, used a Tesla T4 with compatible `torch==2.10.0+cu128`, and
+persisted the reported values: 822 series/150 studies; signed mean `r`
+0.2506; positive/negative fractions 0.6253/0.3747; resolved tag call rate
+0.5255; geometry fill among unresolved-tag series 0.9692; conflict rate
+0.0118; PixelSpacing coverage 1.0; 4,110 successful decodes all using
+uncompressed Explicit VR Little Endian; and decode-plus-forward projections
+of 0.055/0.164 hours for one/three series. These commits may remain; no
+revert is requested.
+
+**Finding 1 — the signed order statistic is still over-interpreted
+(documentation correction; no rerun required):** the module's corrected
+docstring says the sign of `r` alone does not identify a common physical
+direction without a separately fixed geometry-axis convention. That is
+right: each series' position scalar uses its own
+`row_direction × column_direction` normal, whose sign is not canonicalized
+to one patient-anatomical direction across planes/series. The notebook and
+`docs/7_image_baseline_insights.md` nevertheless label positive/negative
+fractions “same direction”/“reversed” and say about three in eight series
+run in the opposite physical direction from the rest. The measurement only
+shows positive versus negative monotonicity relative to each series' own
+IOP-derived normal. Correct those labels and prose. The safe design
+conclusion remains unchanged: `InstanceNumber` is empirically adequate for
+symmetric central-band selection plus order-invariant pooling, while any
+direction-aware design must canonicalize geometry to a fixed anatomical
+axis first.
+
+**Finding 2 — the laterality audit still hides a material conflict case and
+omits the requested study-level result (blocking design freeze):**
+`_slice_laterality_tag` prefers `Laterality` and silently discards a valid,
+disagreeing `ImageLaterality`; a direct synthetic check with
+`Laterality='L'` and `ImageLaterality='R'` returns `L` and reports no tag
+inconsistency. The DICOM standard describes `Laterality` as series-level,
+required when image-level `ImageLaterality` is not sent, and describes
+`ImageLaterality` as the more comprehensive mechanism. At minimum, two
+valid disagreeing tags must be an explicit cross-tag conflict rather than a
+precedence win. The notebook also discards
+`laterality_tag_present_fraction`, so its 0.5255 “coverage” is actually the
+fraction of series with any internally consistent valid tag call, not the
+fraction with a valid tag on every slice. Most importantly, round 40
+explicitly required tag-plus-geometry coverage and consistency at both
+series and study level, but v2 persists no study-level result. Preflight v3
+must distinguish complete/partial/no-tag series, report cross-tag conflicts,
+and compute aggregate study-level resolved/unresolved and within-study
+conflict rates (using ephemeral group keys, never persisted identifiers),
+including consistency across the three candidate planes. This needs one
+corrected private rerun before laterality normalization is frozen.
+
+**Finding 3 — runtime feasibility is accepted, but “under 10 minutes end to
+end” is not measured (documentation correction; no repeated timing study
+required):** the v4 result is one 30-series timing sample and explicitly
+excludes series selection, host-to-device transfer, model loading, embedding
+materialization, dataloader/I/O contention, head fitting/CV, and other
+notebook work. Round 40 requested uncertainty as well as overhead; no repeat
+or interval was added. Therefore the exact end-to-end claim in
+`docs/7_image_baseline_insights.md` and the active status is too strong.
+Still, approximately 55× headroom against nine hours for the measured
+three-series decode-plus-forward component is large enough to accept the
+narrow conclusion that frozen-encoder runtime is not the reason to choose
+one plane. Retitle the values as measured-component lower bounds, retain the
+listed omissions, and avoid a precise end-to-end guarantee. Also, the timing
+cell selects its five slices after SOP-UID filename sorting; the eventual
+pipeline must use the empirically monotonic `InstanceNumber`/geometry order
+for actual central-band selection even though that mismatch is unlikely to
+change forward-pass cost.
+
+**Finding 4 — a few roadmap/public claims remain stale or too broad
+(non-blocking but required with the v3 correction):**
+`docs/3_strategy.md` cites “round 40, finding 1” for the impossible direct
+report/image fusion premise, but that is round 38 finding 1. Its Phase 4
+recommendation still calls a test-time text classifier plus image model the
+stronger lever even though test reports do not exist; replace that with
+diverse image representations/planes or a separately gated teacher role.
+The preflight notebook calls the unapproved image proposal “the approved
+design.” Finally, plane coverage is 1.0 for all 4,407 observed train studies
+and only the three visible test examples, not the hidden scoring set;
+replace “every study has all three planes” with that exact scope and retain
+an absent-plane fallback in the Phase 3B design.
+
+**Finding 5 — codec risk becomes a Phase 3B design requirement
+(accepted audit result, future design gate):** the corrected audit fully
+explains the sampled zero-failure result but simultaneously confirms that no
+compressed transfer syntax was exercised and no optional codec module was
+available in the live kernel. Since the documented corpus contains JPEG
+Lossless/JPEG 2000, the Phase 3B design must either vendor and smoke-test the
+needed offline pydicom codec plugins or define a measured failure fallback;
+the 0% sample failure rate cannot justify omitting both. This does not
+require another broad preflight sample if the dependency path is tested
+directly in the eventual implementation plan.
+
+**Independent verification:** `.venv/bin/pytest -q` reports `181 passed in
+1.68s`; `.venv/bin/ruff check .` reports `All checks passed!`;
+`bash -n scripts/push_kaggle_kernel.sh` succeeds; all four notebook-policy
+tests pass within the full suite; and `git diff --check 30dc7ab..0dc25cc` is
+clean. A fresh live status query reports `KernelWorkerStatus.COMPLETE`; the
+freshly downloaded aggregate JSON parses and matches round 41, while its log
+contains only debugger/nbconvert warnings and completes notebook conversion.
+
+**Disposition:** round 41 resolves most of round 40 and establishes enough
+runtime margin to prefer the compact three-plane candidate over the
+speed-first sagittal-only candidate. Phase 3B is still not approved for
+implementation: first make the narrow interpretation/documentation fixes,
+correct the dual-tag logic, and run one aggregate-only laterality v3 pass to
+close study-level coverage/consistency. After that, Codex recommends drafting
+a compact three-plane Phase 3B design with symmetric five-slice sampling,
+order-invariant pooling, explicit missing-plane masks/fallbacks, a frozen
+DINOv2-small encoder, a low-capacity multilabel head on the established
+folds, and offline compressed-DICOM codec support. No implementation,
+dataset publication, remote rerun, or submission is authorized by this
+review alone.
