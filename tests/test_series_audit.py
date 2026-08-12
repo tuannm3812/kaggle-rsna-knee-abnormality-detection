@@ -7,7 +7,10 @@ from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 
 from knee_mri.series_audit import (
+    GroupLateralityAgreement,
     SeriesAudit,
+    aggregate_group_laterality,
+    anatomically_ordered_paths,
     audit_series,
     central_band_indices,
     fluid_fat_suppression_agreement,
@@ -298,6 +301,78 @@ def test_audit_series_flags_inconsistent_laterality_across_slices(tmp_path: Path
     assert result.laterality_tag is None
 
 
+def test_audit_series_flags_cross_tag_conflict_between_laterality_tags(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    _write_synthetic_slice(
+        series_dir / "1.dcm", instance_number=1, laterality="L", image_laterality="R"
+    )
+
+    result = audit_series(series_dir)
+
+    assert result.laterality_cross_tag_conflict is True
+    # Laterality still takes precedence for the resolved call.
+    assert result.laterality_tag == "L"
+
+
+def test_audit_series_no_cross_tag_conflict_when_tags_agree(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    _write_synthetic_slice(
+        series_dir / "1.dcm", instance_number=1, laterality="L", image_laterality="L"
+    )
+
+    result = audit_series(series_dir)
+
+    assert result.laterality_cross_tag_conflict is False
+
+
+def test_audit_series_resolved_call_prefers_tag_over_geometry(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    _write_synthetic_slice(
+        series_dir / "1.dcm",
+        instance_number=1,
+        image_position_patient=(-30.0, 0.0, 0.0),
+        image_orientation_patient=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+        laterality="L",
+    )
+
+    result = audit_series(series_dir)
+
+    # Geometry alone would call this "R" (negative x); the tag still wins.
+    assert result.laterality_from_geometry == "R"
+    assert result.laterality_resolved_call == "L"
+
+
+def test_audit_series_resolved_call_falls_back_to_geometry(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    _write_synthetic_slice(
+        series_dir / "1.dcm",
+        instance_number=1,
+        image_position_patient=(30.0, 0.0, 0.0),
+        image_orientation_patient=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+        pixel_spacing=(1.0, 1.0),
+    )
+
+    result = audit_series(series_dir)
+
+    assert result.laterality_tag is None
+    assert result.laterality_resolved_call == "L"
+
+
+def test_audit_series_resolved_call_none_when_unresolvable(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    _write_synthetic_slice(series_dir / "1.dcm", instance_number=1)
+
+    result = audit_series(series_dir)
+
+    assert result.laterality_resolved_call is None
+
+
 def test_audit_series_reports_geometry_filling_a_missing_laterality_tag(tmp_path: Path):
     series_dir = tmp_path / "series"
     series_dir.mkdir()
@@ -357,3 +432,92 @@ def test_audit_series_raises_on_empty_directory(tmp_path: Path):
 
     with pytest.raises(FileNotFoundError, match=r"No \.dcm files"):
         audit_series(empty_dir)
+
+
+# -- anatomically_ordered_paths --
+
+
+def test_anatomically_ordered_paths_orders_by_geometry_not_filename(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    orientation = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    # Filenames deliberately sort opposite to the true geometric (z) order.
+    _write_synthetic_slice(
+        series_dir / "a_last.dcm",
+        instance_number=3,
+        image_position_patient=(30.0, 0.0, 10.0),
+        image_orientation_patient=orientation,
+    )
+    _write_synthetic_slice(
+        series_dir / "b_middle.dcm",
+        instance_number=2,
+        image_position_patient=(30.0, 0.0, 5.0),
+        image_orientation_patient=orientation,
+    )
+    _write_synthetic_slice(
+        series_dir / "c_first.dcm",
+        instance_number=1,
+        image_position_patient=(30.0, 0.0, 0.0),
+        image_orientation_patient=orientation,
+    )
+
+    ordered = anatomically_ordered_paths(series_dir)
+
+    assert [path.name for path in ordered] == ["c_first.dcm", "b_middle.dcm", "a_last.dcm"]
+
+
+def test_anatomically_ordered_paths_falls_back_to_filename_order_without_geometry(
+    tmp_path: Path,
+):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    _write_synthetic_slice(series_dir / "1.dcm", instance_number=1)
+    _write_synthetic_slice(series_dir / "2.dcm", instance_number=2)
+
+    ordered = anatomically_ordered_paths(series_dir)
+
+    assert [path.name for path in ordered] == ["1.dcm", "2.dcm"]
+
+
+def test_anatomically_ordered_paths_raises_on_empty_directory(tmp_path: Path):
+    empty_dir = tmp_path / "empty_series"
+    empty_dir.mkdir()
+
+    with pytest.raises(FileNotFoundError, match=r"No \.dcm files"):
+        anatomically_ordered_paths(empty_dir)
+
+
+# -- aggregate_group_laterality --
+
+
+def test_aggregate_group_laterality_consistent_group():
+    result = aggregate_group_laterality(["L", "L", "L"])
+
+    assert result == GroupLateralityAgreement(
+        total=3, resolved=3, consistent=True, consensus_call="L"
+    )
+
+
+def test_aggregate_group_laterality_flags_disagreement():
+    result = aggregate_group_laterality(["L", "R", "L"])
+
+    assert result.consistent is False
+    assert result.consensus_call is None
+    assert result.resolved == 3
+
+
+def test_aggregate_group_laterality_ignores_unresolved_series():
+    result = aggregate_group_laterality(["L", None, "L", None])
+
+    assert result.total == 4
+    assert result.resolved == 2
+    assert result.consistent is True
+    assert result.consensus_call == "L"
+
+
+def test_aggregate_group_laterality_all_unresolved():
+    result = aggregate_group_laterality([None, None])
+
+    assert result == GroupLateralityAgreement(
+        total=2, resolved=0, consistent=True, consensus_call=None
+    )

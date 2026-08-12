@@ -152,14 +152,34 @@ def _normalize_laterality(raw: object) -> str | None:
     return value if value in _VALID_LATERALITY_VALUES else None
 
 
-def _slice_laterality_tag(dataset: pydicom.Dataset) -> str | None:
-    """A single slice's validated laterality, preferring `Laterality`."""
+def _slice_laterality_values(dataset: pydicom.Dataset) -> dict[str, str]:
+    """Every present, valid laterality-family value on one slice, by tag name."""
+    values = {}
     for tag_name in _LATERALITY_TAGS:
         if tag_name in dataset:
             normalized = _normalize_laterality(getattr(dataset, tag_name))
             if normalized is not None:
-                return normalized
+                values[tag_name] = normalized
+    return values
+
+
+def _slice_laterality_tag(dataset: pydicom.Dataset) -> str | None:
+    """A single slice's validated laterality call, preferring `Laterality`.
+
+    Does not by itself reveal a `Laterality`/`ImageLaterality` disagreement
+    when both are valid -- see `_slice_laterality_cross_tag_conflict`.
+    """
+    values = _slice_laterality_values(dataset)
+    for tag_name in _LATERALITY_TAGS:
+        if tag_name in values:
+            return values[tag_name]
     return None
+
+
+def _slice_laterality_cross_tag_conflict(dataset: pydicom.Dataset) -> bool:
+    """Whether `Laterality` and `ImageLaterality` are both valid and disagree."""
+    values = _slice_laterality_values(dataset)
+    return len(set(values.values())) > 1
 
 
 def central_band_indices(
@@ -246,12 +266,23 @@ class SeriesAudit:
             physical direction `InstanceNumber` increases in without a
             separately fixed geometry-axis convention.
         laterality_tag_present_fraction: Fraction of slices carrying a valid
-            (`L`/`R`) `Laterality` or `ImageLaterality` value.
+            (`L`/`R`) `Laterality` or `ImageLaterality` value. `0.0` is "no
+            slice has a valid tag", `1.0` is "every slice does" (complete
+            coverage); values between are partial coverage.
         laterality_tag: The validated laterality value shared by every
             tag-bearing slice, or `None` if no slice has a valid tag, or if
-            tag-bearing slices disagree with each other.
-        laterality_tag_consistent: Whether every tag-bearing slice agrees
-            (trivially `True` if no slice has a valid tag).
+            tag-bearing slices disagree with each other. Where a slice has
+            both a valid `Laterality` and a disagreeing valid
+            `ImageLaterality`, this uses `Laterality`'s value (see
+            `laterality_cross_tag_conflict` for whether that happened).
+        laterality_tag_consistent: Whether every tag-bearing slice's *call*
+            (post cross-tag precedence) agrees (trivially `True` if no slice
+            has a valid tag).
+        laterality_cross_tag_conflict: Whether any single slice has both a
+            valid `Laterality` and a valid `ImageLaterality` that disagree
+            with each other -- a stronger, more specific signal than
+            `laterality_tag_consistent`, which only compares the resolved
+            call across slices and would not by itself surface this.
         laterality_from_geometry: The geometry-derived laterality call, if
             resolvable.
         laterality_conflict: Whether `laterality_tag` and
@@ -261,6 +292,9 @@ class SeriesAudit:
             while `laterality_from_geometry` is resolved -- the case where a
             geometry fallback actually recovers a call the tag alone
             couldn't make.
+        laterality_resolved_call: The series' final laterality call a real
+            pipeline would use -- `laterality_tag` if resolved, else
+            `laterality_from_geometry`, else `None`.
         pixel_spacing: The first slice's `PixelSpacing`, if present.
         decode_attempted: How many slices a full pixel decode was tried on.
         decode_failures: How many of those decodes raised an exception.
@@ -276,13 +310,99 @@ class SeriesAudit:
     laterality_tag_present_fraction: float
     laterality_tag: str | None
     laterality_tag_consistent: bool
+    laterality_cross_tag_conflict: bool
     laterality_from_geometry: str | None
     laterality_conflict: bool
     laterality_filled_by_geometry: bool
+    laterality_resolved_call: str | None
     pixel_spacing: tuple[float, float] | None
     decode_attempted: int
     decode_failures: int
     decode_results: tuple[tuple[str, bool], ...]
+
+
+def _order_paths_by_geometry(
+    dcm_paths: Sequence[Path], headers: Sequence[pydicom.Dataset]
+) -> list[Path]:
+    """`dcm_paths` reordered by true DICOM geometry, or unchanged if untagged."""
+    has_full_geometry_tags = all(
+        "ImagePositionPatient" in ds and "ImageOrientationPatient" in ds for ds in headers
+    )
+    if not has_full_geometry_tags:
+        return list(dcm_paths)
+    normal = slice_normal(headers[0].ImageOrientationPatient)
+    positions = [slice_position(ds.ImagePositionPatient, normal) for ds in headers]
+    rank = np.argsort(positions)
+    return [dcm_paths[i] for i in rank]
+
+
+def anatomically_ordered_paths(series_dir: Path) -> list[Path]:
+    """Every `.dcm` in `series_dir`, ordered by true DICOM geometry.
+
+    Falls back to filename order when geometry tags aren't available on
+    every slice. Exposed so callers besides `audit_series` (e.g. the actual
+    slice-sampling pipeline) order slices the same, empirically-checked way
+    rather than re-deriving or duplicating this logic.
+
+    Args:
+        series_dir: Directory containing one series' `.dcm` slice files.
+
+    Returns:
+        Paths sorted into anatomical order.
+
+    Raises:
+        FileNotFoundError: If `series_dir` contains no `.dcm` files.
+    """
+    dcm_paths = sorted(series_dir.glob("*.dcm"))
+    if not dcm_paths:
+        raise FileNotFoundError(f"No .dcm files found in {series_dir}")
+    headers = [pydicom.dcmread(path, stop_before_pixels=True) for path in dcm_paths]
+    return _order_paths_by_geometry(dcm_paths, headers)
+
+
+@dataclass(frozen=True)
+class GroupLateralityAgreement:
+    """Aggregate laterality-call agreement across a group of series.
+
+    Intended for an ephemeral, in-memory grouping (e.g. every series in one
+    study, or just its up-to-three plane-representative series) -- callers
+    are responsible for never persisting the identifiers used to form the
+    group alongside this result.
+
+    Attributes:
+        total: Number of series in the group.
+        resolved: Number of series with a non-`None` call.
+        consistent: Whether every resolved call agrees (trivially `True` if
+            none are resolved).
+        consensus_call: The shared call if `consistent` and at least one
+            series resolved, else `None`.
+    """
+
+    total: int
+    resolved: int
+    consistent: bool
+    consensus_call: str | None
+
+
+def aggregate_group_laterality(resolved_calls: Sequence[str | None]) -> GroupLateralityAgreement:
+    """Summarize agreement across a group's per-series `laterality_resolved_call`s.
+
+    Args:
+        resolved_calls: One `SeriesAudit.laterality_resolved_call` per series
+            in the group (`None` where unresolved).
+
+    Returns:
+        The computed `GroupLateralityAgreement`.
+    """
+    present = [call for call in resolved_calls if call is not None]
+    distinct = set(present)
+    consistent = len(distinct) <= 1
+    return GroupLateralityAgreement(
+        total=len(resolved_calls),
+        resolved=len(present),
+        consistent=consistent,
+        consensus_call=present[0] if consistent and present else None,
+    )
 
 
 def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
@@ -317,16 +437,15 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
     )
 
     agreement: float | None = None
-    ordered_paths = dcm_paths
     if has_full_geometry_tags:
         normal = slice_normal(first.ImageOrientationPatient)
         positions = [slice_position(ds.ImagePositionPatient, normal) for ds in headers]
         instance_numbers = [int(ds.InstanceNumber) for ds in headers]
         agreement = order_agreement(instance_numbers, positions)
-        rank = np.argsort(positions)
-        ordered_paths = [dcm_paths[i] for i in rank]
+    ordered_paths = _order_paths_by_geometry(dcm_paths, headers)
 
     slice_laterality_tags = [_slice_laterality_tag(ds) for ds in headers]
+    has_cross_tag_conflict = any(_slice_laterality_cross_tag_conflict(ds) for ds in headers)
     present_tags = [tag for tag in slice_laterality_tags if tag is not None]
     laterality_tag_present_fraction = len(present_tags) / slice_count if slice_count else 0.0
     distinct_tags = set(present_tags)
@@ -347,6 +466,7 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
         laterality_tag and geometry_laterality and laterality_tag != geometry_laterality
     )
     laterality_filled_by_geometry = bool(laterality_tag is None and geometry_laterality is not None)
+    laterality_resolved_call = laterality_tag if laterality_tag is not None else geometry_laterality
 
     pixel_spacing = (
         (float(first.PixelSpacing[0]), float(first.PixelSpacing[1]))
@@ -380,9 +500,11 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
         laterality_tag_present_fraction=laterality_tag_present_fraction,
         laterality_tag=laterality_tag,
         laterality_tag_consistent=laterality_tag_consistent,
+        laterality_cross_tag_conflict=has_cross_tag_conflict,
         laterality_from_geometry=geometry_laterality,
         laterality_conflict=laterality_conflict,
         laterality_filled_by_geometry=laterality_filled_by_geometry,
+        laterality_resolved_call=laterality_resolved_call,
         pixel_spacing=pixel_spacing,
         decode_attempted=len(sample_indices),
         decode_failures=decode_failures,

@@ -127,7 +127,7 @@ only; pooled out-of-fold macro-AUC as the primary internal score.
   "teacher" for a future weak-label pipeline if that path is ever reopened
   (its own reliability gate, not assumed) — but not a component that can be
   blended into a real submission the way Phase 3C originally assumed (round
-  40, finding 1).
+  38, finding 1).
 
 ### Phase 3B — Frozen Image-Embedding Baseline — design proposed, not yet approved
 
@@ -170,9 +170,12 @@ Informed directly by lessons pulled from this user's prior Kaggle repos
   came from adding a genuinely different second model/modality, not from
   hand-tuning per-class blend weights — and per-label threshold tuning on
   a handful of positive examples (exactly our situation with only 58
-  human labels) produced noise, not signal, in that project too. A
-  distinct text-based classifier combined with an imaging model is a
-  stronger lever here than fine-tuning either one further.
+  human labels) produced noise, not signal, in that project too. Since
+  test-time report text doesn't exist (Phase 3A), this lever means diverse
+  *image* representations — different planes/encoders, not a text-plus-
+  image ensemble — or a separately gated report-derived teacher role
+  (Phase 3A as weak-label signal, not a same-input ensemble member) — a
+  stronger lever here than fine-tuning one representation further.
 - **Consider a post-processing/label-cleaning layer, not just model
   architecture.** `kaggle-biohub-cell-tracking-during-development` found
   every top public solution — trained or classical — converged on the
