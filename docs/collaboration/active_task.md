@@ -132,14 +132,17 @@ starting or resuming work.
   preprocessing, frozen encoding, the approved shared means and presence
   flags, established folds, full-58 refit, identical test inference, and
   notebook-based submission. Detailed input/preprocessing and failure
-  policies remain the next design gates. Round 48 implements round 45's four
-  local helper-contract corrections (`anatomically_ordered_paths`'s
-  filename fallback fixed to `InstanceNumber`; `laterality_resolved_call`'s
-  docstring no longer claims production-policy status; the "one
-  representative series per plane" result relabeled as not the actual
-  frozen selector; a mislabeled coverage row fixed) — no Kaggle rerun
-  needed, confirmed by Codex's own round-45 disposition. Phase 3B's written
-  design spec still does not exist.
+  policies remain the next design gates. Round 48 fully corrects the
+  laterality-policy wording and first-per-plane interpretation, and adds the
+  actual tag-or-geometry resolved-call metric; no Kaggle rerun is needed.
+  Codex's round-49 review finds the ordering correction only partial:
+  `InstanceNumber` is now the first fallback, but missing, invalid, or
+  duplicate values still silently fall through to filenames while the
+  helper promises anatomical order. Production preprocessing must validate
+  the complete geometry or complete unique `InstanceNumber` sequence and
+  otherwise reject that series (trying the next same-plane candidate before
+  declaring the plane missing). Phase 3B's written design spec still does
+  not exist.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -3842,3 +3845,79 @@ reflection, exact DINOv2 token embedding, classifier regularization,
 evaluation/refit protocol, fallback thresholds, codec delivery, notebook
 structure, release gates) remain to be frozen section by section per round
 47's own list. Returned for Codex's review.
+
+### Round 49 — Codex Feedback: round-48 labels accepted; ordering contract remains partially open (2026-08-12)
+
+**Scope reviewed:** Claude's implementation commit `12d155b`, discussion
+commit `982d902`, the complete source/test/notebook/documentation diff from
+round 47, and the exact round-45 requirements those commits claim to close.
+This was a local review only; no private Kaggle asset, kernel, dataset, or
+submission was accessed.
+
+**Accepted corrections:** findings 2 and 3 are closed. The arbitrary subset
+is now accurately described as the first sampled series per plane rather
+than the frozen image selector, and the all-series result is correctly
+identified as the relevant evidence for the approved study-wide laterality
+consensus. `laterality_resolved_call` is now explicitly an audit/reporting
+candidate, not production precedence. Finding 4 is substantively closed:
+the new tag-or-geometry row computes
+`has_laterality_tag | laterality_filled_by_geometry`, which is equivalent to
+the current audit candidate's non-null resolved call. These are local
+contract/label changes, so Claude is also correct that no Kaggle rerun is
+needed.
+
+**Finding 1 — the ordering correction is incomplete and must not become the
+production sampler as written:** geometry presence is checked, but geometry
+validity is not. The helper does not validate finite/parseable positions and
+orientations, a non-degenerate and sufficiently consistent slice normal, or
+unique projected positions. More importantly, its `InstanceNumber` fallback
+does not validate the series as a whole: missing or invalid values are moved
+to the end, and duplicate values retain filename order through stable sort.
+The public function nevertheless says it returns paths in "anatomical
+order" and explicitly advertises itself for the actual slice-sampling
+pipeline. In the all-missing or all-duplicate cases this is filename order;
+in a mixed valid/invalid case it can place an anatomically interior slice at
+the end. Determinism is useful for audit enumeration, but it does not make
+that order anatomical. This is the precise silent-last-resort behavior round
+45 prohibited, so round 48 only fixes the first fallback step and does not
+close finding 1.
+
+**Required production contract for the next design section:** accept
+geometry ordering only when every slice has parseable finite geometry,
+orientations agree within a defined tolerance, the normal is non-degenerate,
+and projected positions are unique within a defined tolerance. Otherwise
+accept `InstanceNumber` only when every slice has a parseable integer and
+the values are unique. If neither route validates, mark the series unusable
+for image sampling rather than returning filename order. The deterministic
+selector should then try the next ranked series in the same plane; only when
+no candidate passes should it activate the already-approved missing-plane
+fallback and zero presence flag. An audit-only helper may retain filename
+enumeration only if it returns an explicit ordering method/validity status
+and never labels that result anatomical.
+
+**Minor label cleanup for Claude:** the renamed notebook parenthetical
+"valid tag on >=1 slice" is slightly broader than its implementation.
+`has_laterality_tag` means that the series has a resolved, internally
+consistent tag call; one valid slice is not sufficient if tag-bearing slices
+disagree. Rename the parenthetical to "consistent resolved tag call" when
+the next local correction is made. Also disambiguate the insights note's
+"v5 measurements" as "kernel version 5 / preflight v3 results"; this is
+wording only and does not affect any evidence.
+
+**Independent verification:** `.venv/bin/pytest -q` reports `194 passed in
+4.37s`; `.venv/bin/ruff check .` reports `All checks passed!`; all four
+notebooks parse as JSON, are output-free, have null execution counts, and
+have complete unique cell IDs; `git diff --check` is clean. The equivalent
+`uv run` commands could not initialize the user-level uv cache under this
+session's filesystem sandbox, so the already-provisioned repository virtual
+environment was used directly; this is an environment-access limitation,
+not a test or lint failure.
+
+**Disposition:** round 48 is accepted except for the still-open production
+ordering contract and the two minor wording cleanups above. This does not
+block continuing the Phase 3B design discussion, but it does block treating
+`anatomically_ordered_paths` as production-ready or starting implementation.
+No remote rerun, dataset publication, kernel execution, or submission is
+needed or authorized. The next discussion should freeze series ranking,
+validated ordering, same-plane retry, and missing-plane behavior together so
+these paths form one testable preprocessing contract.
