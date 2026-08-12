@@ -161,7 +161,11 @@ starting or resuming work.
   present-but-invalid geometry or missing `InstanceNumber`, and the geometry
   gate compares only slice normals rather than the approved full
   orientation. These corrections must close before the selector is
-  production-ready.
+  production-ready. Round 53 independently reproduced all three findings
+  locally before fixing them (each reproduced exactly as Codex described),
+  fixed all three, and added regression tests. No Kaggle rerun yet -- Codex's
+  own disposition recommends a rerun only after these local corrections are
+  reviewed.
   Phase 3B's written design spec still does not exist; remaining sections
   (crop dimensions, intensity transform, geometry-aware laterality
   reflection, DINOv2 token embedding, classifier regularization,
@@ -4178,3 +4182,79 @@ those local corrections are reviewed; verify the same aggregate-only
 outputs, with no submission. Then write and review the complete Phase 3B
 spec before any further modeling implementation, dataset publication,
 kernel execution, or submission.
+
+### Round 53 — Claude: all three round-52 findings independently reproduced and fixed (2026-08-12)
+
+**User authorization:** "check codex review and discuss" — reviewing round
+52 and, per this project's established discipline, independently
+reproducing each finding before accepting and fixing it rather than
+accepting on description alone.
+
+**Independent reproduction (before any fix):** all three findings and both
+supporting claims reproduced exactly as described, using the actual project
+code:
+
+- `pydicom.errors.InvalidDicomError` confirmed importable; `ds.InstanceNumber`
+  on a `Dataset` missing that tag confirmed to raise `AttributeError` (not
+  return a sentinel).
+- Finding 1: a `select_validated_series` call with a malformed top-ranked
+  candidate and a valid second candidate raised
+  `InvalidDicomError` and never reached the valid series.
+- Finding 2: `audit_series` raised `ValueError` on a degenerate-but-present
+  orientation, and separately raised `AttributeError` on valid geometry
+  with no `InstanceNumber` on any slice.
+- Finding 3: a two-slice series with the same derived normal but a
+  90-degree in-plane rotation between slices validated via the geometry
+  route before the fix (confirmed by disabling the `InstanceNumber`
+  fallback with a duplicate value and observing `usable=True, method=
+  "geometry"`).
+
+**Fixes (commit `3fa0055`):**
+
+1. **Finding 1:** `validate_and_order_series`'s header-read step now catches
+   `pydicom.errors.InvalidDicomError` and `OSError` specifically (not a
+   blanket `except Exception`, per Codex's own caution against hiding
+   programming errors) and returns `usable=False` instead of propagating --
+   the same outcome as a failed geometry/`InstanceNumber` validation, so
+   `select_validated_series`'s existing retry loop handles it automatically
+   without needing its own change.
+2. **Finding 2:** `audit_series`'s `order_agreement` computation and its
+   geometry-laterality computation are now each wrapped in narrow
+   `except (ValueError, TypeError, AttributeError)` blocks, falling back to
+   `None` rather than crashing the whole audit -- `has_full_geometry_tags`
+   only ever meant tag *presence*, not validity, and the surrounding code
+   now actually respects that distinction instead of assuming presence
+   implies a valid, complete slice stack.
+3. **Finding 3:** `_validated_geometry_order` now implements the full
+   round-50-approved contract: unit-length row/column direction cosines
+   (within a new `unit_norm_tolerance`), mutual orthogonality (within a new
+   `orthogonality_tolerance`), and per-slice row *and* column consistency
+   against the first slice's (not just the derived normal) -- closing the
+   exact 90-degree-rotation gap Codex reproduced. All four tolerance
+   constants (`orientation`, `position_mm`, `unit_norm`, `orthogonality`)
+   are now named, justified in a code comment (what each protects against
+   and why its specific default value), and exposed as `validate_and_
+   order_series` parameters that reject out-of-range values (e.g.
+   `orientation_tolerance` outside `[-1.0, 1.0]`, any of the others
+   negative) rather than silently accepting nonsensical configurations.
+4. **Minor corrections:** `audit_series`'s docstring no longer claims its
+   decode sample is drawn from "the anatomically-ordered stack"
+   unconditionally -- states the filename-order fallback explicitly.
+   `docs/7_image_baseline_insights.md`'s v4 disposition corrected from "15
+   new tests" to the accurate 36→39 / 13→28 (18 total) breakdown Codex
+   pointed out.
+
+12 new regression tests (one per reproduced scenario, plus tolerance-range
+validation and the `dataset.py`-level retry-on-unreadable-file case) --
+`test_series_audit.py` and `test_dataset.py` combined now have 218 tests,
+up from 206.
+
+**Verification:** `uv run pytest -q` → `218 passed`; `uv run ruff check .`
+→ clean; `git diff --check` clean.
+
+**Not yet done -- deliberately gated:** Codex's round-52 disposition
+explicitly recommends a Kaggle rerun only *after* these local corrections
+are reviewed, not immediately once local tests pass. No dataset publish or
+kernel push has happened this round. This is a genuine tension with the
+user's stated GPU-kernel-early preference (round 51) -- surfaced back to
+the user rather than resolved unilaterally.
