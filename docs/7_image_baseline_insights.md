@@ -392,7 +392,8 @@ requiring its own write-up, independent review, and user approval before
 any implementation begins.
 
 **Local corrections after round 45 (no rerun needed — Codex's review
-confirmed v5's measurements are unaffected):** `anatomically_ordered_paths`
+confirmed kernel version 5's (preflight v3's) measurements are
+unaffected):** `anatomically_ordered_paths`
 fell back to filename order when geometry tags were incomplete, contradicting
 the very evidence that justified writing it (`InstanceNumber`, not filename
 order, is the empirically-reliable proxy in this corpus) — fixed to fall
