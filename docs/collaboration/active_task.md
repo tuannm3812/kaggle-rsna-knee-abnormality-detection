@@ -81,7 +81,19 @@ starting or resuming work.
   projection targets the wrong train/scope populations. The Phase 3B design
   itself is still not written, reviewed, or approved; a focused preflight-v2
   correction and explicit-T4 timing rerun is recommended before the user
-  chooses the one-series versus compact-multi-plane scope.
+  chooses the one-series versus compact-multi-plane scope. At the user's
+  direction, Claude implemented all five round-40 corrections and reran with
+  an explicit T4 request — recorded in round 41. Two corrections changed the
+  substantive conclusion, not just precision: `InstanceNumber`'s physical
+  direction is inconsistent across ~37% of sampled series (each series
+  stays internally monotonic, but direction varies between series), and
+  laterality tag coverage is lower than v1 reported (0.53 vs 0.82) though
+  geometry now-measurably fills 97% of that gap. GPU timing is measured for
+  real: the compact three-series-per-study design costs under 10 minutes for
+  the actual 1,358-study (58 train + ~1,300 test) workload, removing runtime
+  as an argument for staying minimal. The Phase 3B design spec is still not
+  written; the single-series-vs-multi-plane choice is well-informed on plane-
+  coverage and runtime grounds but remains the user's call.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -3144,3 +3156,129 @@ remote execution is authorized by this review. Codex recommends one narrow
 preflight-v2 correction, an explicitly requested T4 timing rerun through the
 standard wrapper after user approval, and then a user choice between the
 speed-first single-series baseline and the compact three-plane baseline.
+
+### Round 41 — Claude: all five round-40 corrections implemented, T4 rerun complete (2026-08-12)
+
+**User authorization:** "you can do both and discuss back with codex" —
+approving both implementing the preflight-v2 corrections and pushing the
+explicit-T4 rerun round 40 recommended, with the result recorded here for
+Codex's review.
+
+**Independent verification before implementing anything:** Codex's two most
+checkable claims were re-verified directly rather than accepted on
+description alone. `importlib.util.find_spec` confirms `pylibjpeg_libjpeg`/
+`pylibjpeg_openjpeg` (the names v1's probe used) are not real importable
+modules, while `libjpeg`/`openjpeg` are. `kaggle kernels push -h` confirms
+`--accelerator ACC` is real, and `NvidiaTeslaT4` is a real value found in
+the installed `kagglesdk`'s own source
+(`kagglesdk/kernels/types/kernels_api_service.py`). Both checked out
+exactly as described.
+
+**Fixes (commits `7e814ef`, `6600780`, `7d17933`, `dca3b1c`):**
+
+1. **Finding 1 (signed order agreement):** `src/knee_mri/series_audit.py`'s
+   `order_agreement` already returned the signed value; the bug was only in
+   the notebook, which displayed/interpreted `.abs()` throughout. Now
+   reports mean signed value plus fraction-monotonic/same-direction/
+   reversed, and the interpretation prose no longer says the orders
+   "agree" unqualified.
+2. **Finding 2 (laterality under-measured):** `SeriesAudit` redesigned —
+   `audit_series` now checks every slice (not just the first) for both
+   `Laterality` and `ImageLaterality` (with defined precedence), validates
+   values are actually `L`/`R`, flags within-series inconsistency, and adds
+   `laterality_filled_by_geometry` to measure the fallback's fill rate
+   specifically among tag-missing series rather than an overall conflict
+   rate alone. `laterality_from_geometry`'s center-pixel formula corrected
+   to `(columns - 1) / 2` / `(rows - 1) / 2` (the exact DICOM mapping,
+   previously `columns / 2` / `rows / 2` — immaterial at this pixel
+   spacing given the 20mm dead zone, but wrong as stated).
+3. **Finding 3 (codec probe):** module names corrected; `SeriesAudit` now
+   returns `decode_results` (transfer-syntax, success) pairs per attempted
+   decode, and the notebook adds a decode-by-transfer-syntax breakdown.
+4. **Finding 4 (wrong workload):** the GPU timing projection now uses
+   `GOLD_LABELED_STUDY_COUNT (58) + DOCUMENTED_HIDDEN_TEST_STUDY_COUNT
+   (1300)` instead of all 4,407 train studies, and projects one-series and
+   three-series (compact multi-plane, one series per plane) scenarios
+   instead of "all series per study."
+5. **Finding 5 (documentation):** `docs/1_instructions.md`'s "same schema"
+   claim corrected (test.csv differs, test_series.csv/test_series/ match,
+   both stated as verified against real data, not assumed);
+   `docs/3_strategy.md`'s Phase 3A/3B/3C sections rewritten to stop
+   presenting the impossible report-submission path and direct OOF fusion
+   as active next steps, without asserting Phase 3B is approved (it isn't);
+   README status/badge/layout updated to match; the notebook's reintroduced
+   internal-workflow-language phrase ("the offline review workflow this
+   project uses") removed and `INTERNAL_WORKFLOW_PHRASES` extended with
+   "review workflow" to catch recurrence; `docs/0_coding_standards.md` and
+   `docs/6_kaggle_troubleshooting.md` now document the 50-character kernel
+   title limit, the title/id slug auto-migration behavior, the P100/PyTorch
+   compute-capability gap, and the kernel-output retrieval gap as reusable
+   platform knowledge.
+
+Also extended `scripts/push_kaggle_kernel.sh` with an optional
+`[accelerator]` argument (`--accelerator` passthrough) rather than bypassing
+the wrapper for the T4 request — the wrapper exists specifically because a
+direct `kaggle kernels push` call caused round 39's wasted kernel runs.
+
+**Execution:** published `rsna-knee-mri-src` dataset version **8** (commit
+`7e814ef`); pushed via `scripts/push_kaggle_kernel.sh image-baseline-
+preflight NvidiaTeslaT4` → kernel version 4 → `KernelWorkerStatus.COMPLETE`
+on the first attempt, allocated a Tesla T4 (compute capability 7.5,
+compatible with the installed `torch==2.10.0+cu128`) as requested.
+
+**Results — full detail in `docs/7_image_baseline_insights.md`'s new "v2"
+section (v1's section left unedited per this file's append-only
+convention, with a pointer added noting which parts v2 supersedes); two
+corrections changed the substantive conclusion, not just its precision:**
+
+- **`InstanceNumber` direction is inconsistent across series.** Signed
+  order agreement: mean **0.2506**, fraction monotonic (`|r| > 0.99`)
+  **1.0** (each series individually still perfectly ordered), fraction
+  same-direction **0.6253**, fraction reversed **0.3747**. Round 38's
+  caution was right to block the unqualified "agree" conclusion: about 3 in
+  8 series run the opposite physical direction from the rest.
+  `InstanceNumber` remains fine for symmetric central-band sampling pooled
+  by an order-invariant operation (the round-37 proposal's plan), but not
+  for anything assuming a fixed physical direction across series.
+- **Laterality coverage is lower than v1 reported, but geometry fills
+  nearly all of the gap.** Validated tag coverage (every slice, both tags,
+  valid values only): **0.5255** (v1's 0.8187 counted first-slice-only,
+  unvalidated presence — including empty/invalid values). The number that
+  actually answers the fallback question: **0.9692** of tag-missing series
+  are resolved by geometry. Effective combined coverage ≈98.5%. Conflict
+  rate where both resolvable: **0.0118** (comparable to v1's 0.0076 — the
+  tag remains reliable when present).
+- **Decode reliability is now fully explained.** All 4,110 attempted
+  decodes used transfer syntax `1.2.840.10008.1.2.1` (uncompressed Explicit
+  VR Little Endian) — v1's "unexplained" zero-failure caveat is resolved:
+  nothing compressed was in the sample, not "codecs mysteriously worked."
+  None of `pylibjpeg`/`libjpeg`/`openjpeg`/`gdcm` are importable in this
+  Kaggle environment — a real risk if a compressed-syntax slice is ever
+  encountered by the real pipeline, not yet tested.
+- **`PixelSpacing` tag coverage: 1.0** (new measurement).
+- **GPU timing, measured for real.** Tesla T4: 0.0105s/slice decode,
+  0.0185s/slice DINOv2-small forward pass. Projected against the actual
+  workload (58 + ~1,300 = 1,358 studies, corrected from 4,407): one series
+  per study ≈**0.055 hours**; three series per study (compact multi-plane)
+  ≈**0.164 hours** — both roughly 55× to 164× under the competition's 9-hour
+  budget. Combined with plane coverage already at 1.0, **runtime is no
+  longer an argument for preferring the minimal one-series design over the
+  compact three-series one** — round 37's speed-first reasoning for staying
+  minimal no longer holds on this axis specifically. This doesn't decide
+  the scope by itself (model/code complexity and expected accuracy still
+  matter) and remains the user's choice to make.
+
+**Verification:** `uv run pytest -q` → `181 passed` (`tests/
+test_series_audit.py` grew from 18 to 23 tests covering the new laterality/
+decode-result fields); `uv run ruff check .` → clean; all four notebooks
+pass JSON validation, output-free, unique cell IDs; `git diff --check`
+clean at every commit; live `kaggle kernels status` confirms kernel version
+4 `COMPLETE`; the downloaded `preflight_audit_summary.json` was read
+directly and its values transcribed above without rounding beyond what's
+shown.
+
+**Not yet done:** no Phase 3B design spec written, reviewed, or approved.
+The single-series-vs-multi-plane scope choice is now substantially
+de-risked on both plane-coverage and runtime grounds, but is presented here
+as evidence for the user's decision, not decided unilaterally. Returned for
+the user's and Codex's review.
