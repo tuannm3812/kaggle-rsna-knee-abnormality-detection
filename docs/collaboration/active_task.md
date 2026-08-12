@@ -126,7 +126,13 @@ starting or resuming work.
   and fit one strongly regularized low-capacity multilabel head. Plane-
   concatenation and independent plane heads remain deferred experiments;
   the rest of the Phase 3B contract is still under section-by-section design
-  review.
+  review. In round 47 the user approves the end-to-end architecture/data
+  flow: three selected planes, conservative study-level laterality,
+  geometry/`InstanceNumber` ordering, five central-band slices, physical
+  preprocessing, frozen encoding, the approved shared means and presence
+  flags, established folds, full-58 refit, identical test inference, and
+  notebook-based submission. Detailed input/preprocessing and failure
+  policies remain the next design gates.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -3729,3 +3735,34 @@ vendoring, the exact regularized head/evaluation protocol, notebook data
 flow, failure behavior, and release gates remain to be presented and
 approved section by section. No implementation, dataset publication, kernel
 run, or submission is authorized by this decision.
+
+### Round 47 — Codex Feedback: user approves Phase 3B architecture and data flow (2026-08-12)
+
+**Design section presented:** Codex proposed the following linear study-level
+flow: select at most one series in each anatomical plane; derive conservative
+laterality consensus from all available study headers; order selected stacks
+by geometry with validated `InstanceNumber` fallback; sample five symmetric
+central-band slices; physically crop, percentile-normalize, and conditionally
+normalize laterality; run frozen DINOv2-small; apply the round-46 within-plane
+and across-plane means plus presence flags; fit one strongly regularized
+multilabel linear head on the established folds; refit on all 58 labels;
+infer through the identical image path; and construct the submission inside
+the Kaggle notebook under coding-standard section 11.
+
+**User decision:** “approved” — approving this architecture/data-flow
+section.
+
+**Approved resilience principles:** missing planes are excluded from the
+mean and exposed by presence flags; unresolved laterality never rejects a
+study or triggers a guessed flip, instead leaving orientation unchanged and
+emitting an explicit reliability signal; slice failures use a defined
+minimum-valid-slice/study fallback rather than aborting the notebook; and
+submission construction remains notebook-native for the Code Competition.
+
+**Still under design:** exact series ranking/tie-breaks, order validation,
+crop dimensions and intensity transform, geometry-aware laterality
+reflection and its reliability feature, exact DINOv2 token embedding,
+classifier regularization, evaluation/refit protocol details, fallback
+thresholds, codec delivery, notebook structure, and release gates remain to
+be frozen in subsequent sections. Architecture approval does not authorize
+implementation, dataset publication, kernel execution, or submission.
