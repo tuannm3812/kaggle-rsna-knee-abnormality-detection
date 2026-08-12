@@ -132,7 +132,14 @@ starting or resuming work.
   preprocessing, frozen encoding, the approved shared means and presence
   flags, established folds, full-58 refit, identical test inference, and
   notebook-based submission. Detailed input/preprocessing and failure
-  policies remain the next design gates.
+  policies remain the next design gates. Round 48 implements round 45's four
+  local helper-contract corrections (`anatomically_ordered_paths`'s
+  filename fallback fixed to `InstanceNumber`; `laterality_resolved_call`'s
+  docstring no longer claims production-policy status; the "one
+  representative series per plane" result relabeled as not the actual
+  frozen selector; a mislabeled coverage row fixed) — no Kaggle rerun
+  needed, confirmed by Codex's own round-45 disposition. Phase 3B's written
+  design spec still does not exist.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -3766,3 +3773,72 @@ classifier regularization, evaluation/refit protocol details, fallback
 thresholds, codec delivery, notebook structure, and release gates remain to
 be frozen in subsequent sections. Architecture approval does not authorize
 implementation, dataset publication, kernel execution, or submission.
+
+### Round 48 — Claude: round-45's local helper-contract corrections implemented (2026-08-12)
+
+**User authorization:** "help me to review codex feedback and discuss back"
+— directing review and implementation of round 45's findings (rounds 46-47
+are user+Codex design decisions already recorded directly, not implementation
+findings, so no code follows from them yet).
+
+**Scope:** round 45 accepted the v3 preflight evidence outright (no v4
+rerun needed) but flagged four local code/label issues to fix during design,
+plus a recommendation (finding 5) already superseded by rounds 46-47's
+direct design approvals. Fixed the four (commit `12d155b`):
+
+1. **Finding 1 (`anatomically_ordered_paths` wrong fallback):** it fell
+   back to filename order when geometry tags were incomplete — contradicting
+   the exact evidence that justified writing the function in the first
+   place (round 39/41's audit measured `InstanceNumber`, not filename/SOP-UID
+   order, as the reliable proxy in this corpus; `dicom_io.py::load_series`
+   already sorts by `InstanceNumber` for this reason). Fixed the fallback
+   chain to geometry → `InstanceNumber` → filename (the last only as a
+   final, deterministic tie-break for missing/duplicate/invalid instance
+   numbers, via Python's stable sort). Confirmed via a corrected regression
+   test (the prior test's filename and `InstanceNumber` order happened to
+   coincide, masking the bug) plus a new duplicate-tie-break test. **No
+   Kaggle rerun performed or needed** — Codex's own round-45 verification
+   already established the audited sample had 1.0 geometry-tag coverage
+   throughout, so this fallback path never executed in v3's real results.
+2. **Finding 2 ("one representative series per plane" mislabeled):**
+   relabeled in both the notebook (column name, code comment, and
+   interpretation prose) and `docs/7_image_baseline_insights.md`'s v3 entry
+   to state plainly that this is the first sampled series encountered per
+   plane, not `select_primary_series`'s actual `Fluid_Sensitive == 1`-
+   preferring selection — and that the all-series study result is the more
+   directly applicable one now that round 47 approved deriving laterality
+   consensus from every available series header, not from an image
+   selector's specific pick.
+3. **Finding 3 (`laterality_resolved_call` overstated as policy):**
+   reworded the field's docstring to state its tag-over-geometry precedence
+   is an audit/reporting convenience only — not an approved production
+   policy, since that's part of the still-unwritten Phase 3B design.
+4. **Finding 4 (mislabeled/imprecise labels):** the notebook's "Laterality
+   resolved-call coverage (any valid slice)" row was actually computed from
+   tag presence alone (`has_laterality_tag`) — renamed to "Laterality
+   tag-call coverage" and added a genuinely-computed "Laterality
+   resolved-call coverage (tag or geometry)" row alongside it. Round 44's
+   log-entry imprecision (implying the plane-representative subset also hit
+   100% resolved, when the live JSON showed 98.7%) is not itself edited
+   (round 44's numbered entry stands as historical record, consistent with
+   this file's practice of correcting forward rather than rewriting past
+   rounds) — `docs/7_image_baseline_insights.md`'s v3 entry already stated
+   the correct 98.7%/100% distinction and needed no change.
+
+**Not implemented (out of scope for this round):** finding 5 (recommended
+modeling scope) required no separate action — rounds 46 and 47 already
+resolved it directly with the user (shared-mean three-plane aggregation,
+then the full architecture/data-flow approval).
+
+**Verification:** `uv run pytest -q` → `194 passed` (`test_series_audit.py`
+grew from 35 to 36 tests); `uv run ruff check .` → clean; all four notebooks
+pass JSON validation, output-free, unique cell IDs; `git diff --check`
+clean.
+
+**Not yet done:** no Phase 3B design spec written. Detailed input/
+preprocessing and failure-policy sections (series ranking/tie-breaks, order
+validation, crop dimensions, intensity transform, geometry-aware laterality
+reflection, exact DINOv2 token embedding, classifier regularization,
+evaluation/refit protocol, fallback thresholds, codec delivery, notebook
+structure, release gates) remain to be frozen section by section per round
+47's own list. Returned for Codex's review.
