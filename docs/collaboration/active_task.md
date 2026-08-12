@@ -119,7 +119,14 @@ starting or resuming work.
   arbitrary first-per-plane subset is not the actual fluid-sensitive
   candidate selector; and two coverage/status labels overstate the persisted
   values. Phase 3B design discussion may now begin, but its specification and
-  implementation remain unapproved.
+  implementation remain unapproved. In round 46 the user approves Codex's
+  recommended shared-mean aggregation for the first baseline: mean five
+  frozen DINOv2-small slice embeddings within each available plane, then
+  mean the available plane embeddings, append three plane-presence flags,
+  and fit one strongly regularized low-capacity multilabel head. Plane-
+  concatenation and independent plane heads remain deferred experiments;
+  the rest of the Phase 3B contract is still under section-by-section design
+  review.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -3685,3 +3692,40 @@ submission is authorized by this review. Codex recommends next comparing
 three low-capacity ways to aggregate the frozen three-plane embeddings,
 selecting one with the user, then writing the dedicated Phase 3B spec for
 Claude's independent review.
+
+### Round 46 — Codex Feedback: user selects shared-mean three-plane aggregation (2026-08-12)
+
+**Decision presented:** Codex compared three low-capacity aggregation
+contracts for the compact three-plane baseline: (1) shared mean embedding,
+(2) concatenated plane embeddings, and (3) independent plane heads. Codex
+recommended option 1 because only 58 studies have human labels: it preserves
+all three anatomical planes while keeping the learned head at the same small
+feature scale as one DINOv2-small embedding, reducing variance relative to
+approximately tripling the features or classifier count.
+
+**User decision:** “approve” — approving option 1 as the Phase 3B
+aggregation contract.
+
+**Frozen aggregation decision:** select at most one series from each of
+Sagittal, Coronal, and Axial; sample five symmetric central-band slices from
+each available selected series; run the frozen DINOv2-small encoder; mean
+the five slice embeddings within each plane; mean the available plane
+embeddings into one study embedding; append a fixed three-value
+Sagittal/Coronal/Axial presence mask; and fit one strongly regularized,
+low-capacity multilabel head. A missing plane is excluded from the mean and
+represented by its zero presence flag, never replaced with a fabricated
+image or zero embedding included in the denominator.
+
+**Deferred alternatives:** concatenating the three plane embeddings and
+training independent per-plane heads are not part of the first baseline.
+They may be evaluated later only as predefined, separately reviewed
+experiments after a reproducible submittable baseline exists; they are not
+silent fallback choices during implementation.
+
+**Still under design:** this approval freezes aggregation only. Series
+selection/tie-breaking, slice ordering and fallbacks, physical crop and
+normalization, conservative study-level laterality handling, codec
+vendoring, the exact regularized head/evaluation protocol, notebook data
+flow, failure behavior, and release gates remain to be presented and
+approved section by section. No implementation, dataset publication, kernel
+run, or submission is authorized by this decision.
