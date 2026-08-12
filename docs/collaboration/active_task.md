@@ -102,7 +102,19 @@ starting or resuming work.
   scope on coverage and runtime grounds. In round 43 the user explicitly
   approved that narrow correction and one private aggregate rerun, followed
   by formal discussion of the recommended compact three-plane design; this
-  is not approval to implement Phase 3B or submit predictions.
+  is not approval to implement Phase 3B or submit predictions. Round 44
+  implements all four round-42 corrections and reruns: the order-agreement
+  sign is now correctly framed as not cross-series-comparable (the
+  practical conclusion is unchanged — `InstanceNumber` remains adequate for
+  symmetric central-band sampling); a `Laterality`-vs-`ImageLaterality`
+  cross-tag-conflict check now exists (0 found in this sample); new
+  study-level laterality aggregation shows 100% of the 150 sampled studies
+  have a resolved call and 100% of those are internally consistent, both
+  across all series and restricted to plane-representative series only; GPU
+  timing is reframed as a measured-component lower bound (numbers
+  essentially unchanged, ~52x headroom for the three-series design). Phase
+  3B design work has still not started; per round 43's gate, this is
+  returned for Codex's review before that begins.
 - **Previous task:** Phase 2 is accepted and archived at
   `archive/2026-08-09-weak-label-evaluation.md`.
 
@@ -3454,3 +3466,106 @@ brainstorming/design discussion comparing the compact three-plane contract
 against the sagittal-only fallback, with Codex recommending three planes;
 the resulting written Phase 3B specification still requires user approval
 and independent review before any implementation plan begins.
+
+### Round 44 — Claude: all four round-42 corrections implemented, v3 rerun complete (2026-08-12)
+
+**User authorization:** "help me to read codex review and implement" —
+directing implementation of round 42's findings, within round 43's already-
+recorded approval scope (narrow laterality-v3 correction plus one private
+aggregate rerun via the explicit-T4 wrapper).
+
+**Fixes (commit `756f7f5`):**
+
+1. **Finding 1 (order-agreement over-interpretation):** no code change
+   needed to `order_agreement` itself (already correctly signed). Reworded
+   the notebook's column labels (`"fraction r > 0"`/`"fraction r < 0"`,
+   dropping the `"(same direction)"`/`"(reversed)"` annotations) and
+   interpretation prose to state plainly that each series' sign is relative
+   to its own `ImageOrientationPatient`-derived normal, not a shared
+   anatomical axis — the supported conclusion narrows to "adequate for
+   symmetric central-band sampling with order-invariant pooling," not
+   "orders agree."
+2. **Finding 2 (silent cross-tag conflict, missing study-level result):**
+   `series_audit.py` — `_slice_laterality_tag` still resolves a call via
+   `Laterality`-then-`ImageLaterality` precedence, but a new
+   `_slice_laterality_cross_tag_conflict` check and
+   `SeriesAudit.laterality_cross_tag_conflict` field now surface disagreement
+   explicitly rather than silently. Added `laterality_resolved_call` (the
+   call a real pipeline would actually use) and a new
+   `aggregate_group_laterality`/`GroupLateralityAgreement` pair for
+   ephemeral, non-identifier-persisting group aggregation. The notebook now
+   computes and displays study-level and plane-representative-only
+   laterality agreement (round 40's original ask, not delivered until now)
+   by grouping sampled series by study in memory only, discarding the study
+   id before anything is displayed or persisted. Also added a three-way
+   tag-coverage breakdown (complete/partial/none per series).
+3. **Finding 3 (overstated runtime claim, inconsistent slice selection):**
+   extracted the audit's existing geometry-ordering logic into a new public
+   `anatomically_ordered_paths` function (backed by a shared
+   `_order_paths_by_geometry` helper `audit_series` now also calls, so the
+   two can't drift) and switched the GPU-timing cell from a raw filename
+   sort to this function, matching the ordering used everywhere else in the
+   audit. Renamed the timing outputs to `"Lower-bound hours"` /
+   `"Measured seconds per series (decode + GPU forward only)"` and rewrote
+   the interpretation to explicitly list what's excluded (series selection,
+   model loading, embedding storage, head training/CV, dataloader, I/O
+   contention) rather than implying an end-to-end guarantee.
+4. **Finding 4 (stale/broad claims):** `docs/3_strategy.md`'s Phase 3C
+   citation corrected from "round 40, finding 1" to "round 38, finding 1";
+   its Phase 4 lever no longer suggests a test-time text-plus-image
+   ensemble (reworded to diverse image representations/planes or a
+   separately gated report-derived teacher role). The notebook's GPU-timing
+   comment no longer calls the proposal "the approved design." Plane
+   coverage's scope note (1.0 confirmed for train + the 3 visible test
+   examples, not the hidden ~1,300-study test set) added to
+   `docs/7_image_baseline_insights.md`'s v3 entry.
+5. **Finding 5 (codec risk):** no action this round — Codex's own
+   disposition said this is a future Phase 3B design requirement, not
+   something needing another preflight pass now.
+
+12 new tests added to `tests/test_series_audit.py` (35 total, up from 23):
+cross-tag-conflict detection (both conflicting and agreeing), the
+resolved-call field's precedence and fallback behavior,
+`anatomically_ordered_paths`'s geometry-vs-filename-fallback behavior, and
+`aggregate_group_laterality` across consistent/inconsistent/partially-
+unresolved/fully-unresolved groups.
+
+**Execution:** published `rsna-knee-mri-src` dataset version **9** (commit
+`756f7f5`); pushed via `scripts/push_kaggle_kernel.sh image-baseline-
+preflight NvidiaTeslaT4` → kernel version 5 → `KernelWorkerStatus.COMPLETE`
+on the first attempt, Tesla T4 again.
+
+**Results — full detail in `docs/7_image_baseline_insights.md`'s new "v3"
+section (v2 left unedited, with a superseded-by pointer added, same pattern
+as v1→v2):**
+
+- **Order agreement**: same numbers as v2 (mean signed r 0.2506, monotonic
+  fraction 1.0), reframed correctly — not evidence of a shared physical
+  direction across series.
+- **Cross-tag conflict rate: 0.0.** No `Laterality`/`ImageLaterality`
+  disagreement found in this sample, but the check now genuinely exists
+  (previously would have silently resolved a conflict via precedence).
+  Tag coverage is all-or-nothing per series here: complete 0.5255, partial
+  **0.0**, none 0.4745.
+- **Study-level laterality agreement (new): 100% of the 150 sampled studies
+  have at least one resolved call, 100% of those are internally
+  consistent** — both across all sampled series in a study and restricted
+  to just the (up to 3) plane-representative series. No laterality
+  contradiction found at any granularity in this sample.
+- **GPU timing**: decode 0.0161s/slice, GPU forward 0.0144s/slice (close to
+  v2's numbers — normal run-to-run hardware variance). Lower-bound hours:
+  one series per study 0.0574, three series per study 0.1722 (≈10.3
+  minutes) — materially the same conclusion as v2 (~52x headroom against
+  the 9h budget for the three-series design), now correctly scoped as a
+  measured-component lower bound rather than an end-to-end estimate.
+
+**Verification:** `uv run pytest -q` → `193 passed`; `uv run ruff check .`
+→ clean; all four notebooks pass JSON validation, output-free, unique cell
+IDs; `git diff --check` clean at every commit; live `kaggle kernels status`
+confirms kernel version 5 `COMPLETE`; the downloaded
+`preflight_audit_summary.json` was read directly and its values transcribed
+above without rounding beyond what's shown.
+
+**Not yet done:** no Phase 3B design spec written. Per round 43's explicit
+gate, this round's results need Codex's review before the brainstorming/
+design discussion for the compact three-plane candidate begins.
