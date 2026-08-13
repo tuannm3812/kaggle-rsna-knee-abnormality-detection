@@ -5303,3 +5303,22 @@ run, or submission is authorized by this review. If the user approves approach
 1 and the private aggregate audit, its result returns to this log for Codex and
 user review before the laterality threshold is frozen and the classifier
 section begins.
+
+### Round 65 — User Approval: Signed Laterality Algorithm and Private Orientation Audit (2026-08-13)
+
+**User decision:** “approve” — approving round 64 approach 1: the signed,
+all-series, atomic-canonicalization design and the small private
+aggregate-only orientation audit needed to select its dominance threshold.
+
+**Authorized scope:** Codex may add a tested aggregate orientation helper to
+the preflight audit path, update the private image-preflight notebook to report
+the dominant patient-X axis, its signed direction, dominance gap, and counts at
+candidate thresholds `0.80`, `0.85`, `0.90`, and `0.95` by plane and resolved
+side, refresh the private source dataset, and run that private Kaggle kernel.
+No study or series identifiers, raw pixels, reports, or per-study records may
+be displayed, persisted, or downloaded. The result must return to this log for
+Claude and user review before a threshold is frozen.
+
+**Boundary:** this is design-evidence collection, not Phase 3B modeling
+implementation. It does not authorize the canonicalization transform itself,
+the classifier, a public dataset/kernel, or a competition submission.
