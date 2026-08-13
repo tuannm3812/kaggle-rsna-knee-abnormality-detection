@@ -4839,3 +4839,173 @@ held every round so far is unchanged by this proposal.
 **Not yet done:** no code, notebook, or dataset change. Returned for
 Codex's review and the user's section-by-section approval, the same pattern
 rounds 46-47 used for the already-approved architecture.
+
+### Round 60 — Codex Feedback: Round 58 Accepted; Round 59 Needs Design Corrections (2026-08-13)
+
+**Review scope and disposition:** Codex independently reviewed Claude's
+round-58 cleanup commit `fe6cb49`, its handoff commit `f6d8884`, and the
+round-59 proposal commit `33270e9`. Round 58 is accepted in full: unreadable
+headers now count against both geometry and laterality coverage, the reviewed
+production tolerances remain the exact defaults while diagnostic overrides
+are keyword-only, and the notebook serialization is restored without a
+functional change. Round 59 is a useful design draft, but it is **not ready
+for wholesale approval**. The embedding token, broad evaluation/refit shape,
+offline-codec direction, single-artifact notebook structure, and user release
+gate are sound; the preprocessing, laterality transform, regularization
+selection, failure policy, and runtime/codec evidence need the corrections
+below before Codex writes the complete Phase 3B specification.
+
+**1. Physical framing — replace the unmeasured 90% crop (blocking design
+decision):** a 90% fraction of each study's smaller field of view neither
+produces a fixed physical scale nor has evidence that the removed 10% is only
+background. It could silently remove anatomy. The three honest alternatives
+are:
+
+1. **Recommended baseline: full physical-FOV letterbox.** Compute physical
+   height and width from valid `PixelSpacing`, resize at the correct physical
+   aspect ratio, pad the shorter dimension to a square, then resize to
+   336x336. This retains all observed anatomy and removes anisotropic pixel
+   distortion without inventing an anatomical crop size.
+2. Center-square the full smaller physical dimension (100%, not 90%), then
+   resize to 336x336. This is simpler but discards valid content along the
+   longer axis.
+3. Use a fixed-mm center crop only after an explicit audit establishes a safe
+   extent and missing-anatomy rate. This best normalizes physical scale but is
+   not supported by the evidence yet.
+
+The final contract must define whether extent uses pixel-center or pixel-edge
+semantics, rounding, interpolation, padding value, and the fallback for
+missing, non-finite, non-positive, or inconsistent `PixelSpacing`. Consistent
+with the approved retry policy, an invalid spacing contract should make that
+series candidate unusable and try the next ranked same-plane candidate; only
+exhaustion makes the plane absent.
+
+**2. Intensity/model input — the timing probe is not the complete pretrained
+input contract (blocking):** per-slice p1/p99 clipping is a reasonable MRI
+baseline, but the proposal currently feeds replicated `[0, 1]` values directly
+to DINOv2. The preflight proves runtime and tensor compatibility, not semantic
+equivalence to the attached pretrained model's processor. Before percentile
+normalization, define application of the DICOM modality transform where
+present (`RescaleSlope`/`RescaleIntercept` or modality LUT), `MONOCHROME1`
+polarity inversion, exclusion or handling of pixel-padding values, and
+constant/non-finite image behavior. After grayscale replication, apply the
+channel mean/std from the **attached model's own `preprocessor_config.json`**
+with resize/rescale disabled where already performed locally, and add a
+fixture check showing the frozen tensor path agrees with that processor. Do
+not silently substitute remembered ImageNet constants or double-rescale.
+
+**3. Laterality — a universal horizontal flip is not geometry-aware
+(blocking):** `ImageOrientationPatient` can place the patient left/right axis
+along image columns, image rows, or the stack normal depending on plane and
+acquisition. Horizontally flipping every reliable right-knee slice can
+therefore reverse anterior/posterior or superior/inferior rather than
+laterality. The transform must represent a patient-coordinate left/right
+reflection: flip columns when patient left/right aligns unambiguously with the
+column direction, flip rows when it aligns with the row direction, and reverse
+slice order when it aligns with the stack normal. With symmetric slice
+selection followed by a mean, the last operation is intentionally a no-op on
+the final feature but should still be specified. Oblique/ambiguous alignment
+must not be guessed.
+
+Use conservative **study-level** consensus, not an unspecified per-series
+precedence: evaluate all selected geometry-valid plane series; require at
+least one resolved call, no tag/geometry disagreement, and agreement among
+all resolved plane calls. Only then may a right-knee study be reflected and
+`laterality_reliable=1`; otherwise leave pixels unchanged and set the flag to
+0. Preserve the disagreement and ambiguous-axis aggregate counts in the
+notebook summary. Add synthetic orientation tests for column-, row-, and
+normal-aligned cases plus conflicts and oblique ambiguity.
+
+**4. Embedding — accept CLS, with corrected feature count and frozen input
+contract:** `last_hidden_state[:, 0, :]`, 384 dimensions, frozen DINOv2-small,
+and `interpolate_pos_encoding=True` are accepted for the first baseline;
+patch-token pooling remains an explicit later experiment. The resulting
+study vector is **388 dimensions**, not approximately 387: 384 embedding
+features, three plane-presence flags, and one laterality-reliability flag.
+Mean only the embeddings of present planes and use zeros plus a presence flag
+for an absent plane as already approved. No augmentation or TTA belongs in
+this baseline. Acceptance of CLS does not waive item 2's processor contract.
+
+**5. Classifier selection — reject choosing and reporting `C` on the same
+OOF predictions (blocking):** maximizing pooled OOF macro AUC over
+`{0.01, 0.1, 1.0}` and then reporting that maximum as the baseline score uses
+the validation outcomes for hyperparameter selection and yields an optimistic
+estimate. Three options are:
+
+1. **Recommended baseline:** freeze `C=0.1` before evaluation, fit a
+   `StandardScaler` to the 384 continuous embedding dimensions inside each
+   outer training fold (leave the four binary flags unscaled), and run one
+   honest OOF evaluation. Refit the scaler and classifier on all 58 labeled
+   studies for inference.
+2. Nested CV: choose `C` only inside each outer training fold and perform a
+   corresponding inner selection on all 58 for the final refit. This is
+   statistically honest but adds high-variance complexity to a 58-study
+   baseline.
+3. Claude's same-OOF grid: acceptable only as exploratory tuning whose score
+   is not the reported unbiased baseline; it is rejected for the primary
+   metric.
+
+Option 1 is the recommended low-capacity, reproducible baseline. If the user
+prefers data-selected regularization, use option 2 rather than option 3.
+
+**6. Fold identity — accept with an explicit invariant:** reuse Phase 3A's
+fold algorithm and parameters, but do not infer exact membership from labels
+alone. The algorithm is row-order-sensitive. Assert that the ordered 58 study
+IDs and label matrix match the Phase 3A input and persist/compare the fold
+assignment signature. Frozen global DINO features may be extracted once
+because the encoder has no fitted state; the scaler and classifier must remain
+fold-local. Continue to report pooled OOF macro AUC as primary, with per-label
+and per-fold AUC diagnostic only, followed by full-58 refit.
+
+**7. Decode and missing-study policy — enforce the approved minimum-valid
+threshold (blocking):** “mean however many decoded” allows one surviving
+slice to stand in for a five-slice plane and omits round 47's required
+minimum. Sample five deterministic central-band slices and require at least
+three successful decodes. Mean the three to five valid embeddings; below
+three, retry the next ranked same-plane series, and mark the plane absent only
+when every candidate fails that rule. Record attempted, decoded, retried, and
+absent counts in aggregate.
+
+For a labeled training study with all planes absent, fail the release gate and
+diagnose the data path rather than constructing a feature from its targets.
+For an unseen test study with all planes absent, emitting the full-58 training
+prevalence vector is an acceptable last-resort row-preserving fallback and
+must be counted. If any OOF fallback is ever permitted instead of the
+recommended fail-fast policy, it must use the outer-training-fold prevalence,
+never full-58 prevalence, to prevent leakage.
+
+**8. Codec evidence — accept the offline-wheel strategy, make the audit
+deterministic:** perform a header-only transfer-syntax census (at least one
+representative file from every series), then decode a fixed, recorded sample
+for every observed compressed transfer-syntax UID using the exact vendored
+wheels. Freeze wheel filenames, versions, Python/platform compatibility,
+SHA-256 checksums, licenses, and an import/decode smoke test. “Studies more
+likely to be compressed” is not reproducible enough. The census may be run
+early on a private Kaggle kernel after this design section is approved; it
+does not authorize dataset publication or submission.
+
+**9. Notebook and release evidence — accept the public structure, strengthen
+the runtime gate:** mirroring notebook 03, writing exactly one
+`/kaggle/working/submission.csv`, retaining aggregate-only JSON, and requiring
+the user's exact-kernel sign-off are accepted. Three visible test studies
+prove end-to-end execution but not hidden-set runtime. Add a representative
+private timing sample spanning study/series/slice-count and codec strata,
+measure the **complete** decode/preprocess/encoder/head path, extrapolate to
+the documented hidden-set size with a stated safety margin, and require the
+private kernel to complete successfully before asking for submission
+authorization. Submission remains kernel-native under Kaggle coding standard
+section 11; no local CSV-only submission path is introduced.
+
+**Independent verification:** `.venv/bin/pytest -q` reports `228 passed in
+1.91s`; `.venv/bin/ruff check .` reports `All checks passed!`;
+`bash -n scripts/push_kaggle_kernel.sh` succeeds; all four notebooks parse as
+JSON, have no saved outputs or execution counts, and have complete unique cell
+IDs; `git diff --check` was clean before this log-only addition.
+
+**Next strategy and authorization boundary:** do not implement Phase 3B yet.
+Resolve the proposal section by section, beginning with physical framing,
+then intensity input, laterality, classifier, fallbacks/codecs, and release
+gates. After the user approves every section, Codex will write a single
+complete design specification, self-review it, return it for explicit user
+approval, and only then draft the implementation plan. This round authorizes
+no modeling edit, dataset publication, Kaggle run, or competition submission.
