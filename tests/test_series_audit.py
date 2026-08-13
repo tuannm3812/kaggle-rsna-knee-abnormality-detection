@@ -7,6 +7,7 @@ import pytest
 from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 
+import knee_mri.series_audit as series_audit
 from knee_mri.series_audit import (
     GroupLateralityAgreement,
     OrderingValidation,
@@ -39,6 +40,39 @@ def test_slice_normal_raises_on_degenerate_orientation():
 def test_slice_position_is_dot_product_with_normal():
     normal = np.array([0.0, 0.0, 1.0])
     assert slice_position([1, 2, 5], normal) == pytest.approx(5.0)
+
+
+@pytest.mark.parametrize(
+    ("orientation", "expected_axis", "expected_signed_x"),
+    [
+        ((-1, 0, 0, 0, 1, 0), "columns", -1.0),
+        ((0, 1, 0, 1, 0, 0), "rows", 1.0),
+        ((0, 1, 0, 0, 0, 1), "slices", 1.0),
+    ],
+)
+def test_patient_lr_axis_metrics_maps_signed_x_to_array_axis(
+    orientation: tuple[float, ...], expected_axis: str, expected_signed_x: float
+):
+    result = series_audit.patient_lr_axis_metrics(orientation)
+
+    assert result.array_axis == expected_axis
+    assert result.signed_x == pytest.approx(expected_signed_x)
+    assert result.dominant_abs_x == pytest.approx(1.0)
+    assert result.runner_up_abs_x == pytest.approx(0.0)
+    assert result.dominance_gap == pytest.approx(1.0)
+
+
+def test_patient_lr_axis_metrics_leaves_tied_axis_unresolved():
+    root_half = math.sqrt(0.5)
+    result = series_audit.patient_lr_axis_metrics(
+        (root_half, root_half, 0, root_half, -root_half, 0)
+    )
+
+    assert result.array_axis is None
+    assert result.signed_x is None
+    assert result.dominant_abs_x == pytest.approx(root_half)
+    assert result.runner_up_abs_x == pytest.approx(root_half)
+    assert result.dominance_gap == pytest.approx(0.0)
 
 
 # -- order_agreement --

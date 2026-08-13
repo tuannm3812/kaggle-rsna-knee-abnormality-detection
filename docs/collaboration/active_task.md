@@ -5322,3 +5322,42 @@ Claude and user review before a threshold is frozen.
 **Boundary:** this is design-evidence collection, not Phase 3B modeling
 implementation. It does not authorize the canonicalization transform itself,
 the classifier, a public dataset/kernel, or a competition submission.
+
+### Round 66 — Codex Feedback/Progress: Approved Orientation Audit Implemented Locally (2026-08-13)
+
+**Scope implemented:** Codex implemented only round 65's approved design-
+evidence audit. `patient_lr_axis_metrics` converts one already-validated DICOM
+orientation into the controlled array axis (`columns`, `rows`, or `slices`),
+its signed patient-X component, dominant and runner-up absolute components,
+and their gap. Exact dominant-component ties remain unresolved instead of
+being broken by array order. The public notebook remains output-free and adds
+four aggregate displays/persisted objects: distribution statistics by plane,
+counts below candidate thresholds `0.80`/`0.85`/`0.90`/`0.95`, selected-axis
+counts, and signed-direction counts by plane and conservatively resolved side.
+
+**Privacy and correctness boundaries:** orientation metrics are computed only
+for series whose production geometry-order validation succeeded. The
+notebook's side used for the sign cross-tab is unresolved on unreadable or
+internally inconsistent headers, cross-tag conflict, or tag/geometry conflict.
+No identifier/path column is placed in `audit_rows`, displayed, or persisted;
+the four new outputs contain only aggregate counts/distributions. This audit
+does not yet choose a threshold or apply a reflection.
+
+**TDD evidence:** the initial signed-axis mapping test failed three cases with
+the expected missing-function `AttributeError`, then passed after the minimal
+helper was added. A separate exact-tie test then failed because stable sorting
+arbitrarily returned `columns`; the helper was corrected to return no selected
+axis/sign for a tie, and all four orientation cases passed. A notebook contract
+test first failed because the audit was absent, then passed after aggregate
+integration.
+
+**Fresh local verification:** `.venv/bin/pytest -q` reports `233 passed in
+2.67s`; `.venv/bin/ruff check .` reports `All checks passed!`;
+`bash -n scripts/push_kaggle_kernel.sh` succeeds; all four notebooks parse as
+JSON and Python, remain output-free with null execution counts, and have
+complete unique cell IDs; `git diff --check` is clean.
+
+**Next authorized action:** commit this local checkpoint, refresh the private
+`tuannm3812/rsna-knee-mri-src` source dataset, run the private image-preflight
+kernel, and retrieve only `preflight_audit_summary.json`. The measured result
+will be documented before any threshold or laterality transform is approved.

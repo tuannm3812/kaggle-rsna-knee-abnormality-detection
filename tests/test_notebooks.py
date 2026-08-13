@@ -517,6 +517,10 @@ def test_preflight_notebook_displays_only_aggregate_objects() -> None:
         "codec_availability",
         "geometry_summary",
         "study_laterality_summary",
+        "orientation_distribution_summary",
+        "orientation_threshold_summary",
+        "orientation_axis_summary",
+        "orientation_sign_summary",
         "plane_selection_summary",
         "pixel_spacing_summary",
         "slice_count_summary",
@@ -536,6 +540,22 @@ def test_preflight_notebook_never_stores_study_or_series_identifiers() -> None:
     assert "SeriesInstanceUID\":" not in code_source
     assert "study_id\":" not in code_source
     assert "series_dir\":" not in code_source
+
+
+def test_preflight_notebook_orientation_audit_is_aggregate_and_complete() -> None:
+    notebook = _load_json("notebooks/04_image_baseline_preflight.ipynb")
+    code_source = _code_source(notebook)
+
+    assert "patient_lr_axis_metrics" in code_source
+    for threshold in ("0.80", "0.85", "0.90", "0.95"):
+        assert threshold in code_source
+    for field in (
+        "orientation_distribution",
+        "orientation_threshold_counts",
+        "orientation_axis_counts",
+        "orientation_sign_by_plane_and_side",
+    ):
+        assert f'"{field}"' in code_source
 
 
 def test_preflight_kernel_metadata_is_private_gpu_offline_with_dinov2() -> None:

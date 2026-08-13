@@ -21,6 +21,17 @@ import pandas as pd
 import pydicom
 
 
+@dataclass(frozen=True)
+class PatientLRAxisMetrics:
+    """Aggregate geometry metrics for the patient left-right image axis."""
+
+    array_axis: str | None
+    signed_x: float | None
+    dominant_abs_x: float
+    runner_up_abs_x: float
+    dominance_gap: float
+
+
 def slice_normal(image_orientation_patient: Sequence[float]) -> np.ndarray:
     """Unit vector normal to a DICOM slice plane.
 
@@ -44,6 +55,46 @@ def slice_normal(image_orientation_patient: Sequence[float]) -> np.ndarray:
     if norm == 0:
         raise ValueError("image_orientation_patient direction vectors are degenerate")
     return normal / norm
+
+
+def patient_lr_axis_metrics(
+    image_orientation_patient: Sequence[float],
+) -> PatientLRAxisMetrics:
+    """Measure which array axis most closely follows signed patient X.
+
+    The DICOM row direction controls increasing array-column index, the
+    column direction controls increasing array-row index, and their cross
+    product controls increasing geometry-ordered slice index. The caller is
+    responsible for supplying a series-validated orientation.
+    """
+    iop = np.asarray(image_orientation_patient, dtype=float)
+    if iop.shape != (6,) or not np.isfinite(iop).all():
+        raise ValueError("image_orientation_patient must contain six finite values")
+
+    row_direction, column_direction = iop[:3], iop[3:]
+    row_norm = float(np.linalg.norm(row_direction))
+    column_norm = float(np.linalg.norm(column_direction))
+    if row_norm == 0 or column_norm == 0:
+        raise ValueError("image_orientation_patient direction vectors are degenerate")
+    unit_row = row_direction / row_norm
+    unit_column = column_direction / column_norm
+    normal = slice_normal(np.concatenate([unit_row, unit_column]))
+
+    axis_names = ("columns", "rows", "slices")
+    signed_components = np.asarray([unit_row[0], unit_column[0], normal[0]])
+    ranked = np.argsort(-np.abs(signed_components), kind="stable")
+    dominant_index, runner_up_index = int(ranked[0]), int(ranked[1])
+    dominant_abs_x = float(abs(signed_components[dominant_index]))
+    runner_up_abs_x = float(abs(signed_components[runner_up_index]))
+    tied = math.isclose(dominant_abs_x, runner_up_abs_x, rel_tol=0.0, abs_tol=1e-12)
+
+    return PatientLRAxisMetrics(
+        array_axis=None if tied else axis_names[dominant_index],
+        signed_x=None if tied else float(signed_components[dominant_index]),
+        dominant_abs_x=dominant_abs_x,
+        runner_up_abs_x=runner_up_abs_x,
+        dominance_gap=dominant_abs_x - runner_up_abs_x,
+    )
 
 
 def slice_position(image_position_patient: Sequence[float], normal: np.ndarray) -> float:
