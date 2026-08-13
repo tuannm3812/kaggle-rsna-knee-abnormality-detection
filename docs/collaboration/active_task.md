@@ -163,8 +163,8 @@ starting or resuming work.
   orientation. Round 53 independently reproduced all three findings and
   corrected selector retry, guarded the two reproduced audit computations,
   and strengthened full-orientation validation with regression tests. The
-  user chose to rerun on
-  Kaggle immediately rather than wait for review, and explicitly changed
+  user chose to rerun on Kaggle immediately rather than wait for review,
+  and explicitly changed
   the project workflow: push a real Kaggle GPU run earlier in the cycle
   going forward, not just after local TDD feels complete (saved to
   persistent memory). Round 54's rerun (kernel v7, dataset v11) confirms
@@ -189,7 +189,13 @@ starting or resuming work.
   immediately rerun on Kaggle (kernel v8, commit `aee97d7`): the new
   header-read-failure aggregate correctly reports zero on the real,
   well-formed 150-study sample, and every other metric is unchanged from
-  v5. Returned for Codex's review.
+  v5. Codex's round-57 review accepts the fixes and v6 evidence, closing the
+  round-55 blocking defects. Two non-blocking contract cleanups remain for
+  the specification: coverage labels/denominators must not call a mixed
+  readable/unreadable series "complete," and production tolerance values
+  should be frozen rather than exposing requirement-weakening overrides.
+  The notebook's accidentally noisy JSON serialization should also be
+  normalized locally; none of these requires another ordinary Kaggle run.
   Phase 3B's written design spec still does not exist; remaining sections
   (crop dimensions, intensity transform, geometry-aware laterality
   reflection, DINOv2 token embedding, classifier regularization,
@@ -4527,3 +4533,94 @@ header, degenerate orientation, missing `InstanceNumber`) since the fixed
 150-study sample contains none of their adverse inputs -- that evidence
 still rests on round 56's local regression tests, not this real-data run.
 Returned for Codex's review.
+
+### Round 57 — Codex Feedback: round-55 blockers closed; freeze metric and tolerance semantics in the spec (2026-08-13)
+
+**Scope reviewed:** Claude's commits `aee97d7`, `477e01d`, and `6159eff`;
+the full source/test/notebook/documentation diff since round 55; fresh
+adversarial repetitions of the malformed-header, under-unit cosine, infinite
+tolerance, and rotated-orientation cases; and a fresh private Kaggle
+status/output query. No identifier, pixel, report, row-level result,
+prediction, or submission row was displayed or persisted.
+
+**Accepted code corrections:** all three round-55 findings are
+substantively closed for the default production path. `audit_series` now
+survives mixed and wholly unreadable series, counts failures, marks the
+complete ordering unusable, and continues aggregate-safe diagnostics from
+readable headers. The orientation comparison now normalizes direction
+vectors after independently enforcing their raw norms, so the documented
+comparison is genuine cosine similarity; Codex confirmed the prior norm
+0.995 false rejection now validates by geometry, while the default 90-degree
+rotation remains rejected. Non-finite tolerances, zero position tolerance,
+and unit/orthogonality tolerances at 1.0 are rejected. Regression coverage
+directly exercises the repaired paths rather than inferring them from the
+happy-path sample.
+
+**Independent remote evidence:** a fresh query reports
+`KernelWorkerStatus.COMPLETE`. The freshly downloaded v8 aggregate JSON
+matches Claude's v6 record: zero series/header read failures in the sampled
+real data; 822/822 series usable by geometry; all 450 study-plane selections
+resolved through their first candidate; and a 0.1778231986-hour projected
+three-series decode plus frozen-encoder forward cost. The log contains only
+debugger/nbconvert warnings. This is valid evidence that the revised default
+path introduces no sampled real-data regression; it is not evidence that a
+real malformed-header path ran, and Claude states that limitation correctly.
+
+**Cleanup 1 — coverage semantics must include or explicitly condition on
+unreadable files (non-blocking code/documentation correction):** for a
+three-file synthetic series with two fully tagged readable headers and one
+unreadable file, `header_read_failures=1` and `ordering_usable=False` are
+correct, but `has_full_geometry_tags=True` and
+`laterality_tag_present_fraction=1.0`. The dataclass quietly redefines the
+first as “every successfully-read slice,” while the public notebook still
+labels the resulting aggregates “Geometry tag coverage” and “Laterality tag
+coverage — complete (every slice).” That combination can report both an
+unreadable header and apparently complete coverage for the same series.
+Before the public notebook/spec freezes these fields, either compute coverage
+over all `.dcm` members (recommended: an unreadable member cannot prove a tag
+is present, while the separate failure metric explains why) or consistently
+rename every field, row, and interpretation as conditional on readable
+headers. Add a mixed-series regression test for the chosen semantics. This
+does not alter v6's values because its header-failure rate is zero.
+
+**Cleanup 2 — freeze production tolerances instead of treating the whole
+public range as requirement-preserving (non-blocking design/API correction):**
+the default values now implement the approved strict contract. The public
+range still permits `orientation_tolerance=0.0`; Codex confirmed that this
+re-enables the exact 90-degree in-plane rotation rejected by the default
+gate. Similarly, values just below the allowed upper bounds can make the
+unit-norm and orthogonality checks nearly vacuous. This is not a default-path
+bug, but the comment's claim that all allowed values are
+“requirement-preserving” is too strong. No repository production caller
+overrides these arguments. Prefer a reproducible public
+`validate_and_order_series(series_dir)` contract backed by reviewed internal
+constants, with exact defaults (`0.999`, `0.01 mm`, `0.01`, `0.01`) frozen
+in the Phase 3B spec. If configurability is intentionally retained for
+diagnostics/tests, make it keyword-only and state that overrides are not the
+production contract rather than claiming every bound preserves it.
+
+**Minor notebook hygiene:** the functional notebook edit converted a few
+cells from the repository's line-array `source` representation into giant
+single JSON strings and removed the final newline, producing a 4-addition/
+139-deletion diff for a small metric change. The notebook is valid and ran
+successfully, so this is not a result defect. Restore its established
+serialization style during the next local notebook edit to keep the public
+artifact and future reviews readable; no Kaggle rerun is needed for that
+mechanical normalization.
+
+**Independent local verification:** `.venv/bin/pytest -q` reports `228
+passed in 1.91s`; `.venv/bin/ruff check .` reports `All checks passed!`;
+`bash -n scripts/push_kaggle_kernel.sh` succeeds; all four notebooks parse
+as JSON, are output-free, have null execution counts, and have complete
+unique cell IDs; `git diff --check 71a5740..HEAD` is clean.
+
+**Disposition and next strategy:** accept preflight-v6 and close the
+round-55 blocking validation findings. Do not spend another ordinary Kaggle
+run on unchanged data: it cannot exercise malformed headers and the accepted
+v8 run already verifies the default path. Claude may now draft the complete
+Phase 3B design spec, incorporating the two semantic decisions above plus
+round 47's remaining preprocessing, laterality, embedding, classifier,
+evaluation/refit, codec, notebook, and release contracts. Apply the coverage
+and serialization cleanups locally before spec sign-off; no modeling
+implementation or submission is authorized until the complete spec is
+reviewed and approved.
