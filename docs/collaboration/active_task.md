@@ -4624,3 +4624,63 @@ evaluation/refit, codec, notebook, and release contracts. Apply the coverage
 and serialization cleanups locally before spec sign-off; no modeling
 implementation or submission is authorized until the complete spec is
 reviewed and approved.
+
+### Round 58 — Claude: round-57's two non-blocking cleanups applied (2026-08-13)
+
+**User authorization:** "help me to check codex review and move to next
+step" — reviewing round 57 and applying its two non-blocking cleanups
+before drafting the Phase 3B spec, per its disposition ("Apply the coverage
+and serialization cleanups locally before spec sign-off").
+
+**Fixes (commit `fe6cb49`):**
+
+1. **Cleanup 1 (coverage semantics):** `has_full_geometry_tags` and
+   `laterality_tag_present_fraction` previously computed their result only
+   over successfully-read headers, so a series with one unreadable member
+   and otherwise-complete tags on its readable slices could report
+   `has_full_geometry_tags=True` and 100% laterality coverage despite
+   `header_read_failures=1` -- exactly the combination Codex's
+   reproduction found. Both now compute over every `.dcm` member
+   (`has_full_geometry_tags` additionally requires `header_read_failures
+   == 0`; `laterality_tag_present_fraction`'s denominator is `slice_count`,
+   not the readable-header count), on the reasoning that an unreadable
+   slice cannot prove it carries a tag, so it must count against coverage
+   rather than being silently excluded from it. Updated the existing round-
+   56 mixed-series regression test (previously asserting the readable-only
+   fraction of `1.0`) to assert the corrected `2/3` laterality coverage and
+   `has_full_geometry_tags=False`, since it already covered the exact
+   mixed-series scenario Codex's cleanup describes -- no new test needed.
+2. **Cleanup 2 (tolerance semantics):** `validate_and_order_series`'s four
+   tolerance arguments are now keyword-only (confirmed via repository-wide
+   grep that no caller passes them positionally). The docstring no longer
+   implies every value inside each argument's stated numeric range
+   preserves the geometric requirement it configures -- states plainly that
+   the four defaults (`0.999`, `0.01mm`, `0.01`, `0.01`) are the reviewed
+   production contract with no repository override, and that the arguments
+   exist for tests/diagnostics probing the validation boundary directly
+   (e.g. `orientation_tolerance=0.0` re-admits the exact 90-degree in-plane
+   rotation the default rejects).
+3. **Notebook hygiene:** restored the three round-56-edited cells'
+   established per-line `source` array JSON serialization (they had
+   collapsed into single JSON strings with no trailing newline via the
+   editing tool used at the time) by rewriting just those three cells'
+   source arrays directly in the raw JSON, leaving every other cell's byte
+   content untouched. Cosmetic only, verified via
+   `tests/test_notebooks.py`'s JSON-validity/output-free checks.
+
+**Verification:** `uv run pytest -q` -> `228 passed`; `uv run ruff check .`
+-> `All checks passed!`; `git diff --check` clean; `tests/test_notebooks.py`
+(44 tests) still passes, confirming the notebook reserialization introduced
+no structural change.
+
+**Not yet done:** no Kaggle rerun this round -- these are local-only
+semantic/documentation corrections that don't change v6's reported values
+(its sample has zero header-read failures), consistent with Codex's own
+round-57 disposition ("Do not spend another ordinary Kaggle run on
+unchanged data"). Next: draft the complete Phase 3B design spec (round 47's
+remaining list: crop dimensions, intensity transform, geometry-aware
+laterality reflection, exact DINOv2 token embedding, classifier
+regularization, evaluation/refit protocol, codec delivery, notebook
+structure, release gates), incorporating this round's two frozen semantic
+decisions. No modeling implementation or submission is authorized until
+that spec is reviewed and approved.
