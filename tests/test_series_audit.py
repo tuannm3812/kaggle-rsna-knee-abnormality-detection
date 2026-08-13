@@ -523,8 +523,13 @@ def test_audit_series_counts_unreadable_header_in_mixed_series(tmp_path: Path):
     # complete order, even though the two readable slices agree.
     assert result.ordering_usable is False
     assert result.ordering_method is None
-    # Diagnostics computed only from the two successfully-read headers.
-    assert result.laterality_tag_present_fraction == pytest.approx(1.0)
+    # An unreadable slice cannot prove it carries valid geometry tags, so it
+    # counts against "coverage" claims rather than being silently excluded
+    # from their denominator (round 57, cleanup 1) -- even though both
+    # readable slices have full geometry tags and a valid "L" laterality
+    # tag, has_full_geometry_tags is False and the fraction is 2/3, not 1.0.
+    assert result.has_full_geometry_tags is False
+    assert result.laterality_tag_present_fraction == pytest.approx(2 / 3)
     assert result.laterality_tag == "L"
 
 

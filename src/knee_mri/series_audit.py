@@ -261,13 +261,20 @@ class SeriesAudit:
         slice_count: Number of `.dcm` files found.
         header_read_failures: Number of those files whose header could not
             be read (malformed DICOM or an OS-level read error). Any value
-            above 0 means `ordering_usable` is forced `False` -- a series
-            this project can't fully read isn't one it can validate the
-            order of -- while the other diagnostics are still computed from
-            whichever headers were read successfully (round 55, finding 1).
-        has_full_geometry_tags: Whether every successfully-read slice
-            carries both `ImagePositionPatient` and
-            `ImageOrientationPatient`.
+            above 0 means `ordering_usable`, `has_full_geometry_tags`, and
+            `laterality_tag_present_fraction` are all forced away from a
+            complete-coverage claim -- an unreadable slice can prove
+            neither a valid order nor a present tag, so it counts against
+            each of those rather than being silently excluded (round 55,
+            finding 1; round 57, cleanup 1). The remaining diagnostics
+            (resolved laterality call, pixel spacing, etc.) are still
+            computed from whichever headers were read successfully.
+        has_full_geometry_tags: Whether every slice in the series carries
+            both `ImagePositionPatient` and `ImageOrientationPatient`.
+            `False` whenever `header_read_failures` is above 0 -- an
+            unreadable slice cannot prove it carries these tags, so it
+            counts against this claim rather than being silently excluded
+            from it (round 57, cleanup 1).
         order_agreement: Signed `InstanceNumber`-vs-geometry Spearman rank
             correlation, or `None` if geometry tags are missing or there are
             <2 slices. A value near +1 or -1 both mean the two orderings are
@@ -282,10 +289,14 @@ class SeriesAudit:
             checks tag presence, not validity.
         ordering_method: `"geometry"` or `"instance_number"` if
             `ordering_usable`, else `None`.
-        laterality_tag_present_fraction: Fraction of slices carrying a valid
-            (`L`/`R`) `Laterality` or `ImageLaterality` value. `0.0` is "no
-            slice has a valid tag", `1.0` is "every slice does" (complete
-            coverage); values between are partial coverage.
+        laterality_tag_present_fraction: Fraction of `slice_count` slices
+            carrying a valid (`L`/`R`) `Laterality` or `ImageLaterality`
+            value. `0.0` is "no slice has a valid tag", `1.0` is "every
+            slice does" (complete coverage); values between are partial
+            coverage. An unreadable slice (see `header_read_failures`)
+            always counts against this fraction, the same "can't prove a
+            tag is present" reasoning as `has_full_geometry_tags` (round 57,
+            cleanup 1).
         laterality_tag: The validated laterality value shared by every
             tag-bearing slice, or `None` if no slice has a valid tag, or if
             tag-bearing slices disagree with each other. Where a slice has
@@ -539,6 +550,7 @@ def _require_tolerance_in_range(
 
 def validate_and_order_series(
     series_dir: Path,
+    *,
     orientation_tolerance: float = _ORIENTATION_TOLERANCE_DEFAULT,
     position_tolerance_mm: float = _POSITION_TOLERANCE_MM_DEFAULT,
     unit_norm_tolerance: float = _UNIT_NORM_TOLERANCE_DEFAULT,
@@ -562,18 +574,33 @@ def validate_and_order_series(
     project never labels anatomical without validation
     (`docs/collaboration/active_task.md` rounds 45, 49, and 52).
 
+    The reviewed, production-grade contract is the four defaults below,
+    frozen in `docs/collaboration/active_task.md` rounds 53 and 57 -- no
+    repository caller overrides them. The four tolerance arguments are
+    keyword-only and exist for tests/diagnostics that need to probe the
+    validation boundary directly; each argument's stated numeric range only
+    rejects non-finite and structurally nonsensical values (see
+    `_require_tolerance_in_range`), it does not mean every value inside
+    that range preserves the underlying geometric requirement -- e.g.
+    `orientation_tolerance=0.0` re-admits the exact 90-degree in-plane
+    rotation the default is designed to reject, and `unit_norm_tolerance`/
+    `orthogonality_tolerance` near their upper bound make those checks
+    nearly vacuous (round 57, cleanup 2).
+
     Args:
         series_dir: Directory containing one series' `.dcm` slice files.
         orientation_tolerance: Minimum cosine similarity each slice's row
             and column direction cosines must have with the first slice's.
-            Must be in [0.0, 1.0].
+            Must be in [0.0, 1.0]; default `0.999` is the reviewed value.
         position_tolerance_mm: Minimum spacing required between any two
-            slices' projected positions. Must be in (0.0, 1000.0].
+            slices' projected positions. Must be in (0.0, 1000.0]; default
+            `0.01` is the reviewed value.
         unit_norm_tolerance: Maximum allowed deviation of a direction-cosine
-            vector's norm from 1.0. Must be in [0.0, 1.0).
+            vector's norm from 1.0. Must be in [0.0, 1.0); default `0.01` is
+            the reviewed value.
         orthogonality_tolerance: Maximum allowed |dot product| between a
             slice's (normalized) row and column direction cosines. Must be
-            in [0.0, 1.0).
+            in [0.0, 1.0); default `0.01` is the reviewed value.
 
     Returns:
         The computed `OrderingValidation`. An unreadable or malformed
@@ -725,7 +752,11 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
     else:
         first = headers[0]
 
-        has_full_geometry_tags = all(
+        # An unreadable member cannot prove its own tags are present, so it
+        # must not be silently excluded from a "coverage" claim -- treated
+        # as tags absent, same as `laterality_tag_present_fraction` below
+        # (round 57, cleanup 1).
+        has_full_geometry_tags = header_read_failures == 0 and all(
             "ImagePositionPatient" in ds and "ImageOrientationPatient" in ds for ds in headers
         )
 
@@ -769,7 +800,12 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
         slice_laterality_tags = [_slice_laterality_tag(ds) for ds in headers]
         has_cross_tag_conflict = any(_slice_laterality_cross_tag_conflict(ds) for ds in headers)
         present_tags = [tag for tag in slice_laterality_tags if tag is not None]
-        laterality_tag_present_fraction = len(present_tags) / len(headers)
+        # Denominator is every `.dcm` member, including unreadable ones --
+        # an unreadable file cannot prove it carries a valid tag, so it
+        # must count against coverage rather than being excluded from it
+        # (round 57, cleanup 1). `slice_count` is always > 0 here since an
+        # empty `series_dir` already raised above.
+        laterality_tag_present_fraction = len(present_tags) / slice_count
         distinct_tags = set(present_tags)
         laterality_tag_consistent = len(distinct_tags) <= 1
         laterality_tag = present_tags[0] if laterality_tag_consistent and present_tags else None
