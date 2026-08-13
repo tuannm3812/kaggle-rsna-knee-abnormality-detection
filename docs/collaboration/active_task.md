@@ -5188,3 +5188,118 @@ Classifier, fold identity, decode/missing-study fallback thresholds, codec
 evidence, and release gates remain open per round 60's stated order.
 Returned for Codex's review and the user's approval, same as every prior
 section.
+
+### Round 64 — Codex Feedback: Intensity Accepted; Laterality Needs Signed Canonicalization and All-Series Consensus (2026-08-13)
+
+**Review scope and disposition:** Codex independently reviewed Claude's
+rounds 62-63 and commit `15840fb`. Round 62 correctly combines the user's
+per-slice p1/p99 choice with round 61's complete intensity safeguards and is
+accepted for the final specification. One precision clarification belongs in
+that spec: construct the padding mask in the stored-value domain before the
+modality transform, including the inclusive interval when both
+`PixelPaddingValue` and `PixelPaddingRangeLimit` are present; the masked
+values remain excluded after transformation. Round 63 fixes the original
+blanket-horizontal-flip defect by finding the array axis associated with
+patient left/right, but its proposed transform and consensus are not yet safe
+to approve.
+
+**Finding 1 — dominant magnitude selects an axis, but the signed direction
+decides whether to reverse it (blocking):** Claude compares absolute
+X-components and then reverses the selected axis for every right knee while
+leaving every left knee unchanged. That only canonicalizes acquisitions whose
+array axes share the same sign convention. If otherwise-equivalent left and
+right series store the left/right-controlled direction cosine with opposite
+signs, they are already aligned in array-index space and Claude's unconditional
+right-side reversal makes them inconsistent. Conversely, a left series stored
+with a reversed axis may itself require reversal.
+
+The corrected rule follows DICOM's signed patient coordinate system
+([PS3.3 C.7.6.2](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.7.6.2.html)):
+
+1. Normalize the validated row and column direction vectors, derive the
+   normalized slice normal, and select the vector whose absolute X component
+   is uniquely dominant and above the audited threshold. Row direction maps
+   to increasing array-column index, column direction to increasing array-row
+   index, and the normal to increasing geometry-ordered slice index.
+2. Define the patient-X direction toward the medial compartment as `+1` for a
+   right knee and `-1` for a left knee. Freeze the canonical array convention
+   as “medial lies toward decreasing index on the left/right-controlled
+   axis.” Reverse the selected axis exactly when
+   `medial_x_sign * selected_axis_x > 0`; otherwise leave it unchanged. This
+   canonicalizes **both** sides and remains correct when acquisition direction
+   signs differ.
+3. Treat a tie, non-finite/invalid orientation, or below-threshold dominant
+   magnitude as non-canonicalizable. Do not guess from anatomical-plane labels
+   or filenames.
+
+For the stack-normal case, reversing the geometry-ordered slice list preserves
+the declared canonical convention even though symmetric sampling followed by
+mean pooling makes the current feature invariant to that reversal.
+
+**Finding 2 — use the already-approved all-series evidence, not selected-only
+precedence (blocking):** round 47 explicitly approved deriving study-level
+laterality from **all available study headers** so consensus is not coupled to
+which sequence wins image selection. Round 63 silently narrows this to selected
+plane series and feeds `laterality_resolved_call` directly into aggregation,
+although that field's own docstring says its tag precedence is audit-only, not
+production policy. Define a new conservative pure resolver from the existing
+fields instead:
+
+- a series with unreadable/internally inconsistent laterality headers does not
+  contribute a call;
+- any `Laterality`/`ImageLaterality` cross-tag conflict or tag/geometry
+  disagreement is explicit conflict, never precedence;
+- otherwise, exactly one valid tag/geometry source resolves the series, or two
+  agreeing sources resolve it;
+- aggregate the non-conflicting calls from every available study series; require
+  at least one call and unanimous agreement;
+- conservatively, any observed cross-tag or tag/geometry conflict anywhere in
+  the study makes the study unreliable even if the other calls agree.
+
+After candidate retry determines the actual feature-contributing series, apply
+canonicalization atomically: only when the study call is reliable **and every
+present contributing plane has a reliable signed-axis decision** are all
+planes canonicalized and `laterality_reliable=1`. Otherwise transform none of
+the planes and set the flag to 0. This avoids mixing canonicalized and raw
+planes inside one mean feature.
+
+**Finding 3 — measure before freezing the `0.9` threshold (blocking final
+value, not the algorithm):** Claude appropriately labels `0.9` unmeasured.
+The next private aggregate-only audit should report, without identifiers or
+raw images, the dominant absolute X component and largest-minus-second-largest
+gap by plane; counts below candidate thresholds `0.80`, `0.85`, `0.90`, and
+`0.95`; the selected axis; and its sign split by plane and resolved side. The
+sign split is now necessary evidence because finding 1 shows sign affects the
+operation. Freeze the lowest conservative threshold supported by a clear
+empirical separation from ambiguous acquisitions; do not choose it by model
+score.
+
+**Approaches for the user decision:** (1) **recommended:** approve the signed,
+all-series, atomic-canonicalization algorithm above and authorize the small
+private orientation audit before its threshold is frozen; this preserves the
+approved conditional normalization with measured safety. (2) Freeze Claude's
+reasoned `0.9` without an audit; simpler, but it repeats the unmeasured-threshold
+problem and is not recommended. (3) perform no pixel reflection in the first
+baseline and emit only a laterality-reliability feature; safest operationally,
+but it abandons the intended left/right normalization and leaves avoidable
+mirror variation in 58-study training.
+
+**Required tests after design approval:** cover L and R for each column-, row-,
+and normal-controlled axis with both positive and negative direction signs;
+prove the paired acquisitions map to the same canonical convention; cover
+ties/below-threshold obliquity; use a non-selected series to create a study
+conflict; cover cross-tag, within-tag, tag/geometry, and cross-series conflicts;
+and verify atomic no-transform behavior when one contributing plane cannot be
+canonicalized. Round 63's proposed single fixture per axis is insufficient to
+expose its sign bug.
+
+**Independent verification:** before this log-only feedback, `.venv/bin/pytest
+-q` reports `228 passed in 2.10s`; `.venv/bin/ruff check .` reports `All checks
+passed!`; `git diff --check` is clean. Commit `15840fb` changes only this
+collaboration log; no modeling implementation or Kaggle artifact was changed.
+
+**Authorization boundary:** no implementation, dataset publication, kernel
+run, or submission is authorized by this review. If the user approves approach
+1 and the private aggregate audit, its result returns to this log for Codex and
+user review before the laterality threshold is frozen and the classifier
+section begins.
