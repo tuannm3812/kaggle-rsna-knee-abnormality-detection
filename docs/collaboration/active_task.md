@@ -5009,3 +5009,57 @@ gates. After the user approves every section, Codex will write a single
 complete design specification, self-review it, return it for explicit user
 approval, and only then draft the implementation plan. This round authorizes
 no modeling edit, dataset publication, Kaggle run, or competition submission.
+
+### Round 61 — User Approval: Full Physical-FOV Letterbox; Intensity Contract Proposed (2026-08-13)
+
+**User decision:** the user approved round 60's recommended physical-framing
+option. Phase 3B will preserve the complete valid slice field of view, correct
+its physical aspect ratio from DICOM `PixelSpacing`, letterbox it to a square,
+and produce a 336x336 DINOv2 input. The unmeasured 90% crop and a fixed-mm crop
+are rejected for this baseline.
+
+**Frozen framing details for the complete specification:** compute the image
+footprint as `Rows * row_spacing` by `Columns * column_spacing`; set the longer
+resized dimension to 336 and calculate the shorter dimension by nearest-integer
+rounding (`floor(value + 0.5)`, clamped to `[1, 336]`). Resize with bilinear
+interpolation and antialiasing, then split any required zero padding evenly,
+placing the extra pixel on the bottom or right. The zero is in the locally
+normalized `[0, 1]` intensity domain before DINOv2 channel standardization.
+`PixelSpacing` must be present, finite, positive, and consistent under the
+already-approved series validation contract. A candidate that cannot satisfy
+that contract is unusable; try the next ranked same-plane series, and mark the
+plane absent only after candidate exhaustion. Preserve these choices as
+tested constants rather than notebook-only behavior.
+
+**Next design gate — DICOM-to-DINOv2 intensity contract:** all viable options
+first exclude stored pixel-padding values from percentile estimation, apply
+the DICOM modality transform where present, handle `MONOCHROME1` polarity,
+reject a slice with insufficient finite non-padding variation, map excluded
+padding to normalized zero, replicate grayscale to three channels, and then
+apply `image_mean`/`image_std` loaded from the attached model's own
+`preprocessor_config.json`. Missing or malformed processor metadata is a hard
+environment error; there is no remembered-constant fallback. Local tests must
+compare the final manual normalization with the attached Transformers image
+processor configured not to resize or rescale again.
+
+The remaining choice is where to estimate the robust MRI intensity bounds:
+
+1. **Recommended: per-slice p1/p99.** Estimate percentiles independently from
+   every selected slice's finite, non-padding values, clip, and map to `[0, 1]`.
+   This matches the already-timed preflight transform, is robust to slice-level
+   gain variation, and isolates one abnormal slice from the other four. Its
+   tradeoff is that it removes between-slice absolute intensity differences,
+   which are not calibrated physical quantities in MRI.
+2. Per-series sampled-slice p1/p99. Pool valid pixels from the five selected
+   slices, derive one pair of bounds, and apply it to all five. This preserves
+   relative intensity variation within a series, but an outlier slice can
+   change all five inputs and retries become more coupled.
+3. DICOM window/VOI-driven scaling. This would follow display metadata when
+   supplied, but coverage and consistency across the heterogeneous MRI
+   sequences have not been established, so it is not recommended as the
+   baseline contract.
+
+**Recommendation and boundary:** approve option 1, per-slice p1/p99, with the
+complete DICOM and attached-processor safeguards above. This round records a
+design decision and the next proposal only; it authorizes no implementation,
+Kaggle run, dataset publication, or submission.
