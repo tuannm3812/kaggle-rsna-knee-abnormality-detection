@@ -5063,3 +5063,128 @@ The remaining choice is where to estimate the robust MRI intensity bounds:
 complete DICOM and attached-processor safeguards above. This round records a
 design decision and the next proposal only; it authorizes no implementation,
 Kaggle run, dataset publication, or submission.
+
+### Round 62 — User Approval: Per-Slice p1/p99 Intensity Bounds (2026-08-13)
+
+**User decision:** "help me to review codex review and direction, what
+should we do next" — reviewing rounds 60-61 and, when asked directly, chose
+round 61's recommended option 1 (per-slice p1/p99) for where to estimate
+the robust MRI intensity percentile bounds, closing the one open choice in
+that round's otherwise-already-specified intensity contract.
+
+**Frozen intensity contract for the complete specification** (combining
+round 61's settled safeguards with this round's bounds-estimation choice):
+per selected slice, in order -- (1) apply the DICOM modality transform
+(`RescaleSlope`/`RescaleIntercept` or modality LUT) where present; (2)
+invert intensity for `MONOCHROME1` polarity so higher final intensity
+always means brighter, consistent with `MONOCHROME2`; (3) exclude stored
+pixel-padding values from both percentile estimation and the final image;
+(4) if the remaining finite, non-padding pixel variation is insufficient
+for a meaningful clip, treat the slice as a decode failure (subject to
+round 60 finding 7's minimum-3-of-5 threshold, still to be formalized); (5)
+estimate p1/p99 **independently per slice** (not pooled across the
+series) from its finite, non-padding, post-modality-transform values, clip,
+and linearly rescale to `[0, 1]`, mapping excluded padding to normalized
+`0`; (6) replicate the single-channel `[0, 1]` image to 3 channels; (7)
+apply the attached model's own `preprocessor_config.json` `image_mean`/
+`image_std` for final channel standardization -- missing or malformed
+processor metadata is a hard environment error, never a remembered-
+constant fallback. Local tests must compare this manual pipeline's final
+tensor against the attached Transformers image processor (configured not to
+resize or rescale again) to prove equivalence, per round 60's requirement.
+
+**Resolved in order (round 60's list):** physical framing (round 61),
+intensity input (this round). **Not yet done:** laterality, classifier,
+fold identity, decode/missing-study fallback thresholds, codec evidence,
+and release gates remain open per round 60's stated order. No
+implementation, Kaggle run, dataset publication, or submission is
+authorized by this round.
+
+### Round 63 — Claude: corrected laterality reflection proposal (2026-08-13)
+
+**Scope:** round 60 finding 3 rejected round 59's blanket horizontal flip
+as not geometry-aware -- `ImageOrientationPatient`'s patient left-right axis
+can align with the image's row index, column index, or slice-stack normal
+depending on plane and acquisition, and per-series precedence understated
+the risk of one series contradicting another within the same study. This
+round proposes a corrected transform addressing both points, reusing
+already-implemented and already-tested geometry/laterality helpers from
+`series_audit.py` wherever possible rather than introducing new untested
+logic.
+
+**1. Which array axis to reverse (axis-aware reflection).** DICOM's patient
+coordinate system places the patient's left-right axis on X (`ImagePosition
+Patient`/`ImageOrientationPatient`'s first coordinate; positive X is
+patient left, already the exact convention `laterality_from_geometry` uses).
+A series' three orthogonal geometry vectors -- `row_direction` (`Image
+OrientationPatient[:3]`, the direction pixel position moves as **column**
+index increases), `column_direction` (`ImageOrientationPatient[3:]`, the
+direction pixel position moves as **row** index increases), and
+`slice_normal` (their cross product, already implemented) -- each have an
+X-component. Reflecting a right-knee study to canonical (left) orientation
+means reversing whichever array axis that vector with the **dominant**
+|X-component| controls:
+
+- `row_direction`'s |X-component| dominant -> patient left-right varies
+  with **column index** -> reverse the array's column axis
+  (`pixel_array[:, ::-1]`).
+- `column_direction`'s |X-component| dominant -> patient left-right varies
+  with **row index** -> reverse the array's row axis
+  (`pixel_array[::-1, :]`).
+- `slice_normal`'s |X-component| dominant -> patient left-right varies
+  along the **slice-stack** axis -> reverse slice order within the plane.
+  With symmetric central-band slice selection followed by a mean, this is
+  an intentional no-op on the pooled feature (Codex's own observation) --
+  still implemented and tested for correctness and to avoid silently
+  breaking any future order-sensitive use.
+
+"Dominant" is proposed as: the axis whose |X-component| is the largest of
+the three **and** exceeds a fixed threshold (proposed default `0.9`,
+i.e. within roughly 25 degrees of pure alignment). Below that threshold for
+every axis, the alignment is oblique/ambiguous and must not be guessed --
+same "leave unchanged, flag unreliable" policy as any other unresolved
+case. **Caveat, stated plainly:** `0.9` is a reasoned default, not a
+measured one -- this project has not yet audited how close to perfectly
+axis-aligned real acquisitions in this corpus actually are (clinical knee
+MRI is typically prescribed close to the three canonical planes, but "close
+to" is not "measured to"). Proposing this be checked with a lightweight
+aggregate-only audit (dominant-axis |X-component| distribution across the
+real sampled series) before the threshold is treated as final, the same
+evidence-first discipline round 60 already applied to the crop-margin and
+codec-sample findings.
+
+**2. Study-level consensus (not per-series precedence).** Reuses two
+already-implemented, already-tested pieces directly rather than new logic:
+each selected plane series' `SeriesAudit.laterality_resolved_call` (tag-
+over-geometry precedence, already measured at 98.5% resolution and 0%
+cross-tag conflict on real data) feeds `aggregate_group_laterality` (already
+implemented for the existing study-laterality-agreement diagnostic) to get
+one `GroupLateralityAgreement` per study. A study may be reflected, with
+`laterality_reliable = 1`, only when **all** hold: `aggregate_group_
+laterality(...).resolved >= 1`; `aggregate_group_laterality(...).consistent`
+is `True` (every plane series that resolved a call agrees with every
+other); and **no selected series has an internal tag/geometry conflict**
+(`SeriesAudit.laterality_conflict` is `False` for every selected series --
+a stronger, additional condition beyond what `aggregate_group_laterality`
+alone checks, since a single series privately disagreeing with itself is a
+stronger reason for doubt than simply not resolving). If the consensus call
+is "R", every selected plane's slices are reflected per item 1's axis logic
+before feature extraction; if "L", no reflection is needed (canonical
+target is "L", arbitrary but must be fixed and documented). Any condition
+failing means pixels are left unchanged and `laterality_reliable = 0` --
+never a guessed direction, matching round 47's original approved principle.
+
+**3. New tests needed (per round 60's explicit ask):** synthetic
+orientation fixtures for column-aligned, row-aligned, and normal-aligned
+left-right axes (each correctly reflected), an oblique/ambiguous case
+(correctly left unreflected, `laterality_reliable = 0`), a cross-series
+disagreement case (one plane resolves "L", another resolves "R" ->
+unreliable), and a single-series internal tag/geometry conflict case
+(unreliable even though `aggregate_group_laterality` alone would not catch
+it, since only one series is involved).
+
+**Not yet done:** no code, notebook, or dataset change -- a proposal only.
+Classifier, fold identity, decode/missing-study fallback thresholds, codec
+evidence, and release gates remain open per round 60's stated order.
+Returned for Codex's review and the user's approval, same as every prior
+section.
