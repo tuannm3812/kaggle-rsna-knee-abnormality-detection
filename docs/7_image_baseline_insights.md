@@ -609,3 +609,64 @@ review. The series ranking/validation/retry/audit contract's three
 round-55 gaps are now closed and confirmed not to regress real-data pass
 rates; the next step remains drafting the formal Phase 3B design spec
 (round 47's remaining list).
+
+## 2026-08-13 — Preflight audit v7: signed patient-X orientation (`04_image_baseline_preflight.ipynb`)
+
+**Why this round exists:** a proposed right-knee horizontal flip was not a
+patient-coordinate transform: DICOM patient left/right can align with image
+columns, rows, or the slice stack, and the direction-cosine sign determines
+whether reversal is needed. This targeted rerun measures those geometry facts
+before freezing a laterality-normalization threshold. It reuses the identical
+seeded 150-study sample and reports aggregate tables only.
+
+**Kernel:** `tuannm3812/rsna-knee-image-baseline-preflight-audit`, version 9,
+private/offline/T4, completed successfully. **Code:** private
+`rsna-knee-mri-src` dataset refreshed from commit `8cdfae8`. **Local gate:**
+233 tests and Ruff passed before publication.
+
+### Patient-X alignment is strong in all 822 geometry-valid sampled series
+
+| Plane | Series | Minimum dominant \|X\| | 5th percentile | Median | Minimum dominance gap | Below 0.80 | Below 0.85 | Below 0.90 | Below 0.95 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Axial | 201 | 0.8603 | 0.9657 | 0.9954 | 0.3518 | 0 | 0 | 1 | 3 |
+| Coronal | 292 | 0.8098 | 0.9598 | 0.9941 | 0.2280 | 0 | 3 | 4 | 8 |
+| Sagittal | 329 | 0.8692 | 0.9407 | 0.9916 | 0.3775 | 0 | 0 | 8 | 23 |
+| All | 822 | 0.8098 | 0.9547 | 0.9937 | 0.2280 | 0 | 3 | 13 | 34 |
+
+Every sampled series has a unique dominant axis and exceeds `0.80`; the
+smallest dominant component still exceeds its runner-up by 0.228. A `0.80`
+gate therefore retains all measured series while remaining an explicit
+fallback boundary for unseen oblique acquisitions. The sample is descriptive,
+not proof that all 4,407 studies satisfy the same distribution.
+
+### Axis and sign are plane-dependent
+
+- All 201 axial and 292 coronal series place patient X on increasing image
+  columns; all 493 signed components are positive.
+- All 329 sagittal series place patient X on the geometry-ordered slice stack;
+  all 322 series with a conservative side call have a negative signed
+  component. Seven sagittal, six coronal, and four axial series are excluded
+  from the side cross-tab by the conservative conflict/unresolved rule.
+- No sampled series places patient X on image rows.
+
+This directly supports signed canonicalization rather than “flip every right
+knee”: with the proposed medial-toward-decreasing-index convention,
+axial/coronal right knees reverse columns while left knees do not; sagittal
+left knees reverse slice order while right knees do not. The sagittal reversal
+does not change the current symmetric-sample/mean feature, but specifying it
+keeps the transform geometrically correct.
+
+### Unrelated preflight measurements remain stable
+
+All 822 series remain geometry-usable with zero decode/header failures, and all
+450 study-plane selections resolve without retry. The GPU timing lower bound is
+0.2101 hours for the three-series workload; as before, this is not an
+end-to-end runtime guarantee.
+
+### Disposition
+
+Recommend freezing a **strictly greater than 0.80** unique-dominant-axis gate,
+with below-threshold/tied orientations left untransformed and marked
+unreliable. This recommendation still requires Claude and user approval; the
+audit itself applies no reflection and authorizes no model implementation or
+submission.

@@ -220,3 +220,25 @@ accuracy signal.
 ### Verdict: **No-go** for an automatic weak-label allowlist from this
 pass, per `docs/3_strategy.md` Phase 2's predefined decision rule. See
 Phase 2's entry there for the resulting fork decision.
+
+## 2026-08-13 — Signed patient-X orientation audit (Phase 3B preflight v7)
+
+**Kernel:** private/offline/T4
+`tuannm3812/rsna-knee-image-baseline-preflight-audit` v9, completed.
+**Code:** private source dataset refreshed from commit `8cdfae8`.
+**Data:** the fixed seeded 150-study sample, all 822 series; aggregate-only
+output.
+
+All 822 geometry-valid series had a unique dominant patient-X axis and
+`dominant_abs_x > 0.80` (minimum 0.80985; minimum dominance gap 0.22801).
+Counts below thresholds 0.80/0.85/0.90/0.95 were 0/3/13/34. Axial and coronal
+series always mapped patient X to columns with positive sign (493/493);
+sagittal series always mapped it to slice order, with negative sign among all
+322 conservatively side-resolved cases. Seventeen series were excluded from
+the side cross-tab by the conservative unresolved/conflict policy.
+
+**Conclusion:** recommend `> 0.80` plus unique dominance as the conditional
+canonicalization gate. Below-threshold/tied cases remain unchanged with
+`laterality_reliable=0`. This is a descriptive sample and the fallback remains
+required for unseen acquisitions. No reflection, model training, or submission
+was performed.

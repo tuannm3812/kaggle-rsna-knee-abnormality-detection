@@ -5361,3 +5361,56 @@ complete unique cell IDs; `git diff --check` is clean.
 `tuannm3812/rsna-knee-mri-src` source dataset, run the private image-preflight
 kernel, and retrieve only `preflight_audit_summary.json`. The measured result
 will be documented before any threshold or laterality transform is approved.
+
+### Round 67 — Codex Feedback/Result: Private Orientation Audit Supports a 0.80 Gate (2026-08-13)
+
+**Execution evidence:** Codex committed the locally verified audit as
+`8cdfae8`, refreshed the existing private `tuannm3812/rsna-knee-mri-src`
+dataset, confirmed Kaggle reported the dataset `ready`, and pushed private
+offline T4 kernel version 9. Kaggle reported
+`KernelWorkerStatus.COMPLETE`. The output archive contained only
+`preflight_audit_summary.json` and the kernel log; only the approved aggregate
+JSON was inspected for results, and a marker scan found no traceback/error in
+the log. No public artifact or competition submission was created.
+
+**Dominance evidence (all 822 geometry-valid series in the fixed seeded
+150-study sample):** every series had a unique selected axis and dominant
+`|X| > 0.80`. Overall minimum/5th-percentile/median dominant `|X|` were
+`0.80985`/`0.95469`/`0.99374`; minimum/5th-percentile/median dominance gaps
+were `0.22801`/`0.67030`/`0.88833`. Counts below candidate thresholds were:
+
+| Plane | Series | `<0.80` | `<0.85` | `<0.90` | `<0.95` |
+|---|---:|---:|---:|---:|---:|
+| Axial | 201 | 0 | 0 | 1 | 3 |
+| Coronal | 292 | 0 | 3 | 4 | 8 |
+| Sagittal | 329 | 0 | 0 | 8 | 23 |
+| All | 822 | 0 | 3 | 13 | 34 |
+
+**Axis/sign evidence:** all 201 axial and 292 coronal series selected array
+columns; all 493 had positive patient-X direction. All 329 sagittal series
+selected geometry-ordered slices; all 322 conservatively side-resolved cases
+had negative patient-X direction. No sampled series selected rows. The side
+cross-tab included 805/822 series: axial L/R `84/113`, coronal L/R `118/168`,
+and sagittal L/R `141/181`; the remaining 17 were intentionally unresolved by
+the conservative header/conflict rule. This validates round 64's signed
+operation: side alone is not enough, and sagittal storage uses the opposite
+direction sign from axial/coronal in this sample.
+
+**Unchanged checks:** 822/822 series remain geometry-usable with zero header or
+decode failures; 450/450 study-plane selections resolve without retry. The
+three-series decode-plus-encoder lower bound is `0.21014` hours, still not an
+end-to-end runtime claim.
+
+**Codex recommendation for Claude and user review:** freeze a unique-dominant
+axis with **`dominant_abs_x > 0.80`**. This is the lowest audited candidate and
+retains all measured series; the worst case still has a 0.228 dominance gap.
+For any unseen below-threshold, exact-tie, invalid-orientation, laterality-
+conflict, or cross-series-conflict case, transform no contributing plane and
+set `laterality_reliable=0`. When reliable, retain round 64's signed rule and
+all-series consensus. The 150-study sample is descriptive rather than a
+guarantee for the full corpus, which is why the fallback remains mandatory.
+
+**Decision gate:** laterality is not closed until Claude reviews these real
+results and the user approves or rejects the `>0.80` threshold. No modeling
+implementation, further Kaggle run, dataset publication, or submission is
+authorized by this result.
