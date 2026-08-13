@@ -4684,3 +4684,158 @@ regularization, evaluation/refit protocol, codec delivery, notebook
 structure, release gates), incorporating this round's two frozen semantic
 decisions. No modeling implementation or submission is authorized until
 that spec is reviewed and approved.
+
+### Round 59 — Claude: Phase 3B remaining design proposal (2026-08-13)
+
+**Scope:** round 47 approved the study-level architecture and data flow
+but left nine areas open. Series ranking/tie-breaks and order validation
+(two of the original eleven) are now closed by rounds 50-58. This round
+proposes concrete decisions for the remaining nine, grounded in the real
+evidence already gathered (`docs/7_image_baseline_insights.md` v1-v6) and
+Phase 3A's reviewed report-baseline contract where directly analogous. This
+is a **proposal returned for Codex and user review** -- nothing here is
+implemented, and no modeling code, dataset publication, kernel run, or
+submission is authorized by it.
+
+**1. Crop dimensions.** Center-crop each slice to a square physical region
+covering 90% of `min(Rows * row_spacing, Columns * column_spacing)` mm per
+side (dropping the outer 10% margin, typically background/coil edge), then
+resize (bilinear) to a fixed 336x336 pixel input. This keeps the *physical
+fraction* of each study's field of view constant across the pixel-spacing
+range already measured (0.137-1.172mm, mean 0.327mm) -- a literal fixed-mm
+crop would need an assumed knee-joint anatomical size this project has not
+measured, while a pixel-only crop/resize would encode a different real-world
+extent per study, the exact problem physical cropping exists to avoid (v1's
+original finding). 336 is already used in the GPU timing probe and is evenly
+divisible by DINOv2-small's 14px patch size (24x24 = 576 patches), so no new
+resolution needs separate validation. The 90% margin/no anatomical-landmark-
+detection approach is a reasoned default, not one directly measured by any
+audit -- flagging that explicitly rather than overstating its evidence base.
+
+**2. Intensity transform.** Freeze the transform already implemented and
+smoke-tested in the GPU timing probe: per-slice 1st/99th-percentile clip,
+linear rescale to [0, 1], replicated to 3 channels for DINOv2's RGB-
+pretrained input. Percentile normalization is necessary because MRI has no
+fixed absolute intensity scale comparable to CT Hounsfield units -- each
+study's raw pixel range is scanner/protocol-dependent. This exact code path
+already ran without error across the real 30-series/150-slice timing sample
+(v5/v6), so it is not a novel proposal, only a proposal to freeze what has
+already been exercised.
+
+**3. Geometry-aware laterality reflection and its reliability feature.**
+Reuse `series_audit.py`'s existing tag-over-geometry resolution (already
+implemented, tested, and measured: 98.5% study-plane series resolve a call,
+0% cross-tag conflict, 96.9% geometry-fill rate among tag-missing series).
+When a study's laterality resolves to "R", horizontally flip every slice
+before feature extraction, canonicalizing every study to one orientation --
+the standard technique for laterality-symmetric anatomy, letting the head
+learn one shared representation instead of splitting the 58-label budget
+across two mirrored variants. Propose a *stricter* reliability rule than the
+existing audit-reporting precedence, though: reliability = 1 only when
+exactly one of {tag, geometry} resolves, or both resolve and **agree**;
+reliability = 0 when neither resolves, **or when both resolve and
+disagree** (the 1.18% conflict-rate case) -- a tag/geometry disagreement is
+a stronger reason for doubt than a single missing signal, and flipping raw
+pixel data on a possibly-wrong call is a materially riskier action than an
+audit label choosing one value to report. Unreliable studies are never
+flipped (orientation left unchanged, matching round 47's approved
+principle) and get an explicit `laterality_reliable` flag appended
+alongside the three plane-presence flags, never a guessed direction.
+
+**4. Exact DINOv2 token embedding.** Use the CLS token
+(`last_hidden_state[:, 0, :]`, 384-dim for `dinov2-small`) as each slice's
+embedding, with `interpolate_pos_encoding=True` (already exercised in the
+timing probe, since 336px differs from DINOv2's native training
+resolution). CLS matches DINOv2's own released usage for image-level
+classification/retrieval and keeps dimensionality at round-46's explicitly
+chosen low-capacity scale (one embedding's width, not a multiple of it) for
+a 58-label dataset. Mean-pooled patch tokens (also 384-dim after averaging
+the 576 patch tokens) are a plausible, more texture-sensitive alternative --
+deferred as a separately-evaluated experiment, the same "not a silent
+fallback" treatment round 46 gave concatenation/independent-head
+aggregation.
+
+**5. Classifier regularization.** Reuse Phase 3A's exact estimator shape
+(`OneVsRestClassifier(LogisticRegression(penalty="l2", solver="liblinear",
+class_weight="balanced", max_iter=2000, random_state=42), n_jobs=1)`,
+`src/knee_mri/report_model.py`), but do **not** reuse its `C=1.0` --
+that value was chosen for a 50,000-feature sparse TF-IDF input; Phase 3B's
+input is ~387 dense continuous features (384 DINOv2 dims + 3 presence flags
++ 1 laterality-reliability flag) from the same 58 labeled studies, a much
+higher per-feature overfitting risk. Rather than guess a smaller constant,
+propose selecting `C` from a small predefined grid (e.g. `{0.01, 0.1, 1.0}`)
+by pooled OOF macro AUC using the *same* frozen-fold CV protocol below --
+matching this project's existing "no seed retry, no silent tuning"
+discipline (`select_multilabel_folds`'s own docstring) rather than
+introducing an ungoverned hyperparameter search.
+
+**6. Evaluation/refit protocol.** Call `select_multilabel_folds` with the
+identical arguments Phase 3A uses (`candidate_splits=(5, 4, 3, 2)`,
+`seed=42`) on the same 58 gold-labeled studies' labels. Because fold
+assignment depends only on `y`, not on the feature matrix, this
+deterministically reproduces Phase 3A's *exact* fold membership -- not just
+the same algorithm, enabling a direct, comparable macro AUC between the
+report and image baselines on identical validation studies. Otherwise
+mirror `cross_validate_report_model`'s contract exactly: pooled OOF macro
+AUC as the primary metric, per-label and per-fold AUC as diagnostics, full-
+58 refit for the production submission, identical feature-extraction and
+inference code path applied to whatever test studies are available at
+runtime (the 3 locally visible ones for local checks; the documented
+~1,300-study hidden set at actual scoring time -- this is the established
+Code Competition pattern, not new information).
+
+**7. Fallback thresholds.** Two levels below the already-approved series/
+plane fallback (unusable series -> same-plane retry -> exhausted -> plane
+absent, presence flag 0): (a) **slice-level**: if any of a plane's 5
+sampled central-band slices fails to decode, drop it from that plane's mean
+(mean over however many did decode) -- extending the already-approved
+"exclude and flag" philosophy one level down rather than inventing a new
+pattern; if all 5 fail, the whole plane is absent (presence flag 0), same
+as an unusable series. The real 4110-slice sample measured 0 decode
+failures, so this path is a defined safety net, not an expected one. (b)
+**study-level**: if every plane ends up absent (a study this pipeline
+cannot embed at all), still emit exactly one submission row using a fixed
+fallback probability vector (the 58-study label prevalence, mirroring 3A's
+constant-prediction sanity-check pattern) rather than skipping a row or
+crashing -- and count this event in the notebook's aggregate summary (no
+per-study identifiers) so its real frequency, expected to be at or near
+zero, is actually monitored rather than assumed.
+
+**8. Codec delivery.** The preflight environment had `pylibjpeg`,
+`libjpeg`, `openjpeg`, and `gdcm` all unavailable, yet the entire real
+150-study/822-series/4110-slice sample used only transfer syntax
+`1.2.840.10008.1.2.1` (uncompressed Explicit VR Little Endian) with 0
+decode failures -- meaning **compressed transfer syntaxes remain completely
+untested**, not confirmed-safe, since the sampled 150 of 4,407 studies
+(3.4%) happened to avoid them even though earlier EDA established the full
+corpus mixes JPEG Lossless, JPEG 2000, and uncompressed data. Given
+`enable_internet: false`, propose vendoring `pylibjpeg` +
+`pylibjpeg-libjpeg` + `pylibjpeg-openjpeg` as an attached wheel dataset,
+checksum-verified before install, via the identical offline pattern already
+proven for `iterative-stratification` in Phase 3A. Before this item is
+considered closed, propose one **targeted** follow-up audit (not a full
+rerun) specifically sampling studies more likely to carry compressed
+syntaxes, to get real decode-reliability evidence this sample never
+produced -- flagged with the same "the happy-path sample doesn't prove the
+untested path works" discipline already applied to every prior finding in
+this log.
+
+**9. Notebook structure and release gates.** Mirror
+`03_baseline_modeling.ipynb`'s established section skeleton: environment/
+package verification (offline codec + DINOv2 discovery, GPU compatibility
+check -- all patterns already implemented in the preflight notebook),
+frozen-contract display, per-study feature-extraction pipeline, CV with the
+reused folds plus a constant-prediction sanity assertion, full-58 refit,
+identical test-time inference, exactly one `to_csv("/kaggle/working/
+submission.csv")` call, and a persisted aggregate-only JSON summary for
+post-hoc review. **Release gates** before any real submission is
+authorized: full local test suite green; a private full-pipeline dry run on
+the 3 locally visible test studies completing within the *actually measured*
+runtime (not just the encoder-only lower bound this project has measured so
+far); item 8's targeted codec audit closed with real evidence; and explicit
+user sign-off -- the standing "no submission is authorized" rule that has
+held every round so far is unchanged by this proposal.
+
+**Not yet done:** no code, notebook, or dataset change. Returned for
+Codex's review and the user's section-by-section approval, the same pattern
+rounds 46-47 used for the already-approved architecture.
