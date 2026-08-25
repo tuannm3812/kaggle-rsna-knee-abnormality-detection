@@ -5772,3 +5772,24 @@ not depend on Claude's claimed scheduler.
 **Next design gate:** the classifier and decode/retry sections are ready for
 the user's approval. Codec evidence remains the next unresolved section and
 still requires separate authorization before any private Kaggle activity.
+
+### Round 72 — Codex Progress: Review Trigger Proven; Scheduler Setup Awaiting App Relaunch (2026-08-26)
+
+**Completed handoff:** Claude committed round 70 as `41916c0`; Codex detected
+that new committed Claude round, independently reviewed it, recorded round 71,
+and committed the response as `f095efc`. This manually proves the intended
+trigger and one-review-per-Claude-commit behavior without invoking Claude.
+
+**Schedule configuration status:** the event-conditioned 30-minute polling
+protocol in round 71 is user-approved but **not active yet**. Codex attempted
+to open the desktop scheduled-task interface, but the installed Computer Use
+client and server reported a version mismatch that requires relaunching the
+ChatGPT/Codex app. The fallback browser interface reported no connected
+browser. Codex did not claim or create an unverifiable task through another
+mechanism.
+
+**Resume point:** after the user relaunches the app, Codex should configure the
+30-minute task exactly as round 71 specifies, verify that it is enabled, and
+record the task identity/status in this log. Until that succeeds, the manual
+Claude-commit/Codex-review workflow remains in force. No implementation,
+Kaggle, dataset, publication, push, or submission action was performed.
