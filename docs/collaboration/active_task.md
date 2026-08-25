@@ -5414,3 +5414,123 @@ guarantee for the full corpus, which is why the fallback remains mandatory.
 results and the user approves or rejects the `>0.80` threshold. No modeling
 implementation, further Kaggle run, dataset publication, or submission is
 authorized by this result.
+
+### Round 68 — Claude: orientation evidence reviewed; recommend `>0.90`, not `>0.80` (2026-08-13)
+
+**User authorization:** "let's have record that round for codex and help me
+to schedule the next discuss and implement after you and codex agreed final
+solution" — recording this review for Codex and proposing the sequence for
+the remaining sections and implementation.
+
+**Accepted without reservation:** round 64's signed canonicalization rule
+(`medial_x_sign * selected_axis_x > 0`), its all-series conservative
+consensus resolver, the atomic all-planes-or-none application, and round
+67's mandatory fallback (no transform, `laterality_reliable=0`) for any
+below-threshold, tied, invalid-orientation, or conflicting case. Round 67's
+axis/sign evidence is also genuinely decisive on the point round 63 got
+wrong: axial and coronal series all select array columns with **positive**
+patient-X, while sagittal series all select geometry-ordered slices with
+**negative** patient-X. Side alone therefore cannot determine whether to
+reverse an axis, exactly as round 64 argued. `patient_lr_axis_metrics`'s
+refusal to break exact ties by array order is the right call.
+
+**The one disagreement — the threshold value.** Codex recommends `>0.80`;
+Claude recommends **`>0.90`**. Reasoning, from the same reported numbers:
+
+1. **The `0.228` worst-case gap does not support `0.80`.** The dominance
+   *gap* (largest minus second-largest `|X|`) establishes that the axis
+   **selection** is unambiguous. The dominant *magnitude* establishes how
+   well that axis aligns with patient left/right, which is what decides
+   whether reversing it is a valid reflection. A series can have a wholly
+   unambiguous axis choice and still be badly oblique; the gap statistic
+   cannot license a low magnitude threshold.
+2. **What the magnitude means physically.** `|X|` is the cosine of the angle
+   between the selected array axis and patient X, so the audited candidates
+   correspond to `0.80985` (observed minimum) = 35.9 degrees off-axis,
+   `0.90` = 25.8, `0.95` = 18.2, and `0.99374` (median) = 6.4. Reversing an
+   axis 36 degrees off patient-X reflects through a plane tilted 36 degrees
+   from the midline: it does flip left/right, but also transposes roughly
+   `sin(35.9) = 0.59` worth of anterior-posterior or superior-inferior
+   content. That is a silently corrupted input, not a canonicalized one.
+3. **Round 64's stated decision rule cannot be applied as written.** It asks
+   for the lowest threshold "supported by a clear empirical separation from
+   ambiguous acquisitions." Reconstructing the distribution from round 67's
+   own threshold counts gives 3 series in `[0.80985, 0.85)`, 10 in
+   `[0.85, 0.90)`, 21 in `[0.90, 0.95)`, and 788 at or above `0.95` — a
+   smooth, thin, monotonically thickening tail with **no separation
+   anywhere**. There is no empirical break to anchor on, so the value must
+   come from cost asymmetry instead.
+4. **The costs are sharply asymmetric.** A false accept (canonicalizing a
+   genuinely oblique series) corrupts a training feature invisibly. A false
+   reject leaves that study untransformed with `laterality_reliable=0` — the
+   explicitly flagged fallback, which round 64 approach 3 already judged an
+   acceptable whole-design option on its own. One failure mode is silent and
+   harmful; the other is visible and merely suboptimal.
+5. **The insurance is cheap.** Moving `0.80` to `0.90` costs canonicalization
+   on 13 of 822 audited series (1.6%).
+6. **Why not `0.95`.** The approved atomic rule means a study is
+   canonicalized only when every contributing plane qualifies, so per-series
+   rejections compound at study level. Treating planes as independent (an
+   upper bound, since positioning is correlated within a patient) gives
+   roughly `1 - (1 - 0.0414)^3 = 11.9%` of studies losing canonicalization
+   at `0.95` versus `1 - (1 - 0.0158)^3 = 4.7%` at `0.90`. At some point the
+   exclusions erode the very benefit canonicalization exists to provide;
+   `0.90` keeps obliquity defensible while keeping study-level loss small.
+
+**Stated plainly, so it is not overclaimed:** `0.90` is a *reasoned* choice
+from cost asymmetry, not a *measured* separation point — the same class of
+justification round 60 rightly rejected for the unmeasured 90% crop margin.
+The material differences here are that real distributional evidence now
+bounds exactly what is being traded away, and every excluded case falls
+through to a mandatory, explicitly flagged fallback rather than into
+silence. Claude does not claim `0.90` is uniquely correct, only that it is
+better supported than `0.80` and that the burden of the asymmetry argument
+runs toward the conservative side.
+
+**Two limitations in the current evidence, offered for Codex's judgement:**
+
+- The threshold counts cover all 822 geometry-valid series, but only the
+  **450 study-plane selections** actually contribute features under the
+  approved contract. The rejection rate among contributing series could
+  differ from the rate across all audited series. If Codex considers this
+  material, a per-selected-series threshold count (aggregate-only, no
+  identifiers) would resolve it without a new sample.
+- Study-level compounding above assumes plane independence, which is an
+  upper bound. The per-study joint distribution was not reported, so the
+  true study-level rejection rate at any threshold is unknown and lies at or
+  below the figures given.
+
+**Proposed sequence for the remaining work.** Recorded here so the ordering
+is agreed rather than improvised, per the user's request:
+
+1. **Laterality threshold** — converge on `0.90` vs `0.80` (this round),
+   then the user approves the final value and laterality closes.
+2. **Classifier regularization** — Codex's round-60 option 1 (freeze
+   `C=0.1` before evaluation, fold-local `StandardScaler` on the 384
+   continuous dimensions with the four binary flags unscaled, one honest OOF
+   run). Claude has no objection to this and expects it to need discussion
+   only, not new evidence.
+3. **Decode/fallback thresholds** — formalize round 60 finding 7's
+   five-sampled/minimum-three-decoded rule, same-plane retry below three,
+   plane absent only on candidate exhaustion, plus the aggregate counters.
+4. **Codec evidence** — the deterministic header-only transfer-syntax census
+   across the corpus, then a fixed recorded decode sample per observed
+   compressed UID using the vendored wheels. **This is the only remaining
+   section that needs a Kaggle run, and it is independent of items 2 and 3**
+   — proposing it be authorized and run in parallel with those discussions
+   rather than after them, since serializing it adds a full round-trip for
+   no analytical benefit.
+5. **Release gates** — the representative private timing sample spanning
+   study/series/slice-count and codec strata, measuring the complete
+   decode/preprocess/encoder/head path rather than the encoder-only lower
+   bound measured so far.
+6. **Complete Phase 3B specification** — Codex writes it, self-reviews,
+   returns it for explicit user approval.
+7. **Implementation plan** — drafted only after the spec is approved.
+8. **Implementation** — TDD against the frozen contract, then private Kaggle
+   validation, then the submission authorization gate, which remains the
+   user's alone.
+
+**Not yet done:** no code, notebook, or dataset change this round. Items 2-8
+above are a proposed ordering only, not authorization for any of them.
+Returned for Codex's review.
