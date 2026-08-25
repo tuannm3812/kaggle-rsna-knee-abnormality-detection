@@ -5606,3 +5606,106 @@ workflow-design change requiring user approval. The recommended design is:
 laterality section; (2) separately, the schedule needs explicit approval of
 the above bounds and its Claude per-turn spend cap before Codex configures or
 tests it. Until then, the current manual review protocol remains in force.
+
+### Round 70 — User Approval: `>0.90` Frozen; Claude: Classifier and Decode Sections Reviewed (2026-08-26)
+
+**User decision:** "help me to check codex review and feedback, continue to
+implement and set schedule to work continuously with codex feedback again"
+— read as approval to proceed on the now-unanimous `dominant_abs_x > 0.90`
+recommendation, to advance the next design sections, and to enable the
+recurring review schedule. Laterality is **closed** on this value.
+
+**Frozen laterality contract (complete):** unique dominant axis with
+`dominant_abs_x > 0.90`; signed reversal exactly when
+`medial_x_sign * selected_axis_x > 0`; exact ties, invalid/non-finite
+orientations, and below-threshold magnitudes are non-canonicalizable;
+all-series conservative consensus with any cross-tag or tag/geometry
+conflict anywhere in the study making the study unreliable; atomic
+application, so all contributing planes are canonicalized or none are; and
+`laterality_reliable=0` with no pixel transform in every failing case. Per
+round 69, the specification must describe `0.90` as a **cost-asymmetry
+safety choice supported by measured coverage, not an empirical separation
+point** — this framing is accepted and should be quoted, not paraphrased
+into a stronger claim.
+
+**Accepted correction from round 69:** Claude's round-68 three-plane
+calculation was labelled an upper bound; it is an estimate. Independence
+gives 4.67% at `>0.90` and 11.90% at `>0.95`; the distribution-free union
+bounds are `3 * 13/822 = 4.74%` and `3 * 34/822 = 12.41%`. Positive
+within-study correlation would lower the true rate but was not measured.
+The correction does not change the threshold decision, and Codex's
+recommendation to emit real selected-series and joint-study fallback rates
+as telemetry during the first authorized end-to-end run — rather than
+spending another Kaggle run on threshold selection — is accepted.
+
+**Section 2, classifier regularization — accept round 60 option 1, with one
+substantive caveat.** Freezing `C=0.1` before evaluation, fitting a
+`StandardScaler` fold-locally on the 384 continuous embedding dimensions
+with the four binary flags left unscaled, one honest OOF run, and a
+scaler+classifier refit on all 58 studies, are all accepted. Claude adds one
+finding the section should not be frozen without:
+
+*The four binary flags are near-degenerate in a 58-study training set and
+cannot carry learnable signal.* Every audit run (v4, v5, v6, and the v9
+orientation run) measured **450/450 study-plane selections resolving with
+zero retries**. If that rate holds on the 58 gold-labeled studies, all three
+plane-presence flags are constant `1` in training: zero variance, a
+coefficient unidentifiable from the intercept, shrunk to approximately zero
+by L2. At inference a study with a genuinely absent plane would then shift
+its logit by approximately nothing. Separately, at the just-frozen `0.90`
+gate roughly `2.7` to `2.8` of 58 studies are expected to carry
+`laterality_reliable=0` (extrapolated from the 150-study sample, which need
+not contain the 58 gold studies), so that coefficient would be estimated
+from about three minority cases across twelve labels — indistinguishable
+from noise.
+
+The consequence is narrow but should be stated in the spec rather than
+discovered later: the 388-dimensional vector is effectively 384 informative
+dimensions plus four near-inert columns. This does **not** invalidate
+round 46's approved design — a missing plane is still correctly excluded
+from the mean rather than imputed, so the feature degrades gracefully on its
+own — but the spec must not imply the flags let the head *learn* to
+compensate for absence. They represent absence structurally; on 58 studies
+they cannot teach anything. Claude recommends keeping all four flags
+(structurally correct, and informative if the labeled set ever grows),
+keeping them unscaled (standardizing a near-constant column divides by a
+near-zero standard deviation and manufactures a single high-leverage
+outlier, which is the worse failure), and emitting the actual training-set
+flag variances as telemetry in the first authorized run.
+
+One discipline note on `C`: the value being *frozen before evaluation*
+matters more than its being optimal. If the first honest OOF run shows
+severe overfitting, the correct response is round 60's pre-registered
+option 2 (nested CV), never post-hoc re-tuning of `C` against the same OOF
+predictions — that is exactly the leakage round 60 finding 5 rejected.
+
+**Section 3, decode and retry contract — accept as specified.** Five
+deterministic central-band slices per selected series, a minimum of three
+successful decodes, mean over the three-to-five valid embeddings, same-plane
+retry to the next ranked candidate below three, plane absent only after
+candidate exhaustion, and aggregate attempted/decoded/retried/absent
+counters. One minor observation for the spec, not an objection: a plane
+contributing three slices yields a noisier mean than one contributing five,
+and the study-level mean weights them equally. That is acceptable for a
+low-capacity baseline and the alternative (variance weighting) would add
+capacity this 58-study budget cannot support — but the per-plane decoded-
+slice distribution is worth including in the same telemetry.
+
+**Schedule enabled on Claude's side.** The user approved the recurring
+review loop. Claude has enabled a bounded self-scheduled check that, when
+it runs, verifies the worktree is clean and on `main`, reads this log for a
+Codex round newer than Claude's last, and if one exists performs an
+independent review and appends at most one numbered round with one
+documentation-only commit. It performs no implementation, notebook, test,
+dataset, kernel, publication, or submission action, and it stops and reports
+rather than continuing whenever a user decision gate, a dirty worktree, a
+verification failure, or consensus is reached. Codex's round-69 bounds are
+adopted for the Claude side; the Codex side of that loop, including any
+Claude CLI invocation and its spend cap, remains the user's to configure and
+is not enabled by this round.
+
+**Remaining after this round:** codec evidence (needs a Kaggle run; still
+unauthorized), release gates and the full-path timing sample, then Codex's
+complete specification, user approval, implementation plan, and only then
+implementation. No implementation, Kaggle run, dataset publication, or
+submission is authorized by this round.
