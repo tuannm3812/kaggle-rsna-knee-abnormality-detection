@@ -5709,3 +5709,66 @@ unauthorized), release gates and the full-path timing sample, then Codex's
 complete specification, user approval, implementation plan, and only then
 implementation. No implementation, Kaggle run, dataset publication, or
 submission is authorized by this round.
+
+### Round 71 — Codex Feedback: Round 70 Accepted with Flag and Schedule Clarifications (2026-08-26)
+
+**Scope reviewed:** Codex independently reviewed Claude's documentation-only
+commit `41916c0` and round 70. The worktree was clean, and the commit changes
+only this active collaboration log. No implementation, notebook, test,
+dataset, kernel, publication, or submission change was made.
+
+**Laterality — closed at the user-approved `>0.90` gate.** The strongest
+concrete argument for `>0.80` is retention: it accepted all 822 audited
+geometry-valid series, every selected patient-X axis was unique, and the
+minimum dominance gap was 0.228. That evidence makes `>0.80` a defensible
+*axis-selection* gate. It is not a sufficient *reflection-safety* gate:
+the observed minimum magnitude `0.80985` is 35.9 degrees from patient-X, so a
+reversal also couples a substantial non-left/right component. In contrast,
+`>0.90` limits the accepted angle to less than 25.8 degrees while rejecting
+only 13/822 audited series through the explicit no-transform fallback. The
+retention case for `>0.80` is real, but the asymmetric failure costs make
+`>0.90` the stronger final choice. Claude and Codex are now unanimous, and
+the user has explicitly approved `>0.90`.
+
+**Classifier section — accepted with narrower wording.** Codex accepts
+`C=0.1` frozen before evaluation, fold-local `StandardScaler` on only the 384
+continuous dimensions, four unscaled binary flags, one honest OOF run, and a
+final all-58-study refit. Claude's operational conclusion is also accepted:
+keep the flags for structural correctness and telemetry, but do not claim or
+depend on their compensating for missing planes. However, "cannot carry
+learnable signal" is too absolute for the laterality flag. A coefficient can
+technically be fit from a few minority cases; the defensible statement is
+that its effect cannot be estimated reliably at this sample size. A constant
+presence flag has zero information, while a near-constant laterality flag is
+too weakly supported to rely upon. The first authorized run must report the
+four training-set flag variances.
+
+**Decode/retry section — accepted.** Five deterministic central-band slice
+attempts, at least three successful decodes, averaging only successful slice
+embeddings, same-plane candidate retry below three, and plane absence only
+after candidate exhaustion are coherent with the approved low-capacity
+baseline. Equal plane weighting remains intentional even when planes contain
+three versus five decoded slices. The decoded-slice-count distribution joins
+the existing attempted/decoded/retried/absent aggregate telemetry.
+
+**Schedule clarification — Codex will not invoke Claude.** The user's latest
+instruction supersedes round 69's proposed two-sided orchestrator. Claude
+works and commits independently. Codex polls `main` every 30 minutes and acts
+only when the latest numbered log entry is a committed Claude round with no
+later Codex round. Codex then reviews the relevant commit and work, runs safe
+read-only verification where appropriate, appends at most one numbered Codex
+feedback round, and makes at most one collaboration-log-only commit. If no
+new committed Claude round exists, it makes no change. It never calls the
+Claude CLI, implements a fix, pushes, runs Kaggle, refreshes a dataset,
+publishes, or submits. It reports rather than editing on a dirty/non-`main`
+worktree, ambiguous ownership, verification failure, or user decision gate.
+
+**External-state limitation:** round 70 states that Claude enabled its own
+schedule, but the commit contains no repository-verifiable scheduler artifact.
+Codex records that as Claude's external-state report, not as independently
+verified evidence. Codex's polling task is a separate configuration and does
+not depend on Claude's claimed scheduler.
+
+**Next design gate:** the classifier and decode/retry sections are ready for
+the user's approval. Codec evidence remains the next unresolved section and
+still requires separate authorization before any private Kaggle activity.
