@@ -6540,3 +6540,63 @@ suite), and 5 (drafting the implementation plan for approved sections only)
 remain. No Kaggle run, dataset refresh, publication, push, or submission was
 performed or is authorized. Sections 10-13 remain proposals awaiting the user,
 and none of findings 1-5 changes an approved contract.
+
+### Round 83 — Claude: geometry contracts fuzzed; one bounded interaction found (2026-08-27)
+
+**Queue item 3.** Randomized property-testing of the frozen geometry
+contracts. Two clean results, one real interaction, and one non-finding
+worth writing down so it is not rediscovered.
+
+**Clean — `order_agreement` matches SciPy exactly.** 4,000 randomized cases,
+deliberately tie-heavy (**3,834** contained ties, **115** had a constant
+input): **zero** mismatches against `scipy.stats.spearmanr`, with constant
+inputs correctly returning `None` where SciPy returns `nan`. This is direct
+verification of round 80's midrank rewrite, which changed a function whose
+output feeds a statistic this project has cited for forty rounds.
+
+**Clean — `patient_lr_axis_metrics` invariants hold.** 5,000 random
+orthonormal frames: **zero** violations. Dominant and runner-up components
+match an independent recomputation, the gap is always non-negative, and
+`array_axis` is `None` **exactly** when the two largest components tie.
+
+**Non-finding, recorded to prevent rediscovery.** An initial property test
+flagged 321 "asymmetry violations" in `central_band_indices`. They are not
+defects: the sampler draws `linspace` over a band that is symmetric about the
+stack centre (`0.2`/`0.8`), so it is symmetric **by construction**, and the
+apparent offsets are pure integer rounding — worst mean offset at the
+production sample size of five is **0.1 slices**. The property was
+over-strict, demanding exact symmetry after rounding, which is impossible for
+even-length stacks.
+
+**Real interaction — the sampler can return fewer slices than section 4
+assumes.** Rounding collapses duplicate positions, so `central_band_indices`
+returns fewer than five indices for stacks of six slices or fewer, and fewer
+than **three** for stacks of four or fewer. Section 4 reads as though five
+are always attempted ("Sample five deterministic central-band slices ...
+Require at least three successes"). Consequently **a series of four slices or
+fewer can never satisfy section 4's minimum, however perfectly it decodes** —
+it would always fail, trigger retry, and potentially mark the plane absent.
+
+Bounded: the shortest series observed in the corpus has **11** slices, so
+nothing in the sampled data is affected, and every depth from seven upward
+returns the full five. But the hidden test set is unobserved, so the
+behavior is now **pinned by two tests** rather than left implicit — one
+asserting five indices for every depth from 7 to 329, one pinning the exact
+collapse sequence `[1, 2, 3, 2, 3, 4]` for depths 1-6 so the boundary cannot
+drift unnoticed. No production code changed; this is a documentation-and-test
+gap, not a defect, and section 4 remains an approved contract.
+
+**Minor consistency note.** Section 5 pins `floor(value + 0.5)` for framing,
+while `central_band_indices` uses Python's `round`, which is banker's
+rounding. Two different tie-breaking conventions in one pipeline. The impact
+is at most one slice index on exact `.5` ties and is not systematically
+biased, so no change is proposed — recorded only so a future reader does not
+assume one convention applies throughout.
+
+**Verification:** `uv run pytest -q` reports `262 passed` (up from 260);
+`uv run ruff check .` reports `All checks passed!`; `git diff --check` clean.
+
+**Not yet done / authorization boundary:** queue items 4 (mutation-testing the
+geometry suite) and 5 (drafting the implementation plan for approved sections)
+remain. No Kaggle run, dataset refresh, publication, push, or submission was
+performed or is authorized. Sections 10-13 remain proposals awaiting the user.
