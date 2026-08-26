@@ -6468,3 +6468,75 @@ contract, so it is **not** being made here.
 the remaining unvalidated contract and is next. No Kaggle run, dataset
 refresh, publication, push, or submission was performed or is authorized.
 Sections 10-13 remain proposals awaiting the user.
+
+### Round 82 — Claude: spec section 6 design-validated; queue item 2 complete (2026-08-27)
+
+**Queue item.** Last of the three never-executed contracts. Prototype in
+`/tmp` only; nothing added to `src/`. With this, all of sections 5, 6, and 7
+have been executed at least once.
+
+**Result — section 6's ordering is sound and implementable.** The seven steps
+compose correctly on synthetic slices covering signed stored values, a
+rescale slope/intercept, `MONOCHROME1`, and pixel padding.
+
+**Finding 1 — round 64's stored-domain clarification is load-bearing, and
+here is the proof.** With `PixelPaddingValue = -2000` and a rescale of
+`slope=2, intercept=-1024`, the stored-domain mask correctly masks 2 pixels
+while building the same mask *after* the modality transform masks **0** — the
+padding is missed entirely, then silently included in the percentile
+estimate. Round 64 recorded this as a precision clarification; it is actually
+the difference between working and not.
+
+**Finding 2 — step 3's "invert" is underspecified, but provably immaterial.**
+The spec says invert for `MONOCHROME1` without saying against what reference.
+Three plausible conventions — negate, `max - x`, and `(2**BitsStored - 1) - x`
+— produce **byte-identical** `[0, 1]` images (max absolute difference
+`5.6e-17`). The reason is structural: step 5's per-slice percentile rescale is
+affine and data-range-relative, so any strictly decreasing affine inversion
+cancels out. Worth recording twice over: so an implementer does not agonize
+over the choice, **and** so nobody later "tightens" step 5 without noticing
+the coupling. If the bounds ever became per-series pooled (round 61's rejected
+option 2) or window/VOI-driven, this equivalence would break and the
+inversion convention would suddenly matter.
+
+**Finding 3 — step 4's "insufficient variation" threshold is unspecified.**
+The natural criterion, `p99 <= p1` on finite non-padding values, behaves
+sensibly on every case tried: a constant slice, an all-padding slice, and a
+sparse slice with a handful of bright pixels on black (where `p1 == p99 == 0`)
+are all rejected, while a normal slice passes. Recommend pinning that exact
+criterion in the implementation plan rather than leaving "insufficient" to
+the implementer, since it decides whether a slice counts toward section 4's
+minimum-three-of-five rule.
+
+**Finding 4 — three different things now map to normalized `0`.** DICOM pixel
+padding (section 6 step 5), any real tissue at or below `p1` (also step 5),
+and the letterbox border (section 5 step 5, round 81). They are mutually
+indistinguishable downstream. Probably harmless, but it means "zero" carries
+no single meaning in the model input, and any future attempt to mask padding
+out of a loss or an attention map cannot recover it from the pixel values.
+
+**Finding 5 — section 6's required test cannot run where the spec says it
+must.** Section 6 mandates comparing the manual pipeline against the attached
+Transformers image processor, and round 61 words this as "**local** tests
+must compare". That is not currently possible: `transformers` is declared only
+under the optional `torch` extra in `pyproject.toml` and is **not installed**
+in this environment (`importlib.util.find_spec("transformers")` -> `None`,
+while `torch` 2.13.0 is present), and `preprocessor_config.json` ships with
+the Kaggle Model mount rather than the repository. Constructive fix for the
+implementation plan: the test needs only the processor's `image_mean` /
+`image_std`, not the model weights, so vendoring that one small config file
+(or parameterising the comparison over explicit mean/std) plus installing the
+extra makes the required test genuinely local. Otherwise it has to be a
+Kaggle-only assertion, which is a materially weaker gate and should be
+labelled as such rather than left implying local coverage.
+
+**Verification:** worktree clean on `main`; nothing added to `src/`;
+`uv run pytest -q` reports `260 passed`; `uv run ruff check .` reports
+`All checks passed!`.
+
+**Not yet done / authorization boundary:** queue item 2 is complete; items 3
+(property/fuzz-testing the frozen geometry contracts), 4 (mutation-testing the
+suite), and 5 (drafting the implementation plan for approved sections only)
+remain. No Kaggle run, dataset refresh, publication, push, or submission was
+performed or is authorized. Sections 10-13 remain proposals awaiting the user,
+and none of findings 1-5 changes an approved contract.
