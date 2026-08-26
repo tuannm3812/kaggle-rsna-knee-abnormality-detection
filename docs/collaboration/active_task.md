@@ -6169,3 +6169,92 @@ written in round 76 still has had no adversarial read.
 publication, push, or submission was performed or is authorized. The Phase 3B
 specification remains drafted and unapproved, and no implementation plan
 exists.
+
+### Round 78 — Claude: spec provenance audit; ten corrections applied (2026-08-27)
+
+**User authorization:** "we can do the next step" — approving the spec audit
+proposed at the end of round 77, since the round-76 specification had had no
+adversarial read of any kind.
+
+**Method.** A second fresh-context reviewer agent audited
+`docs/superpowers/specs/2026-08-26-phase-3b-image-baseline-design.md` against
+this log, `docs/7_image_baseline_insights.md`, and the source, looking for
+invented decisions, misquoted decisions, omitted constraints, figures
+disagreeing with measured evidence, spec-versus-code contradictions, and
+internal contradictions. **Claude re-verified every finding acted on**, as
+with round 77.
+
+**The reassuring half.** The audit traced every technical constant to a
+source and found **no fabricated value, no misquoted threshold, and no
+contradiction against the implemented code in §3** — tolerances, the `0.90`
+gate, `C`, image size, fold parameters, the 388 dimensions, decode minimums,
+percentile bounds, the census figures, and every timing number check out. It
+also confirmed round 69's required wording about the `0.90` gate survived
+quoted rather than paraphrased.
+
+**The real defect: provenance inflation.** The draft opened with "Every
+contract below was approved section by section by the user across rounds
+46-75". That is **false**, and Claude wrote it. Verified against the log:
+
+- **§13 release gates.** Round 75 — the last approval-bearing round — states
+  "release gates and the full-path timing sample **remain open**". Round 60
+  finding 9 is *Codex feedback*, not user approval, and rounds 68, 69, and 70
+  each repeat that the section is outstanding. The draft presented seven
+  gates as frozen and flagged only gate 5's multiplier as open.
+- **§10 codec disposition.** Round 75 recorded it as "**Recommendation to
+  Codex**" and said plainly "its disposition is **Codex's to confirm**".
+  Codex was withdrawn before replying (round 76), so the second read never
+  happened — yet the draft called it a "**Frozen disposition**".
+- **§11, §12, and §9's fold-identity invariant** carried normative framing
+  with no approving round either.
+
+**Two substantive technical corrections, both verified:**
+
+1. **§7.4 contradicted §7.2 and the measured signs.** The draft said
+   "canonical target orientation is left-knee convention" — a leftover from
+   the blanket-flip proposal round 64 *rejected*. Working the frozen signed
+   rule against the measured axis signs shows the canonical (unreversed)
+   state is a **left** knee for axial/coronal but a **right** knee for
+   sagittal, since the two groups store opposite signs. The target is
+   `medial-toward-decreasing-index` and is deliberately not expressible in
+   left/right terms. Replaced, with the per-plane table added.
+2. **§5's `PixelSpacing` precondition is not implemented.** The draft
+   cross-referenced it into §3, the one section described as already built.
+   `validate_and_order_series` reads no `PixelSpacing` at all; confirmed
+   behaviourally that a series with the tag **absent**, **negative**, or
+   **zero** still returns `usable=True, method="geometry"`. Now flagged as
+   new work for the implementation plan rather than existing behavior.
+
+**Two measurement corrections:** §7.2 stated all 329 sagittal series had
+negative patient-X, but round 67 attests the sign for **322** — the other 7
+were excluded as conflicting or unresolved. And every "822"/"450" figure now
+carries the scope caveat the rounds always attached and the draft dropped:
+these come from **one seed-42 sample of 150 of 4,407 studies**, ~3.4% of the
+visible train corpus, descriptive rather than a guarantee.
+
+**Corrections applied to the spec:** an authority table at the top splitting
+sections into approved / proposed-not-approved / open; per-section status
+notes on §9, §10, §11, §12, §13; the §7.4 rewrite and §7.2 table; the §5
+not-implemented note; the sample-scope caveat; §1's non-goals split into
+"deferred as reviewed experiments" versus "excluded outright" (round 46
+deferred two items and round 60 a third; augmentation and TTA were rejected
+flatly); §7.1's lowest bucket corrected from `[0.81, 0.85)` to
+`[0.80985, 0.85)` so it contains the observed minimum; and the §15 provenance
+table split by approval status. Three new OPEN items were added: approval of
+§13 itself, §10's disposition, and enforcing §5's precondition.
+
+**Assessment.** The audit earned its keep in a way the codebase reviewer
+could not: every one of these defects is invisible from the code and visible
+only against the approval history. It also confirms the round-76 caveat was
+the right instinct but too weak — the draft flagged itself as "unreviewed
+synthesis" while simultaneously asserting blanket approval in its own status
+line.
+
+**Verification:** `uv run pytest -q` reports `245 passed`; `uv run ruff check
+.` reports `All checks passed!`; `git diff --check` is clean; no
+TBD/TODO/FIXME placeholder remains in the specification.
+
+**Not yet done / authorization boundary:** the specification is corrected but
+**still unapproved**, and §10-§13 now correctly show as proposals awaiting the
+user's decision. No implementation plan exists. No Kaggle run, dataset
+refresh, publication, push, or submission was performed or is authorized.

@@ -1,10 +1,22 @@
 # Phase 3B — Image Baseline Design Specification
 
-**Status:** drafted 2026-08-26. Every contract below was approved section by
-section by the user across `docs/collaboration/active_task.md` rounds 46-75.
-This document consolidates those decisions into one frozen reference; it
-introduces no new choice that was not already approved, except where a
-subsection is explicitly marked **OPEN**.
+**Status:** drafted 2026-08-26, corrected 2026-08-27 after an independent
+provenance audit (round 78).
+
+Sections carry **different levels of authority, and the distinction is
+load-bearing** — do not read the document as uniformly frozen:
+
+| Authority | Sections |
+|---|---|
+| **Approved** — a round records the user approving it | §2, §3, §4, §5, §6, §7, §8, §9 (except the fold-identity invariant) |
+| **Proposed, not approved** — recommended but never confirmed by a round | §10 (disposition), §11, §12, §13, §9's fold-identity invariant |
+| **Open** | §14 |
+
+The audit found no fabricated technical constant, no misquoted threshold, and
+no contradiction against the implemented code in §3. Its substantive finding
+was the opposite failure: an earlier draft asserted blanket user approval
+across all sections, which the log does not support. That framing is
+corrected above and per-section below.
 
 **Review caveat.** Rounds 1-75 were produced under two-sided review: Claude
 proposed or implemented, Codex independently verified, and the user approved.
@@ -35,10 +47,15 @@ studies carry no human label and are not used: Phase 2 returned an explicit
 No-go on weak-label training (`docs/collaboration/archive/`). Inference runs
 against the documented **~1,300-study hidden test set**.
 
-Non-goals for this baseline, each deferred as a separately reviewed experiment
-rather than a silent fallback: plane-embedding concatenation, independent
-per-plane heads, patch-token pooling, augmentation, test-time augmentation,
-and any fine-tuning of the encoder.
+Non-goals for this baseline, in two distinct categories — they were **not**
+disposed of the same way:
+
+- **Deferred as predefined, separately reviewed experiments**, never a silent
+  implementation fallback: plane-embedding concatenation and independent
+  per-plane heads (round 46), and patch-token pooling (round 60 finding 4).
+- **Excluded outright**, with no deferral: augmentation and test-time
+  augmentation ("no augmentation or TTA belongs in this baseline", round 60
+  finding 4), and any fine-tuning of the encoder, which is frozen.
 
 ## 2. Architecture and data flow
 
@@ -109,9 +126,17 @@ validation failure.
 
 **Measured:** 822/822 sampled series validated by geometry, and all 450
 study-plane selections resolved on the first candidate, with zero retries
-(`docs/7_image_baseline_insights.md` v4-v8). Retry and the missing-plane
-fallback are therefore implemented and tested but never exercised on real
-sampled data — they exist for the hidden set, which cannot be inspected.
+(`docs/7_image_baseline_insights.md` v4-v8).
+
+**Scope of that measurement, which applies to every "822" and "450" figure in
+this document.** All of it comes from **one seed-42 sample of 150 studies out
+of 4,407** — roughly 3.4% of the visible train corpus. "450" is
+150 studies x 3 planes, not total coverage. The sample is *descriptive, not a
+guarantee* that the other 96.6% of visible studies, or any of the ~1,300
+hidden test studies, share the same distribution. This is precisely why retry
+and the missing-plane fallback remain mandatory despite never having been
+exercised on real data: they are implemented and tested for a population this
+project has not observed.
 
 ## 4. Slice sampling, decode, and per-plane fallback
 
@@ -156,11 +181,22 @@ anatomical extent this project has not measured).
    domain**, i.e. after §6 step 6 and before §6 step 7's channel
    standardization.
 
-`PixelSpacing` must be present, finite, positive, and consistent under §3's
-validation. A candidate that cannot satisfy this is **unusable**; retry the
-next ranked same-plane series; the plane is absent only after exhaustion.
+`PixelSpacing` must be present, finite, positive, and consistent. A candidate
+that cannot satisfy this is **unusable**; retry the next ranked same-plane
+series; the plane is absent only after exhaustion.
 
-These are tested constants in the package, not notebook-local behavior.
+> **Not yet implemented — do not assume §3 covers this.** Round 61 phrased
+> this precondition as holding "under the already-approved series validation
+> contract", but `validate_and_order_series` reads **no** `PixelSpacing` at
+> all: neither `_validated_geometry_order` nor `_validated_instance_number_
+> order` references the tag. Verified behaviourally — a two-slice series with
+> `PixelSpacing` **absent**, **negative**, or **zero** returns
+> `usable=True, method="geometry"` in all three cases. Since §3 is otherwise
+> described as already built, enforcing this is **new work for the
+> implementation plan**, not existing behavior to rely on.
+
+The framing constants are to be tested constants in the package, not
+notebook-local behavior.
 
 **Evidence:** measured pixel spacing spans 0.137-1.172 mm (mean 0.327), so a
 pixel-only resize would encode a different real-world extent per study —
@@ -233,7 +269,7 @@ from anatomical-plane labels or filenames.
 This is a **cost-asymmetry safety choice supported by measured coverage, not
 an empirical separation point** — that framing is required wording (round 69)
 and must not be strengthened. Justification: the measured distribution is a
-smooth tail (3 series in `[0.81, 0.85)`, 10 in `[0.85, 0.90)`, 21 in
+smooth tail (3 series in `[0.80985, 0.85)`, 10 in `[0.85, 0.90)`, 21 in
 `[0.90, 0.95)`, 788 at or above `0.95`) with no natural break, so no threshold
 is empirically privileged. `0.90` bounds accepted obliquity below 25.8°,
 versus 35.9° at the observed minimum, where a reversal would transpose
@@ -251,11 +287,21 @@ index on the left/right-controlled axis."**
 **Reverse the selected axis exactly when `medial_x_sign * selected_axis_x > 0`;
 otherwise leave it unchanged.**
 
-The sign is essential, not decorative: the orientation audit measured all 201
-axial and all 292 coronal series selecting array **columns** with **positive**
-patient-X, while all 329 sagittal series selected geometry-ordered **slices**
-with **negative** patient-X. Side alone therefore cannot determine whether to
-reverse; canonicalizing both sides requires the signed rule.
+The sign is essential, not decorative. The orientation audit measured all 201
+axial and all 292 coronal series selecting array **columns**, with all 493
+signed components **positive**; and all 329 sagittal series selecting
+geometry-ordered **slices**, with **negative** patient-X on **all 322 of them
+that the conservative rule resolved a side for** (the remaining 7 were
+excluded from the side cross-tab as conflicting or unresolved, so their sign
+is not attested). Side alone therefore cannot determine whether to reverse;
+canonicalizing both sides requires the signed rule.
+
+Applying the rule to those measured signs gives, for reference:
+
+| Plane | Selected axis sign | Right knee | Left knee |
+|---|---|---|---|
+| Axial, coronal | positive (columns) | reverse | leave |
+| Sagittal | negative (slices) | leave | reverse |
 
 For the stack-normal case, reversal means reversing the geometry-ordered slice
 list. Symmetric sampling followed by mean pooling makes the current feature
@@ -290,8 +336,13 @@ reliable signed-axis decision** are **all** planes canonicalized and
 `laterality_reliable = 1`. Otherwise **no plane is transformed** and the flag
 is `0`. This prevents mixing canonicalized and raw planes inside one mean.
 
-Canonical target orientation is left-knee convention; the choice is arbitrary
-but fixed and documented.
+**The canonical target is §7.2's medial-toward-decreasing-index convention,
+and nothing else.** It is deliberately *not* expressible as "make everything
+look like a left knee": as §7.2's table shows, the canonical state is an
+unreversed **left** knee for axial and coronal series but an unreversed
+**right** knee for sagittal ones, because the two groups store opposite axis
+signs. Any restatement of the target in left/right terms is wrong and was a
+leftover from the blanket-flip proposal round 64 rejected.
 
 ### 7.5 Required tests
 
@@ -342,7 +393,9 @@ the mean, not from the flags.
 
 ## 9. Classifier and evaluation protocol
 
-Approved round 60 findings 5-6, closed round 75.
+Approved round 60 finding 5, closed round 75. **The fold-identity
+invariant below (round 60 finding 6) is proposed, not approved** -- round
+75's closure text enumerates only the finding-5 content.
 
 **Estimator.** Reuse Phase 3A's shape
 (`src/knee_mri/report_model.py::build_report_classifier`):
@@ -397,7 +450,13 @@ This **contradicts** the competition's own data description recorded in
 Little Endian, JPEG Lossless, JPEG 2000, Implicit VR Little Endian"). None of
 the three non-uncompressed syntaxes appears anywhere visible.
 
-**Frozen disposition:**
+**Recommended disposition -- proposed, not confirmed.** Round 75 recorded
+this as Claude's *recommendation to Codex*, and explicitly left it open:
+"its disposition is Codex's to confirm". Codex was withdrawn before it
+replied (round 76), so no second read ever occurred. The underlying census
+evidence is exact and independently verified; the disposition drawn from it
+is not at the same confidence as the approved sections.
+
 
 - The requirement to *decode-test a sample of every observed compressed
   transfer-syntax UID* is **closed as not-applicable on evidence** — no such
@@ -419,6 +478,10 @@ compatibility, checksums, and licenses in the implementation plan, plus an
 **import smoke test**.
 
 ## 11. Notebook structure
+
+> **Proposed, not approved.** No round records the user approving this
+> structure. The privacy rules at the end are a different matter -- those are
+> enforced today by `tests/test_notebooks.py`.
 
 Mirrors `notebooks/03_baseline_modeling.ipynb`'s reviewed skeleton:
 
@@ -444,6 +507,10 @@ execution counts; no internal workflow language in public prose.
 
 ## 12. Telemetry
 
+> **Proposed as a section, though its individual items trace to rounds** (60
+> finding 7's counters, 69's fallback rates, 70/71's flag variances, 70's
+> decoded-slice distribution). No round approves "telemetry" as a contract.
+
 Aggregate-only, no identifiers, persisted to the JSON summary. Required
 because several contracts above are provably unexercised on sampled data and
 can only be observed on the real run:
@@ -460,7 +527,14 @@ can only be observed on the real run:
 
 ## 13. Release gates
 
-All must pass before submission authorization is **requested**:
+> **Proposed, not approved -- this is the most important status correction in
+> the document.** Round 75, the last approval-bearing round, states plainly:
+> "release gates and the full-path timing sample **remain open**". Round 60
+> finding 9 is Codex *feedback*, not a user approval, and rounds 68, 69, and
+> 70 each repeat that this section is outstanding. Treat the list below as a
+> recommendation requiring approval, not a settled gate.
+
+All should pass before submission authorization is **requested**:
 
 1. Full local suite green (`uv run pytest -q`), `uv run ruff check .` clean,
    `git diff --check` clean, notebooks output-free.
@@ -497,6 +571,13 @@ All must pass before submission authorization is **requested**:
   (§10). Belongs in the implementation plan.
 - **OPEN — safety margin for gate 5.** The multiplier applied to the measured
   full-path extrapolation has not been fixed.
+- **OPEN — approval of §13 itself.** Round 75 records release gates as
+  outstanding, so the whole gate list, not merely gate 5's multiplier, awaits
+  the user's approval.
+- **OPEN — §10's codec disposition.** Recommended in round 75 and never
+  confirmed, because Codex was withdrawn before replying.
+- **OPEN — enforcing §5's `PixelSpacing` precondition.** Not implemented; see
+  the note in §5.
 - **UNREVIEWED — this document's synthesis.** See the review caveat at the
   top.
 
@@ -511,8 +592,10 @@ All must pass before submission authorization is **requested**:
 | Intensity contract | Rounds 61-62, 64 |
 | Laterality algorithm | Rounds 64-65 |
 | Laterality threshold `> 0.90` | Rounds 67-70 |
-| Embedding, folds, decode/retry, notebook, release gates | Round 60 |
+| Embedding and decode/retry | Round 60 (approved) |
+| Fold-identity invariant, notebook structure, release gates | Round 60 (Codex feedback; **never user-approved**) |
 | Classifier and decode/retry closure | Rounds 70, 75 |
-| Codec evidence and disposition | Round 75 |
+| Codec census evidence | Round 75 (measured) |
+| Codec disposition | Round 75 (**recommendation only, unconfirmed**) |
 
 Measured evidence: `docs/7_image_baseline_insights.md` v1-v8.
