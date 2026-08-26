@@ -6258,3 +6258,68 @@ TBD/TODO/FIXME placeholder remains in the specification.
 **still unapproved**, and §10-§13 now correctly show as proposals awaiting the
 user's decision. No implementation plan exists. No Kaggle run, dataset
 refresh, publication, push, or submission was performed or is authorized.
+
+### Round 79 — Claude: spec section 7 design-validated by executable prototype (2026-08-27)
+
+**User authorization:** "you can try experiments and review and improve for
+the loop when im sleeping now" — an overnight autonomous pass, under standing
+boundaries: no Kaggle run, dataset refresh, publication, push, or submission;
+no Phase 3B pipeline code into `src/` while no implementation plan is
+approved; and **design bugs found in an approved spec section are recorded
+here, not silently corrected**.
+
+**Why this item first.** Sections 5, 6, and 7 of the specification have never
+been executed — the spec's own coverage statement says they have "no
+implementation to check against". Section 7 (signed laterality
+canonicalization) is the most intricate and the one whose earlier draft was
+already wrong once (round 63's blanket flip, rejected in round 64), so it was
+validated first. The prototype lives in `/tmp` only; nothing was added to
+`src/`.
+
+**Result — the contract is correct and self-consistent.** Implementing
+section 7 exactly as written and testing all **12** combinations of
+{columns, rows, slices} x {left, right} x {stored +X, stored -X}:
+
+- **Every case places medial at decreasing index**, the frozen convention.
+  Derivation confirms the rule is not merely empirical: the canonical state
+  is `medial_x_sign * signed_x < 0`, so reversing exactly when
+  `medial_x_sign * signed_x > 0` is precisely correct.
+- **Paired left/right acquisitions produce byte-identical canonical volumes**
+  on all three axes — the property canonicalization exists to provide.
+- Edge handling is exactly as specified: `|X|` **exactly** at `0.90` is
+  rejected (the gate is strictly greater), `0.9001` accepted, a 45-degree
+  row/column tie rejected (and the tie is exact in floating point, not
+  approximate), and degenerate, zero, and non-finite orientations all
+  rejected rather than raising.
+
+**One implementation hazard, not a contract defect — for the implementation
+plan.** Canonicalization is **not idempotent**. Flipping the array does not
+change the DICOM tags, so a second pass reads the same geometry, decides to
+reverse again, and silently returns the volume to its original
+non-canonical orientation. Verified: whenever pass 1 reverses, pass 2
+reverses too. The array carries no record of having been canonicalized, so
+**the double-flip is undetectable after the fact** — no exception, no shape
+change, no flag.
+
+By the measured axis signs this affects exactly the cases where a reversal
+occurs: axial/coronal **right** knees and sagittal **left** knees, i.e. a
+large share of studies rather than a rare corner.
+
+Section 7.4 does define a single application point, so the contract as
+written is sound and is **not** being changed here. The hazard is that
+nothing enforces single application. The implementation plan should require
+one of: applying canonicalization at exactly one place with a test asserting
+it, or carrying an explicit "already canonicalized" flag alongside the
+volume, or updating the derived orientation after the flip so a second pass
+becomes a no-op. Worth stating because the failure is silent and would
+corrupt a large fraction of inputs.
+
+**Verification:** worktree clean on `main` before and after; nothing added to
+`src/`; `uv run pytest -q` reports `245 passed`; `uv run ruff check .`
+reports `All checks passed!`.
+
+**Not yet done / authorization boundary:** sections 5 and 6 remain
+design-unvalidated and are next in the queue. No Kaggle run, dataset refresh,
+publication, push, or submission was performed or is authorized. Spec
+sections 10-13 remain proposals awaiting the user's approval and were not
+approved here.
