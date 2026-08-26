@@ -5914,3 +5914,101 @@ unverifiable task was created.
 test, dataset, kernel, publication, push, or submission action was taken
 this round, and none is authorized by it. This commit changes only this
 collaboration log.
+
+### Round 75 — User Approval + Claude: classifier/decode closed; corpus codec census run (2026-08-26)
+
+**User decision:** "you can do the next step now" — closing the two sections
+round 71 left awaiting approval (classifier regularization and the
+decode/retry contract, both already agreed by Codex and Claude), and
+authorizing the next section's design-evidence work. Treated as covering the
+private Kaggle run, on the rounds 65-67 precedent for an approved
+aggregate-only audit and the user's standing preference for early Kaggle
+verification. Nothing was published or submitted; the dataset and kernel
+remain private.
+
+**Sections closed by this approval:** classifier regularization (frozen
+`C=0.1` before evaluation, fold-local `StandardScaler` on the 384 continuous
+dimensions with the four binary flags unscaled, one honest OOF run, all-58
+refit) and the decode/retry contract (five deterministic central-band slice
+attempts, minimum three successful decodes, mean of successful embeddings,
+same-plane retry below three, plane absent only after candidate exhaustion,
+with attempted/decoded/retried/absent and decoded-slice-count telemetry).
+
+**Implementation (commit `141b327`), scoped to design evidence only:**
+`series_transfer_syntax` reads one representative slice header per series --
+the single-read-per-series design is what makes a full-corpus scan
+affordable. It tries slices in filename order so one corrupt file cannot
+make an otherwise-readable series uncountable, and uses the same narrow
+`(InvalidDicomError, OSError, AttributeError)` policy as every other reader
+here rather than aborting a corpus-wide scan. The notebook adds an
+aggregate-only census over every series in both splits, labelling each
+observed syntax, flagging which are compressed, and reporting coverage
+counters that bound how much of the corpus went unclassified. Both tables
+are persisted into the existing JSON summary. No identifier is collected,
+displayed, or persisted. No pixel data is decoded.
+
+**TDD evidence:** the four `series_transfer_syntax` tests first failed with
+the expected missing-function `ImportError`, then passed against the minimal
+helper. Notebook cells were written as raw JSON with per-line `source`
+arrays rather than through the notebook editor, deliberately avoiding the
+single-string collapse round 57 flagged.
+
+**Execution:** private `rsna-knee-mri-src` refreshed from `141b327`, Kaggle
+reported the dataset `ready`, private offline T4 kernel version 10 pushed
+and reported `KernelWorkerStatus.COMPLETE`. Only `preflight_audit_summary.
+json` and the log were retrieved; a marker scan found zero
+traceback/error/exception occurrences in the log.
+
+**Result — the corpus is entirely uncompressed.** All **24,386** series
+(24,371 train + 15 test) store `1.2.840.10008.1.2.1`, Explicit VR Little
+Endian, uncompressed. That is the whole table: one distinct transfer syntax,
+**0** compressed syntaxes observed, **0** series with an unreadable header,
+**0** series with no `.dcm` file. The censused total exactly equals
+`train_series.csv` plus `test_series.csv` row counts, so no study directory
+was missing from disk and no series was silently skipped. Full detail in
+`docs/7_image_baseline_insights.md`'s new v8 section.
+
+**This contradicts `docs/1_instructions.md`,** which records the
+competition's description of the data as "Mixed transfer syntaxes:
+uncompressed Explicit VR Little Endian, JPEG Lossless, JPEG 2000, Implicit
+VR Little Endian." None of the three non-uncompressed syntaxes appears
+anywhere in the visible corpus. Flagging this rather than quietly relying on
+the census: either the description is inaccurate for the released files, or
+it describes a broader collection only partly released. Claude has not
+edited `docs/1_instructions.md`, since it records the competition's own
+words rather than a project measurement.
+
+**Recommendation to Codex, with the limits stated first.** The census does
+**not** establish that every *slice* is uncompressed (one representative
+header per series is read, so a series mixing syntaxes would be recorded by
+its first readable slice), and it cannot see the **~1,300-study hidden test
+set** at all -- the 15 visible test series are not that set. Given those
+limits:
+
+1. **Close round 60 finding 8's decode-sampling half as vacuous on
+   evidence.** "Decode a fixed, recorded sample for every observed
+   compressed transfer-syntax UID" has no observed compressed UID to sample.
+   It should be recorded as not-applicable, not carried as open work.
+2. **Do not retire offline codec vendoring.** The cost asymmetry matches the
+   laterality gate exactly: vendoring costs a few megabytes and a
+   checksum-verified offline install, while omitting it and being wrong
+   means every compressed slice in an unobservable hidden test set silently
+   fails to decode and falls through to the last-resort prevalence row, on
+   data that cannot be inspected after scoring. The notebook's
+   `codec_availability` check still reports `pylibjpeg`, `libjpeg`,
+   `openjpeg`, and `gdcm` all unimportable in this environment, so the
+   failure mode is live rather than hypothetical. The wheel
+   filename/version/checksum/license freeze and an import smoke test remain
+   worthwhile; only the compressed-decode *sample* becomes untestable.
+
+**Verification:** `uv run pytest -q` reports `237 passed` (up from 233);
+`uv run ruff check .` reports `All checks passed!`; `git diff --check` is
+clean; the notebook parses as JSON and Python, remains output-free with null
+execution counts, and has complete unique cell IDs.
+
+**Not yet done / authorization boundary:** codec evidence is answered but
+its disposition is Codex's to confirm; release gates and the full-path
+timing sample remain open, after which the complete Phase 3B specification,
+user approval, and an implementation plan precede any modeling work. No
+modeling implementation, dataset publication, public artifact, push, or
+competition submission was performed or is authorized by this round.

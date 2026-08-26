@@ -670,3 +670,84 @@ with below-threshold/tied orientations left untransformed and marked
 unreliable. This recommendation still requires Claude and user approval; the
 audit itself applies no reflection and authorizes no model implementation or
 submission.
+
+> **Superseded by v8 on the threshold value:** Claude's round-68 review and
+> Codex's round-69 response converged on **`> 0.90`** instead, and the user
+> approved that value in round 70. The measurements in this section are
+> unchanged and remain the evidence base; only the recommended gate moved.
+
+## 2026-08-26 — Preflight audit v8: corpus-wide transfer-syntax census (`04_image_baseline_preflight.ipynb`)
+
+**Why this round exists:** round 60 finding 8 required deterministic codec
+evidence before the offline-vendoring section could close. Every prior audit
+sampled the same seeded 150 studies and saw only uncompressed data, which
+says nothing about the other ~97% of the corpus; "sample studies more likely
+to be compressed" was explicitly rejected as irreproducible. This round
+censuses **storage format across every series in both splits** by reading one
+representative slice header per series.
+
+**Kernel:** `tuannm3812/rsna-knee-image-baseline-preflight-audit`, version
+10, T4. **Code:** `rsna-knee-mri-src` refreshed from commit `141b327`.
+
+### The corpus is entirely uncompressed
+
+| Transfer syntax | Name | Compressed | Train | Test | Series |
+|---|---|---|---:|---:|---:|
+| `1.2.840.10008.1.2.1` | Explicit VR Little Endian | No | 24,371 | 15 | **24,386** |
+
+That is the complete table — **one** distinct transfer syntax across the
+entire corpus. Coverage was total: 24,386 series censused, **0** with an
+unreadable header, **0** with no `.dcm` file, **0** compressed syntaxes
+observed. The censused count exactly equals `train_series.csv` (24,371) plus
+`test_series.csv` (15), so no study directory was silently missing from disk
+and no series was skipped — a clean CSV-to-disk cross-check obtained for
+free.
+
+### This contradicts the stated data description
+
+`docs/1_instructions.md` records the competition's own description of the
+data as "Mixed transfer syntaxes: uncompressed Explicit VR Little Endian,
+JPEG Lossless, JPEG 2000, Implicit VR Little Endian." The census finds
+**none** of the three non-uncompressed syntaxes anywhere in the visible
+corpus. v2's design note — that this sample "says nothing about whether
+compressed-syntax slices (which the competition description says exist)
+would decode successfully here" — is now answered for the visible data: no
+such slices exist in it. The description is either inaccurate for the
+released files, or it describes a broader collection of which only part was
+released.
+
+### What this does and does not establish
+
+Establishes: every one of the 24,386 visible series stores its representative
+slice uncompressed, and the pipeline needs no codec to read any data this
+project can currently see.
+
+Does **not** establish, and must not be read as: (a) that *every slice* is
+uncompressed — the census reads one representative header per series, so a
+series mixing syntaxes across slices would be recorded by its first readable
+slice only; (b) anything about the **~1,300-study hidden test set**, which is
+never mounted and cannot be censused. The 15 visible test series are not
+that set.
+
+**Design implication.** The second half of round 60 finding 8 — "decode a
+fixed, recorded sample for every observed compressed transfer-syntax UID" —
+is now **vacuous on evidence**: there are no observed compressed UIDs to
+sample, so that sub-requirement should close as not-applicable rather than be
+carried as open work. Offline codec vendoring itself should **not** be
+retired on this evidence. The cost asymmetry runs the same way it did for the
+laterality gate: vendoring costs a few megabytes and a checksum-verified
+offline install, while omitting it and being wrong means every compressed
+slice in an unobservable hidden test set silently fails to decode and falls
+through to the last-resort prevalence row, on data that cannot be inspected
+or debugged after scoring. The notebook's own `codec_availability` check
+continues to report `pylibjpeg`, `libjpeg`, `openjpeg`, and `gdcm` all
+unimportable in this environment, so that failure mode is live, not
+hypothetical.
+
+### Unchanged checks
+
+The 150-study sampled audit is unchanged: 822/822 series geometry-usable
+with zero header-read and zero decode failures, 450/450 study-plane
+selections resolving without retry, and the sampled decode audit again
+attributing all 4,110 attempted decodes to `1.2.840.10008.1.2.1` with zero
+failures. The kernel log contains no traceback or error marker.
