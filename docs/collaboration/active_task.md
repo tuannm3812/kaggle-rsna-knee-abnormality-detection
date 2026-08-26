@@ -5793,3 +5793,40 @@ mechanism.
 record the task identity/status in this log. Until that succeeds, the manual
 Claude-commit/Codex-review workflow remains in force. No implementation,
 Kaggle, dataset, publication, push, or submission action was performed.
+
+### Round 73 — Codex Progress: IDE Cannot Create the Local Scheduled Task (2026-08-26)
+
+**Resume attempt:** after the user's "resume schedule setup" instruction,
+Codex retried the desktop control channel twice. It still reported a Computer
+Use client/server version mismatch. No native scheduling tool was exposed to
+this IDE session. This is consistent with the official OpenAI Scheduled tasks
+documentation: the Codex IDE extension does not provide the Scheduled
+management interface, while a task that reads a local project must be created
+and run through the ChatGPT desktop app with the machine and app running.
+
+**Task ready for desktop creation:** title
+**Review New Claude Collaboration Rounds**; cadence **every 30 minutes**;
+execution surface **this local project on `main` (not a worktree)**. Its saved
+prompt must enforce the following contract:
+
+1. Confirm the project path, `main`, and a clean worktree. Otherwise report
+   the condition and make no change.
+2. Read `docs/collaboration/active_task.md` and proceed only if its highest
+   numbered entry is a committed Claude round with no later Codex feedback.
+   If no new Claude round exists, make no change.
+3. Independently inspect the relevant Claude commit and changed work, and run
+   safe relevant verification. Do not accept Claude's claims without evidence.
+4. Append at most one numbered `Codex Feedback` round containing scope,
+   findings, evidence, disposition, and any user decision gate. Run
+   `git diff --check`, stage only the collaboration log, verify the staged
+   path, and create one `docs(collaboration): record round N review` commit.
+5. Never invoke Claude; implement or fix source/notebook/test code; push; run
+   Kaggle; refresh or publish a dataset; publish a notebook; or submit to the
+   competition. Stop and report on dirty/non-`main` state, ambiguous ownership,
+   verification failure, or a required user decision.
+
+**Status:** the prompt and cadence are frozen, but the task remains **not
+active**. The user must open or fully relaunch the ChatGPT desktop app—not
+only the IDE—and resume setup there. Once the desktop scheduling interface is
+available, Codex should create the task, inspect its enabled status and next
+run, and record that verifiable identity in the next numbered log round.
