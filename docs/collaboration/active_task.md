@@ -6076,3 +6076,96 @@ Kaggle run, dataset publication, push, or competition submission was
 performed or is authorized by this round. The independent reviewer agent's
 findings on the existing codebase are still pending and will be recorded
 separately.
+
+### Round 77 — Claude: independent reviewer's three findings reproduced and fixed (2026-08-26)
+
+**User authorization:** "or you can build independent reviewer to recheck the
+codebase" — replacing Codex's adversarial pass with a fresh-context reviewer
+agent carrying the same reproduce-before-reporting discipline.
+
+**Method.** The reviewer was given the four defect classes prior review
+already closed (so it could not re-report them), told to reproduce every
+claim by executing real code, and constrained to read-only with no Kaggle
+access. It reported three findings. **Claude independently re-reproduced all
+three before accepting any of them** — a subagent's report is treated exactly
+as Codex's was, not taken on description.
+
+**Finding 1 (most severe, confirmed) — `audit_series` aborted the entire
+preflight run on a present-but-valueless tag.** A DICOM tag can be present
+while carrying no usable value: a zero-length element reads back as `None`,
+and a VM-1 `PixelSpacing` as a bare `DSfloat`; both are unsubscriptable. The
+`pixel_spacing` build had no guard at all, and `slice_normal` on a
+zero-length `ImageOrientationPatient` raises `IndexError`, which the
+surrounding handler (catching only `ValueError`, `TypeError`,
+`AttributeError`) did not cover. Reproduced all three crashes
+(`TypeError: 'NoneType' object is not subscriptable`, `TypeError: 'DSfloat'
+object is not subscriptable`, `IndexError: too many indices for array`). This
+violated the function's own documented contract, which lists
+`FileNotFoundError` as its only exception, and the notebook calls
+`audit_series` in a bare loop over every series of every sampled study — so
+one such slice anywhere in the corpus would abort the whole run rather than
+degrade. Confirmed that `validate_and_order_series` and
+`series_transfer_syntax` already handled all three inputs correctly; only
+`audit_series` did not. This is the same presence-is-not-validity class round
+52 finding 2 opened; that fix was narrower than the class.
+
+**Finding 2 (confirmed) — `order_agreement` was not Spearman under ties.**
+Ranking with a double `argsort` yields *ordinal* ranks, not the midranks
+Spearman is defined on. Because ordinal ranks always form a permutation of
+`0..n-1`, a series whose `InstanceNumber` is entirely constant — carrying no
+ordering information at all — scored a perfect `±1.0`, and a partially-tied
+series scored differently based only on the arbitrary filename order of its
+tied slices. Reproduced: `[1,1,2]` against `[0,1,2]` scored `1.0`, the same
+values against `[1,0,2]` scored `0.5`; true Spearman is `0.866` for both.
+
+**Finding 3 (confirmed; a test defect, not a production bug) — the
+row/column axis convention was entirely unpinned.** Every geometry fixture in
+the suite is 4x4 with `PixelSpacing (1.0, 1.0)`, which makes the two possible
+row/column pairings algebraically identical. The shipped convention is
+**correct**, but Claude re-ran the reviewer's mutation test on an isolated
+copy and confirmed a mutant swapping the pairing **passed all 99 geometry
+tests**, while returning `"L"` instead of `"R"` on realistic anisotropic
+input (320x256, spacing `(0.5, 0.4)`). This is the same "test passes for the
+wrong reason" class round 48 finding 1 hit once before.
+
+**Fixes (commit `d04f23e`):** guarded the `pixel_spacing` build and widened
+both `audit_series` handlers to include `IndexError`; switched
+`order_agreement` to midranks with `None` on a constant input, verified
+against `scipy.stats.spearmanr` (ties now agree exactly at `0.866` in both
+orderings, constant maps to `None` where scipy gives `nan`, untied results
+unchanged); and added a deliberately anisotropic laterality fixture. Eight
+new tests, **245 passed** (up from 237). Re-running the mutation confirmed
+the previously-surviving mutant is now killed, and killed specifically by the
+new convention test.
+
+**Evidence correction, recorded without a rerun.** Finding 2 undermines a
+claim this project has repeated since v3: that `fraction monotonic
+(|r| > 0.99) = 1.0` shows "every individual series is still perfectly
+internally ordered". As computed, a `1.0` meant "either perfectly ordered,
+**or** `InstanceNumber` is degenerate and tells us nothing" — precisely the
+two cases the sentence claimed to distinguish. A correction section is
+appended to `docs/7_image_baseline_insights.md`; v1-v8's `fraction monotonic`
+should be read as an upper bound. How much the real figure moves is
+**unmeasured and deliberately not guessed**: the sampled runs never exercised
+the `InstanceNumber` route (822/822 validated by geometry), so the corpus's
+rate of tied `InstanceNumber` was never tested. No Kaggle run is warranted
+for this alone — the next authorized run already reports the statistic and
+will now report it correctly. The frozen design is unaffected:
+`validate_and_order_series` independently requires unique parseable
+`InstanceNumber` values before using that route, and `order_agreement` is a
+diagnostic, never the production ordering path.
+
+**Assessment of the replacement review process.** It worked: one severe
+run-aborting bug, one silent statistical defect invalidating a cited claim,
+and one masked-convention test gap — none of which 76 rounds of prior review
+had caught. It is not a full substitute for Codex, since the reviewer saw
+only the codebase and not the design history, and the Phase 3B specification
+written in round 76 still has had no adversarial read.
+
+**Verification:** `uv run pytest -q` reports `245 passed`; `uv run ruff check
+.` reports `All checks passed!`; `git diff --check` is clean.
+
+**Not yet done / authorization boundary:** no Kaggle run, dataset refresh,
+publication, push, or submission was performed or is authorized. The Phase 3B
+specification remains drafted and unapproved, and no implementation plan
+exists.

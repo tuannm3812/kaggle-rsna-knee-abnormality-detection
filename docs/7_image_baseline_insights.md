@@ -776,3 +776,47 @@ throughout. This is direct measured support for the release gate requiring a
 complete decode-preprocess-encoder-head timing sample under representative
 load, rather than extrapolating from the idle-kernel bound. The ~27x margin
 remains comfortable, but the number that matters has not been measured yet.
+
+## 2026-08-26 — Correction (no rerun): `fraction monotonic` could not distinguish tied `InstanceNumber`
+
+Applies to every prior section that cites `Order agreement -- fraction
+monotonic (|r| > 0.99)`, and specifically to v3's sentence above: *"`fraction
+monotonic (|r| > 0.99)` remains **1.0** — every individual series is still
+perfectly internally ordered, in some direction."*
+
+**That inference does not follow from the statistic as it was computed.** An
+independent code review found that `order_agreement` ranked ties with a
+double `argsort`, which produces *ordinal* ranks rather than the midranks
+Spearman is defined on. Because ordinal ranks always form a permutation of
+`0..n-1`, a series whose `InstanceNumber` is **entirely constant** — carrying
+no ordering information whatsoever — scored a perfect `±1.0`, and a
+partially-tied series scored differently depending only on the arbitrary
+filename order of its tied slices. Reproduced: `[1,1,2]` against `[0,1,2]`
+scored `1.0` while the same values against `[1,0,2]` scored `0.5`; true
+Spearman is `0.866` for both.
+
+So a reported `1.0` meant "either perfectly ordered, **or** `InstanceNumber`
+is degenerate and tells us nothing" — and those two cases are exactly what
+the cited sentence claimed to have distinguished.
+
+**Fixed** in commit `d04f23e`: midranks, and `None` when either input is
+constant, verified against `scipy.stats.spearmanr`. Untied results are
+unchanged, so every series with distinct `InstanceNumber` values scores
+exactly as before.
+
+**How much of the recorded evidence actually moves is not yet known, and is
+deliberately not guessed at here.** The measured runs never exercised the
+`InstanceNumber` route — all 822 sampled series validated by geometry — so
+those runs never tested `InstanceNumber` uniqueness, and the corpus's real
+rate of tied `InstanceNumber` is unmeasured. The true `fraction monotonic`
+is `1.0` **only if** no sampled series has tied values. This does not
+warrant a Kaggle run of its own: the next authorized run already reports the
+statistic, and it will now report it correctly. Until then, treat
+`fraction monotonic` in v1-v8 as an upper bound.
+
+**What does not change:** the practical conclusion those sections drew.
+Ordering for the frozen design comes from `validate_and_order_series`, which
+independently requires unique, parseable `InstanceNumber` values before it
+will use that route at all, and which chose geometry for 822/822 sampled
+series regardless. `order_agreement` is a diagnostic, never the production
+ordering path.
