@@ -284,7 +284,11 @@ def prepare_modeling_inputs(
         raise ValueError("test has a non-string Report value")
     blank_reports = reports.apply(lambda value: isinstance(value, str) and not value.strip())
     empty_reports = missing_reports | blank_reports
-    test_studies.loc[empty_reports, "Report"] = ""
+    # An all-missing Report column arrives from read_csv as float64, and
+    # assigning "" into it raises TypeError on pandas 3.x (it only warned on
+    # 2.x, and pyproject allows >=2.2 with no upper bound). Cast first so the
+    # normalization this function documents works on both.
+    test_studies["Report"] = test_studies["Report"].astype(object).mask(empty_reports, "")
 
     return ModelingInputs(
         labeled_studies=labeled,

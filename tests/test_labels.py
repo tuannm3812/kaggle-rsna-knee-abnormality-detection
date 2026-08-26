@@ -1,3 +1,5 @@
+import pytest
+
 from knee_mri.labels import (
     LABEL_COLUMNS,
     LabelResolution,
@@ -239,3 +241,35 @@ def test_resolution_signature_and_value_are_consistent_for_every_signature():
             assert value == 1
         else:
             assert value != 1
+
+
+@pytest.mark.parametrize(
+    ("report_text", "must_not_fire"),
+    [
+        # "collateral" contains "lateral"; without a word boundary this fired
+        # Lateral OA on a report describing MEDIAL compartment disease -- a
+        # semantically inverted label, not merely a false positive.
+        ("Medial collateral ligament tear with osteoarthritis.", "Lateral OA"),
+        ("Anterolateral ligament and osteoarthritis noted", "Lateral OA"),
+        # "overload" and "loading" contain "oa".
+        ("Patellofemoral overload changes", "PF OA"),
+        ("Patellofemoral loading abnormality", "PF OA"),
+    ],
+)
+def test_weak_labels_require_whole_word_matches(report_text: str, must_not_fire: str) -> None:
+    assert extract_weak_labels(report_text)[must_not_fire] != 1
+
+
+@pytest.mark.parametrize(
+    ("report_text", "expected_label"),
+    [
+        ("Lateral compartment osteoarthritis.", "Lateral OA"),
+        ("Medial compartment osteoarthritis.", "Medial OA"),
+        ("Patellofemoral osteoarthritis.", "PF OA"),
+        ("Patellofemoral compartment oa noted.", "PF OA"),
+    ],
+)
+def test_whole_word_anchors_still_match_genuine_mentions(
+    report_text: str, expected_label: str
+) -> None:
+    assert extract_weak_labels(report_text)[expected_label] == 1
