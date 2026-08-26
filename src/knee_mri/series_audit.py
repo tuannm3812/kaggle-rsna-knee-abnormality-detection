@@ -121,13 +121,19 @@ def order_agreement(
     A consistent reversal (correlation near -1) is still a usable order --
     only correlations near 0 indicate the two orderings actually disagree.
 
+    Ties are ranked by midrank, so a tied `InstanceNumber` sequence cannot
+    masquerade as a perfectly ordered one: a series whose `InstanceNumber`
+    is constant carries no ordering information and is reported unresolved,
+    not as perfect agreement.
+
     Args:
         instance_numbers: Each slice's `InstanceNumber`.
         geometry_positions: Each slice's `slice_position`, same order.
 
     Returns:
         The rank correlation in [-1, 1], or `None` if fewer than two slices
-        are given.
+        are given, or if either input is constant (correlation undefined --
+        e.g. every slice sharing one `InstanceNumber`).
 
     Raises:
         ValueError: If the two sequences have different lengths.
@@ -136,8 +142,19 @@ def order_agreement(
         raise ValueError("instance_numbers and geometry_positions must be the same length")
     if len(instance_numbers) < 2:
         return None
-    instance_ranks = np.argsort(np.argsort(instance_numbers))
-    geometry_ranks = np.argsort(np.argsort(geometry_positions))
+    # Midranks (`rank()` averages ties), not the ordinal ranks a double
+    # `argsort` produces. Spearman is defined on midranks; with ordinal ranks
+    # every input of length n maps onto a permutation of 0..n-1, so a series
+    # whose `InstanceNumber` is entirely constant -- carrying no ordering
+    # information at all -- scored a perfect +/-1.0, and a partially-tied
+    # series scored differently depending only on the arbitrary filename
+    # order of its tied slices.
+    instance_ranks = pd.Series(instance_numbers, dtype=float).rank()
+    geometry_ranks = pd.Series(geometry_positions, dtype=float).rank()
+    # Correlation is undefined against a constant input; report it as
+    # unresolved rather than as perfect agreement.
+    if instance_ranks.nunique() < 2 or geometry_ranks.nunique() < 2:
+        return None
     return float(np.corrcoef(instance_ranks, geometry_ranks)[0, 1])
 
 
@@ -864,7 +881,7 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
                 positions = [slice_position(ds.ImagePositionPatient, normal) for ds in headers]
                 instance_numbers = [int(ds.InstanceNumber) for ds in headers]
                 agreement = order_agreement(instance_numbers, positions)
-            except (ValueError, TypeError, AttributeError):
+            except (ValueError, TypeError, AttributeError, IndexError):
                 agreement = None
 
         if header_read_failures > 0:
@@ -913,14 +930,22 @@ def audit_series(series_dir: Path, decode_sample_size: int = 5) -> SeriesAudit:
                     int(first.Columns),
                     first.PixelSpacing,
                 )
-            except (ValueError, TypeError, AttributeError):
+            except (ValueError, TypeError, AttributeError, IndexError):
                 geometry_laterality = None
 
-        pixel_spacing = (
-            (float(first.PixelSpacing[0]), float(first.PixelSpacing[1]))
-            if "PixelSpacing" in first
-            else None
-        )
+        # A tag can be *present* and still carry no usable value: a
+        # zero-length element reads back as `None`, and a VM-1 `PixelSpacing`
+        # reads back as a bare `DSfloat`. Both are unsubscriptable, so the
+        # presence check alone is not enough to make this build safe -- the
+        # same presence-is-not-validity distinction `has_full_geometry_tags`
+        # already documents. Degrade to `None` rather than aborting an audit
+        # that is otherwise complete.
+        pixel_spacing = None
+        if "PixelSpacing" in first:
+            try:
+                pixel_spacing = (float(first.PixelSpacing[0]), float(first.PixelSpacing[1]))
+            except (ValueError, TypeError, AttributeError, IndexError):
+                pixel_spacing = None
 
     laterality_conflict = bool(
         laterality_tag and geometry_laterality and laterality_tag != geometry_laterality

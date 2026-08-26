@@ -97,6 +97,32 @@ def test_order_agreement_raises_on_length_mismatch():
         order_agreement([1, 2], [0])
 
 
+def test_order_agreement_midranks_ties_rather_than_ordinal_ranks():
+    # True Spearman depends only on the values, never on the order tied
+    # entries happen to arrive in. Ordinal (double-argsort) ranks broke that:
+    # these two inputs differ only in which tied slice comes first on disk.
+    assert order_agreement([1, 1, 2], [0.0, 1.0, 2.0]) == pytest.approx(
+        order_agreement([1, 1, 2], [1.0, 0.0, 2.0])
+    )
+    assert order_agreement([1, 1, 2], [0.0, 1.0, 2.0]) == pytest.approx(0.8660254037844387)
+
+
+@pytest.mark.parametrize(
+    ("instance_numbers", "positions"),
+    [
+        ([7, 7, 7, 7], [0.0, 1.0, 2.0, 3.0]),
+        ([7, 7, 7, 7], [3.0, 2.0, 1.0, 0.0]),
+        ([1, 2, 3, 4], [5.0, 5.0, 5.0, 5.0]),
+    ],
+)
+def test_order_agreement_none_when_either_input_is_constant(instance_numbers, positions):
+    # A constant input carries no ordering information, so the correlation is
+    # undefined. Ordinal ranks reported a perfect +/-1.0 here, which would let
+    # a series with no usable InstanceNumber inflate a "fraction monotonic"
+    # statistic cited as evidence that every series is internally ordered.
+    assert order_agreement(instance_numbers, positions) is None
+
+
 # -- laterality_from_geometry --
 
 
@@ -129,6 +155,29 @@ def test_laterality_from_geometry_unresolved_within_dead_zone():
         pixel_spacing=(1.0, 1.0),
     )
     assert result is None
+
+
+def test_laterality_from_geometry_pins_row_column_axis_convention():
+    # Every other fixture in this suite is 4x4 with PixelSpacing (1.0, 1.0),
+    # which makes the two possible row/column pairings algebraically
+    # identical -- so none of them can detect a swapped convention. This case
+    # is deliberately anisotropic in BOTH dimensions and spacing so the
+    # pairing is observable.
+    #
+    # DICOM's pixel-to-patient mapping pairs the row direction cosine with the
+    # COLUMN index and PixelSpacing[1], and the column direction cosine with
+    # the ROW index and PixelSpacing[0]. Here the column direction has no
+    # x-component, so only the row-direction term moves the centre:
+    #   correct:  -40 + ((128 - 1) / 2) * 0.25 = -24.125  -> "R"
+    #   swapped:  -40 + ((512 - 1) / 2) * 1.00 = +215.5   -> "L"
+    result = laterality_from_geometry(
+        image_position_patient=[-40.0, 0.0, 0.0],
+        image_orientation_patient=[1, 0, 0, 0, 0, -1],
+        rows=512,
+        columns=128,
+        pixel_spacing=(1.0, 0.25),
+    )
+    assert result == "R"
 
 
 # -- central_band_indices --
@@ -589,6 +638,47 @@ def test_audit_series_handles_wholly_unreadable_series(tmp_path: Path):
     # Decode sampling still runs against the original files and reports
     # the same underlying unreadability as a decode failure.
     assert result.decode_failures == result.decode_attempted
+
+
+@pytest.mark.parametrize(
+    ("label", "orientation", "spacing", "expected_spacing"),
+    [
+        ("pixel_spacing_zero_length", (1.0, 0.0, 0.0, 0.0, 1.0, 0.0), (), None),
+        ("pixel_spacing_vm_1", (1.0, 0.0, 0.0, 0.0, 1.0, 0.0), (0.5,), None),
+        ("orientation_zero_length", (), (0.5, 0.5), (0.5, 0.5)),
+    ],
+)
+def test_audit_series_survives_present_but_valueless_tags(
+    tmp_path: Path,
+    label: str,
+    orientation: tuple,
+    spacing: tuple,
+    expected_spacing: tuple | None,
+):
+    # A tag can be present and still carry no usable value: a zero-length
+    # element reads back as None and a VM-1 PixelSpacing as a bare DSfloat,
+    # both unsubscriptable. audit_series documents FileNotFoundError as its
+    # only exception, and one such slice anywhere in the corpus would
+    # otherwise abort the whole preflight run rather than degrade.
+    series_dir = tmp_path / label
+    series_dir.mkdir()
+    for instance_number in (1, 2):
+        _write_synthetic_slice(
+            series_dir / f"{instance_number}.dcm",
+            instance_number=instance_number,
+            image_position_patient=(30.0, 0.0, 5.0 * instance_number),
+            image_orientation_patient=orientation,
+            pixel_spacing=spacing,
+        )
+
+    result = audit_series(series_dir)
+
+    assert result.slice_count == 2
+    assert result.pixel_spacing == expected_spacing
+    # Geometry-derived laterality cannot resolve from a valueless tag, but
+    # that degrades one diagnostic rather than condemning the series.
+    assert result.laterality_from_geometry is None
+    assert result.ordering_usable is True
 
 
 # -- series_transfer_syntax (codec census, round 60 finding 8) --
