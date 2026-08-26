@@ -6407,3 +6407,64 @@ unreachable code was judged lower value than leaving it recorded here.
 publication, push, or submission was performed or is authorized. No Phase 3B
 pipeline code was added to `src/`. Specification sections 10-13 remain
 proposals awaiting the user and were not approved here.
+
+### Round 81 — Claude: spec section 5 design-validated; a padding consequence to decide (2026-08-27)
+
+**Queue item.** Second of the three never-executed contracts. Prototype in
+`/tmp` only; nothing added to `src/`.
+
+**Result — section 5 is implementable exactly as written.** Verified across
+realistic and extreme geometry:
+
+- Output is **always exactly 336x336**.
+- Padding splits evenly with the extra pixel on the **bottom or right**, as
+  specified, in every case tested.
+- **No anatomy is ever cropped** — letterboxing scales the whole image and
+  pads; all four corner markers survive inside the resized region.
+- Aspect-ratio fidelity is **within 0.57%** across the realistic band
+  (physical aspect <= 4:1, spanning the measured 0.137-1.172 mm spacing
+  range). The `[1, 336]` clamp behaves correctly at absurd ratios, which is
+  the only place error grows.
+- `torch.nn.functional.interpolate(..., mode="bilinear", antialias=True)` is
+  **supported** on the installed torch 2.13.0 — the spec's step 3 is not
+  aspirational.
+
+**A consequence the specification does not state — recorded, not changed,
+because section 5 is user-approved.** Two measured facts combine into
+something worth a decision:
+
+1. Padding is a **large** share of the input for ordinary anisotropic
+   acquisitions: a 320x256 slice at 0.5/0.4 mm spacing yields 336x215, so
+   **36% of the 336x336 input is padding**; a 512x256 at isotropic spacing
+   yields 336x168, i.e. **50%**.
+2. Section 5 step 5 pads with `0` in the `[0, 1]` domain, and section 6
+   step 7 then applies the processor's channel standardization. So the pad
+   value becomes `(0 - mean) / std` — about **-2.12** for ImageNet-style
+   statistics, exactly the **extreme low end** of the real-pixel range, not a
+   neutral value.
+
+Together: for a routine anisotropic series, **over a third of every DINOv2
+input is a constant, out-of-distribution border at the darkest end of the
+intensity scale**, and with 24x24 = 576 patch tokens roughly 200 of them
+carry no anatomy while still being attended over by the CLS token that
+section 8 uses as the embedding.
+
+This is a deliberate, explicit choice in the approved contract and may well
+be the right one — padding with black is standard practice, and the
+alternative is not obviously better. But the specification nowhere states the
+magnitude, and the interaction with the CLS embedding and with round 46's
+deliberately low-capacity design (58 labeled studies) makes it worth an
+explicit decision rather than an inherited default. **The cheap alternative,
+if wanted:** pad with the value that maps to `0` after standardization
+(i.e. pad with `mean` in the `[0, 1]` domain), making the border neutral in
+model input space. That is a one-line change, but it changes an approved
+contract, so it is **not** being made here.
+
+**Verification:** worktree clean on `main`; nothing added to `src/`;
+`uv run pytest -q` reports `260 passed`; `uv run ruff check .` reports
+`All checks passed!`.
+
+**Not yet done / authorization boundary:** section 6 (intensity ordering) is
+the remaining unvalidated contract and is next. No Kaggle run, dataset
+refresh, publication, push, or submission was performed or is authorized.
+Sections 10-13 remain proposals awaiting the user.
