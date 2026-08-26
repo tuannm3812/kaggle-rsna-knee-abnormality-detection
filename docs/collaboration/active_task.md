@@ -6600,3 +6600,61 @@ assume one convention applies throughout.
 geometry suite) and 5 (drafting the implementation plan for approved sections)
 remain. No Kaggle run, dataset refresh, publication, push, or submission was
 performed or is authorized. Sections 10-13 remain proposals awaiting the user.
+
+### Round 84 — Claude: geometry mutation testing; the column-agreement clause was untested (2026-08-27)
+
+**Queue item 4.** Mutation-testing the geometry code specifically. Prior
+passes covered `report_model`/`metrics` (round 80) and the laterality
+row/column convention (round 78); the ordering and validation clauses had
+never been mutation-tested.
+
+**Harness.** Sandbox copy with `test_notebooks.py` and `test_vendor_assets.py`
+removed, `pyproject.toml` copied in (one test reads it), and a `conftest.py`
+asserting `knee_mri.__file__` starts with the sandbox path — without that
+guard the editable install silently re-points imports at the real repo and
+**every** mutant appears to survive. Green control confirmed at `214 passed`
+before any mutation.
+
+**Ten mutants; eight correctly killed.** Swapping the cross-product order,
+negating `slice_position`, dropping the unit-norm check, dropping the
+orthogonality check, flipping the orientation comparison, dropping the
+position-spacing check, reversing the sort order, and allowing duplicate
+`InstanceNumber` values were all caught. The suite is genuinely strong here.
+
+**Survivor 1 (the significant one) — the column-agreement clause could be
+deleted with the suite still green.** Round 52 finding 3 required **both**
+row and column direction agreement, precisely because comparing derived
+normals alone accepts an in-plane rotation. But the fixture written for that
+finding rotates 90 degrees, which changes the **row** direction too — so the
+row clause alone catches it, and the column clause was never exercised by any
+test.
+
+The uncovered case is real geometry, not a contrivance: two slices sharing
+row `(1,0,0)` exactly, with columns `(0,1,0)` and `(0,0,1)`. Both pairs are
+orthonormal, both pass every other check, row agreement is a perfect `1.0` —
+and only the column comparison rejects them, at `dot == 0`. Physically these
+are slices rotated about a shared row axis, exactly the inconsistent
+orientation the approved contract exists to reject. A regression test now
+covers it, verified to kill the mutant.
+
+**Survivor 2 (minor) — `slice_normal`'s normalization is near-redundant in
+every current call site.** In `_validated_geometry_order` the normal is
+derived from already-normalized, near-orthogonal vectors, so the cross
+product's norm is within about `0.005%` of 1 (bounded by the `0.01`
+orthogonality tolerance); in `audit_series` the normal only feeds a
+rank-based correlation, which is scale-invariant. Hence dropping `/ norm`
+changes nothing observable. The docstring nonetheless promises a unit-length
+return, so that contract is now pinned directly rather than left to
+coincidence.
+
+**No production code changed** — both survivors were test gaps, not defects.
+`264 passed` (up from 262); the two new tests were each confirmed to kill
+their mutant against the restored control.
+
+**Verification:** `uv run pytest -q` reports `264 passed`; `uv run ruff check
+.` reports `All checks passed!`; `git diff --check` clean.
+
+**Not yet done / authorization boundary:** queue item 5 (drafting the
+implementation plan for approved sections 2-9 only) is the last item. No
+Kaggle run, dataset refresh, publication, push, or submission was performed
+or is authorized. Sections 10-13 remain proposals awaiting the user.

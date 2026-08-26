@@ -934,6 +934,50 @@ def test_validate_and_order_series_rejects_in_plane_rotation_between_slices(tmp_
     assert result == OrderingValidation(usable=False, method=None, ordered_paths=None)
 
 
+def test_validate_and_order_series_rejects_rotation_about_a_shared_row_axis(tmp_path: Path):
+    """Two slices sharing a row direction but rotated about it.
+
+    Round 52 finding 3 required BOTH row and column agreement, precisely
+    because comparing derived normals alone accepts an in-plane rotation.
+    But the existing in-plane-rotation fixture rotates 90 degrees, which
+    changes the row direction too -- so the ROW check alone catches it and
+    the COLUMN check is never exercised. Mutation testing confirmed the whole
+    column clause could be deleted with the suite still green.
+
+    Here both slices are orthonormal and share row (1,0,0) exactly, so only
+    the column comparison can reject them: dot((0,1,0), (0,0,1)) == 0.
+    """
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    _write_synthetic_slice(
+        series_dir / "1.dcm",
+        instance_number=1,  # duplicated below to disable the InstanceNumber route
+        image_position_patient=(0.0, 0.0, 0.0),
+        image_orientation_patient=(1.0, 0.0, 0.0, 0.0, 1.0, 0.0),
+    )
+    _write_synthetic_slice(
+        series_dir / "2.dcm",
+        instance_number=1,
+        image_position_patient=(0.0, 0.0, 1.0),
+        image_orientation_patient=(1.0, 0.0, 0.0, 0.0, 0.0, 1.0),
+    )
+
+    result = validate_and_order_series(series_dir)
+
+    assert result == OrderingValidation(usable=False, method=None, ordered_paths=None)
+
+
+def test_slice_normal_returns_a_unit_vector_for_non_unit_inputs(tmp_path: Path):
+    """The docstring promises a unit-length normal. For the already-normalized
+    inputs the geometry route feeds it the normalization is near-redundant, so
+    dropping it left the suite green; pin the documented contract directly.
+    """
+    normal = slice_normal([3.0, 0.0, 0.0, 0.0, 4.0, 0.0])
+
+    assert np.linalg.norm(normal) == pytest.approx(1.0)
+    assert normal == pytest.approx([0.0, 0.0, 1.0])
+
+
 def test_validate_and_order_series_rejects_non_unit_orientation_vectors(tmp_path: Path):
     series_dir = tmp_path / "series"
     series_dir.mkdir()
