@@ -6323,3 +6323,87 @@ design-unvalidated and are next in the queue. No Kaggle run, dataset refresh,
 publication, push, or submission was performed or is authorized. Spec
 sections 10-13 remain proposals awaiting the user's approval and were not
 approved here.
+
+### Round 80 — Claude: evaluation harness could not detect leakage; nine findings actioned (2026-08-27)
+
+**Context.** Overnight autonomous pass. A second independent reviewer agent
+covered the modules the first one was told to skip: `dicom_io`, `metrics`,
+`labels`, `model_selection`, `report_model`, and `dataset`. It reported nine
+findings. **Claude re-verified every one before acting**, and downgraded one
+after checking it against the project record.
+
+**The serious finding: the evaluation harness was blind to leakage.** Mutation
+testing in an isolated sandbox — guarded with a `conftest.py` assertion that
+`knee_mri` resolves inside the sandbox, since the editable install otherwise
+silently re-points imports at the real repo — showed four defects the suite
+could not detect. Confirmed independently:
+
+| Mutant | Suite result |
+|---|---|
+| Classifier fitted on **all** rows including validation | `197 passed` |
+| `macro_auc` returns `max(scores)` not the mean | `197 passed` |
+| `macro_auc` returns the first score not the mean | `197 passed` |
+| Every label scored against `LABEL_COLUMNS[0]`'s column | `197 passed` |
+| *(control)* inverted score `-y_pred` | `2 failed` — correctly killed |
+
+The vectorizer's fold-locality had a leakage test; **the classifier's had
+none**. The three metric mutants survived because every fixture in
+`test_metrics.py` gives all twelve columns identical values, so column
+identity and the choice of aggregation are simultaneously unobservable. The
+control mutant proves these are specific gaps, not a uniformly weak suite.
+
+**This matters beyond Phase 3A.** Specification section 9 reuses this exact
+estimator, fold, and metric protocol for the image baseline, so a silently
+optimistic OOF score — the failure this project has consistently called worse
+than a crash — would have carried straight into Phase 3B.
+
+**One real defect in the guard itself:** `_validate_oof_coverage` used
+`coverage[validation_indices] += 1`, which NumPy buffers, so an index
+repeated *within a single fold* incremented only once and the stated "covered
+exactly once" invariant did not hold. Duplication *across* folds was already
+caught; within one fold it was not. Now `np.add.at`. The new test fails
+against the old line.
+
+**Fixes, each verified to kill its mutant** (`0b968a5`, `b46007b`,
+`7a1daf1`): a classifier fold-locality test asserting the training matrix
+row count per fold; metric fixtures with genuinely distinct per-label AUCs;
+`np.add.at`; `select_multilabel_folds` now skips a candidate larger than the
+row count instead of letting sklearn's error short-circuit the documented
+`(5, 4, 3, 2)` fallback; a gapped-index test pinning the positional-index
+guarantee the real pipeline depends on (`labeled_studies` keeps
+`train.csv`'s gapped index); an index-equality guard in `per_label_auc`,
+since `roc_auc_score` drops the index and pairs rows positionally; and
+word-boundary anchors in the weak-label patterns. **260 tests pass**, up
+from 245.
+
+**A semantically inverted weak label.** `"lateral"` inside `"collateral"`
+made a report describing **medial** compartment osteoarthritis emit
+`Lateral OA = 1` with `Medial OA` unset. `extract_weak_labels` is used only
+by notebook 02, whose Phase 2 evaluation is archived with an accepted 0/12
+No-go; the bug inflated false positives, so it cannot have turned a bad label
+good and the verdict stands. It does mean `Lateral OA`'s and `PF OA`'s
+recorded Phase 2 error rates were measured with a buggy extractor — recorded
+for anyone revisiting weak labels, not treated as overturning an archived
+result.
+
+**One finding downgraded on verification.** The reviewer rated the
+all-missing-`Report` `TypeError` as MEDIUM. Checking the record shows the
+real `test.csv` has **no `Report` column at all** — round 37's blocker, the
+reason Phase 3B exists, confirmed by the Phase 3A kernel's `ERROR` log — so
+`_require_columns` raises long before that line. The path is reachable only
+from a synthetic frame. Fixed anyway (the local pandas is 3.x, Kaggle's is
+2.x, and `pyproject` pins no upper bound), but recorded as low, not medium.
+
+**Deliberately not fixed:** `dicom_io.load_series` crashes on a valid but
+empty or absent `InstanceNumber`. It has no callers anywhere in `src`,
+`tests`, `scripts`, `notebooks`, or `docs`, and Phase 3B uses
+`validate_and_order_series`, which handles the same input correctly. Fixing
+unreachable code was judged lower value than leaving it recorded here.
+
+**Verification:** `uv run pytest -q` reports `260 passed`; `uv run ruff check
+.` reports `All checks passed!`; `git diff --check` clean.
+
+**Not yet done / authorization boundary:** no Kaggle run, dataset refresh,
+publication, push, or submission was performed or is authorized. No Phase 3B
+pipeline code was added to `src/`. Specification sections 10-13 remain
+proposals awaiting the user and were not approved here.
