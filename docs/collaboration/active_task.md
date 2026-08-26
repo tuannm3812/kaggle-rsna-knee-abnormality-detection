@@ -6012,3 +6012,67 @@ timing sample remain open, after which the complete Phase 3B specification,
 user approval, and an implementation plan precede any modeling work. No
 modeling implementation, dataset publication, public artifact, push, or
 competition submission was performed or is authorized by this round.
+
+### Round 76 — User: Codex withdrawn; Claude writes the Phase 3B specification (2026-08-26)
+
+**User decision:** "we can stop waiting for codex now as i need codex usage
+for other project, you can continue without codex review", followed by "or
+you can build independent reviewer to recheck the codebase". Claude's
+30-minute polling loop was cancelled. Codex's round-75 disposition on codec
+evidence was never returned and is now taken as closed by the user's
+instruction to proceed.
+
+**Process change, stated plainly.** Rounds 1-75 ran under two-sided review:
+one side proposed or implemented, the other independently verified, the user
+approved. That adversarial check repeatedly caught real defects that the
+proposing side had missed and believed correct -- an unguarded header read,
+an asymmetric cosine comparison, tolerance validation gaps, coverage
+semantics, and a wrong blanket laterality flip. Removing it is a genuine
+reduction in rigor, not a neutral workflow change. Two partial compensations
+are now in force: (a) a fresh-context independent reviewer agent was
+dispatched to re-check the codebase adversarially, with the same
+reproduce-before-reporting discipline Codex used; (b) the specification
+below explicitly marks which of its content is traceable to an approved
+round and which is unreviewed synthesis, so the distinction is not lost.
+
+**Delivered — the complete Phase 3B design specification** at
+`docs/superpowers/specs/2026-08-26-phase-3b-image-baseline-design.md`. It
+consolidates every section approved across rounds 46-75 into one frozen
+reference: objective and scope, architecture and data flow, series
+ranking/validation/retry with the four frozen tolerances, slice sampling and
+the decode minimum-three-of-five contract, physical framing, the full
+DICOM-to-DINOv2 intensity contract, signed laterality canonicalization at
+the frozen `> 0.90` gate, encoder and the 388-dimension study vector,
+classifier and evaluation protocol, codec delivery, notebook structure,
+telemetry, and release gates. It introduces no unapproved decision; the two
+genuinely unsettled items (the vendored wheel manifest and the timing safety
+margin) are marked **OPEN** rather than silently defaulted, and round 69's
+required framing of `0.90` as a cost-asymmetry choice rather than an
+empirical separation point is quoted rather than paraphrased.
+
+**New measured finding while verifying the spec's numbers -- decode time is
+I/O-contention-sensitive, GPU time is not.** The spec initially cited the
+familiar `~0.18 h` three-series lower bound and `~50x` headroom. Checking
+that against kernel v10's actual JSON rather than reusing the remembered
+figure showed **`0.3373 h`**, cutting headroom to **~27x**. The component
+split identifies the cause: GPU forward was unchanged at `0.0147 s/slice`
+(v6: `0.0147`), while decode rose from `0.0167` to `0.0449 s/slice`, roughly
+**2.7x**. The one material difference in that kernel was the census's 24,386
+header reads contending for the same shared storage. This is direct measured
+support for the release gate requiring a complete-path timing sample under
+representative load: an encoder-only bound measured on an idle kernel
+understates a real run doing sustained feature-extraction I/O. Recorded in
+`docs/7_image_baseline_insights.md` v8 and cited in the spec's gate 5.
+
+**Verification:** `uv run pytest -q` reports `237 passed`; `uv run ruff check
+.` reports `All checks passed!`; `git diff --check` is clean; the
+specification contains no TBD/TODO placeholder.
+
+**Not yet done / authorization boundary:** the specification is drafted, not
+approved -- and unlike every prior section, it has had no independent
+adversarial read. The user should review it before it is used to authorize
+anything. No implementation plan exists, no modeling code was written, and no
+Kaggle run, dataset publication, push, or competition submission was
+performed or is authorized by this round. The independent reviewer agent's
+findings on the existing codebase are still pending and will be recorded
+separately.

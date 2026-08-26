@@ -751,3 +751,28 @@ with zero header-read and zero decode failures, 450/450 study-plane
 selections resolving without retry, and the sampled decode audit again
 attributing all 4,110 attempted decodes to `1.2.840.10008.1.2.1` with zero
 failures. The kernel log contains no traceback or error marker.
+
+### New — decode time is I/O-contention-sensitive; GPU time is not
+
+The timing probe did **not** reproduce its prior value, and the way it moved
+is informative. Across v3-v6 the three-series lower bound held a tight band
+of `0.1722`, `0.1749`, `0.1942`, `0.1778` hours. This run reports
+**`0.3373` hours** — 1.74x the top of that band, cutting headroom against
+the 9-hour budget from roughly 50x to **~27x**.
+
+The component split identifies the cause rather than leaving it as variance:
+
+| Component | v6 | v8 | Change |
+|---|---:|---:|---|
+| GPU forward per slice | `0.0147 s` | `0.0147 s` | none |
+| Decode per slice | `0.0167 s` | `0.0449 s` | **~2.7x** |
+
+GPU cost is identical; **decode alone nearly tripled**. The one material
+difference in this kernel is the census's 24,386 header reads competing for
+the same shared competition-data storage. **Design implication:** the
+encoder-only lower bound measured on an otherwise-idle kernel *understates*
+a real pipeline run, which performs sustained feature-extraction I/O
+throughout. This is direct measured support for the release gate requiring a
+complete decode-preprocess-encoder-head timing sample under representative
+load, rather than extrapolating from the idle-kernel bound. The ~27x margin
+remains comfortable, but the number that matters has not been measured yet.
