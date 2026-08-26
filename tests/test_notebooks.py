@@ -525,6 +525,8 @@ def test_preflight_notebook_displays_only_aggregate_objects() -> None:
         "pixel_spacing_summary",
         "slice_count_summary",
         "decode_by_transfer_syntax",
+        "transfer_syntax_census",
+        "census_coverage",
         "environment_summary",
         "timing_summary",
     }

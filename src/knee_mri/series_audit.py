@@ -703,6 +703,48 @@ def validate_and_order_series(
     )
 
 
+def series_transfer_syntax(series_dir: Path) -> str | None:
+    """Read one representative slice's stored `TransferSyntaxUID`.
+
+    Header-only and single-file by design: this is the cheap corpus-wide
+    census that answers which transfer syntaxes actually occur
+    (`docs/collaboration/active_task.md` round 60, finding 8), not a decode
+    reliability measurement -- `audit_series`'s `decode_results` already
+    covers that for a sampled subset. Scanning one header per series is what
+    makes a full-corpus census affordable.
+
+    Slices are tried in filename order until one yields a syntax, so a
+    single corrupt file does not make an otherwise-readable series
+    uncountable. In practice the first read succeeds: the sampled corpus
+    measured zero header-read failures across 4,110 slices
+    (`docs/7_image_baseline_insights.md` v6).
+
+    Args:
+        series_dir: Directory containing one series' `.dcm` slice files.
+
+    Returns:
+        The `TransferSyntaxUID` as a string, or `None` if no slice in the
+        series could be read or none declared one.
+
+    Raises:
+        FileNotFoundError: If `series_dir` contains no `.dcm` files.
+    """
+    dcm_paths = sorted(series_dir.glob("*.dcm"))
+    if not dcm_paths:
+        raise FileNotFoundError(f"No .dcm files found in {series_dir}")
+
+    for path in dcm_paths:
+        try:
+            dataset = pydicom.dcmread(path, stop_before_pixels=True)
+            return str(dataset.file_meta.TransferSyntaxUID)
+        except (pydicom.errors.InvalidDicomError, OSError, AttributeError):
+            # Same narrow policy as every other reader here: a malformed or
+            # unreadable file is data to count, never a reason to crash a
+            # corpus-wide scan (round 55, finding 1).
+            continue
+    return None
+
+
 @dataclass(frozen=True)
 class GroupLateralityAgreement:
     """Aggregate laterality-call agreement across a group of series.

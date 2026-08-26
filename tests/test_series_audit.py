@@ -19,6 +19,7 @@ from knee_mri.series_audit import (
     laterality_from_geometry,
     order_agreement,
     plane_series_counts,
+    series_transfer_syntax,
     slice_normal,
     slice_position,
     validate_and_order_series,
@@ -588,6 +589,47 @@ def test_audit_series_handles_wholly_unreadable_series(tmp_path: Path):
     # Decode sampling still runs against the original files and reports
     # the same underlying unreadability as a decode failure.
     assert result.decode_failures == result.decode_attempted
+
+
+# -- series_transfer_syntax (codec census, round 60 finding 8) --
+
+
+def test_series_transfer_syntax_reads_representative_slice(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    for instance_number in (1, 2):
+        _write_synthetic_slice(series_dir / f"{instance_number}.dcm", instance_number)
+
+    # _write_synthetic_slice stores ExplicitVRLittleEndian (uncompressed).
+    assert series_transfer_syntax(series_dir) == "1.2.840.10008.1.2.1"
+
+
+def test_series_transfer_syntax_skips_unreadable_leading_file(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    # Sorts first, so a naive "read dcm_paths[0]" would report the series as
+    # unknown even though every other slice states its syntax perfectly well.
+    (series_dir / "0.dcm").write_bytes(b"not a real dicom file")
+    _write_synthetic_slice(series_dir / "1.dcm", instance_number=1)
+
+    assert series_transfer_syntax(series_dir) == "1.2.840.10008.1.2.1"
+
+
+def test_series_transfer_syntax_none_when_every_file_unreadable(tmp_path: Path):
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    (series_dir / "1.dcm").write_bytes(b"not a real dicom file")
+    (series_dir / "2.dcm").write_bytes(b"also not a real dicom file")
+
+    assert series_transfer_syntax(series_dir) is None
+
+
+def test_series_transfer_syntax_raises_on_empty_directory(tmp_path: Path):
+    empty_dir = tmp_path / "empty_series"
+    empty_dir.mkdir()
+
+    with pytest.raises(FileNotFoundError, match=r"No \.dcm files"):
+        series_transfer_syntax(empty_dir)
 
 
 # -- validate_and_order_series --
