@@ -96,3 +96,20 @@ def test_macro_auc_is_the_mean_not_the_max_or_the_first():
     # aggregations, otherwise this assertion proves nothing.
     assert result != pytest.approx(max(values))
     assert result != pytest.approx(values[0])
+
+
+def test_per_label_auc_rejects_misaligned_indices():
+    """`roc_auc_score` drops the index and pairs rows positionally, so a
+    prediction frame whose index disagrees with `y_true` is scored silently
+    against the wrong rows rather than raising. The in-repo caller builds the
+    OOF frame with `index=y.index`, so this guards a trap rather than a live
+    bug -- but a silently wrong AUC is exactly the failure this project
+    treats as worse than a crash.
+    """
+    y_true = pd.DataFrame({label: [0, 0, 1, 1] for label in LABEL_COLUMNS}, index=[0, 1, 2, 3])
+    y_pred = pd.DataFrame(
+        {label: [0.1, 0.2, 0.8, 0.9] for label in LABEL_COLUMNS}, index=[3, 2, 1, 0]
+    )
+
+    with pytest.raises(ValueError, match="index"):
+        per_label_auc(y_true, y_pred)

@@ -23,6 +23,12 @@ def per_label_auc(y_true: pd.DataFrame, y_pred: pd.DataFrame) -> dict[str, float
         ValueError: If a label column has only one class present in
             `y_true` (ROC-AUC is undefined in that case).
     """
+    if not y_true.index.equals(y_pred.index):
+        # roc_auc_score drops the index and pairs rows positionally, so a
+        # mismatch here would be scored against the wrong rows silently
+        # rather than raising.
+        raise ValueError("y_true and y_pred must share the same index")
+
     scores: dict[str, float] = {}
     for label in LABEL_COLUMNS:
         if y_true[label].nunique() < 2:

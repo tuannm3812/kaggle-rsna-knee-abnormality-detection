@@ -76,3 +76,40 @@ def test_select_multilabel_folds_rejects_non_binary_targets() -> None:
 
     with pytest.raises(ValueError, match="binary target frame"):
         select_multilabel_folds(y)
+
+
+def test_fold_selection_falls_back_when_a_candidate_exceeds_the_row_count():
+    """A candidate larger than the row count must be skipped, not fatal.
+
+    The documented contract is "try (5, 4, 3, 2) in order, else raise the
+    no-candidate message". An unrelated sklearn ValueError escaping from
+    `splitter.split` short-circuits that fallback entirely.
+    """
+    y = pd.DataFrame({label: [0, 1, 0, 1] for label in LABEL_COLUMNS})
+
+    n_splits, folds = select_multilabel_folds(y)
+
+    assert n_splits == 2
+    assert len(folds) == 2
+
+
+def test_fold_selection_returns_positional_indices_for_a_gapped_index():
+    """The real pipeline passes `labeled_studies[LABEL_COLUMNS]`, which keeps
+    train.csv's gapped index. Every other fixture uses a RangeIndex, where
+    positions and index labels coincide and a positions/labels mix-up is
+    therefore invisible.
+    """
+    row_count = 40
+    rng = np.random.default_rng(0)
+    gapped = rng.permutation(np.arange(1000, 1000 + row_count))
+    y = pd.DataFrame(
+        {label: rng.integers(0, 2, row_count) for label in LABEL_COLUMNS},
+        index=gapped,
+    )
+
+    _, folds = select_multilabel_folds(y)
+
+    for training_indices, validation_indices in folds:
+        for indices in (training_indices, validation_indices):
+            assert indices.max() < row_count
+            assert indices.min() >= 0

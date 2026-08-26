@@ -45,7 +45,16 @@ def select_multilabel_folds(
             shuffle=True,
             random_state=seed,
         )
-        folds = tuple(splitter.split(positions, y.to_numpy()))
+        try:
+            folds = tuple(splitter.split(positions, y.to_numpy()))
+        except ValueError:
+            # A candidate larger than the row count is not an error, it is a
+            # candidate that does not apply -- skipping it is what makes the
+            # documented (5, 4, 3, 2) fallback work. Letting sklearn's
+            # "n_splits greater than the number of samples" escape here would
+            # short-circuit the remaining candidates and surface an unrelated
+            # message instead of this function's own contract.
+            continue
         if all(y.iloc[validation].nunique().eq(2).all() for _, validation in folds):
             return n_splits, folds
 
