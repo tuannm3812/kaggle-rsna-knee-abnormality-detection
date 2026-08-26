@@ -6658,3 +6658,57 @@ their mutant against the restored control.
 implementation plan for approved sections 2-9 only) is the last item. No
 Kaggle run, dataset refresh, publication, push, or submission was performed
 or is authorized. Sections 10-13 remain proposals awaiting the user.
+
+### Round 85 — Claude: implementation plan drafted for approved sections only; overnight queue exhausted (2026-08-27)
+
+**Queue item 5, the last.** Implementation plan at
+`docs/superpowers/plans/2026-08-27-phase-3b-image-baseline.md`.
+
+**Scope discipline is the plan's first section, not a footnote.** It
+implements **only specification sections 2-9** and states in a table which
+sections are excluded and why: section 10's codec disposition (recommended in
+round 75, never confirmed because Codex was withdrawn before replying),
+section 11 notebook structure and section 12 telemetry (no approving round),
+and section 13 release gates (round 75 says plainly they "remain open"). The
+plan **stops after Task 8** with the pipeline existing as tested library code
+and no Kaggle surface whatsoever — no notebook, no kernel run, no timing
+sample, no submission, because all of those live in the unapproved sections.
+
+**Eight ordered tasks**, each with TDD steps and a named verification.
+Ordering is dependency-driven rather than cosmetic: enforcing the
+`PixelSpacing` precondition comes first because framing cannot be trusted
+without it, and vendoring the preprocessor config precedes the intensity work
+because the required equivalence test needs it.
+
+**Every constraint found during rounds 79-84 is folded into the task that
+must enforce it**, rather than left in this log to be rediscovered:
+
+| Constraint | Task |
+|---|---|
+| `PixelSpacing` precondition is unimplemented — absent/negative/zero still validates | 1 |
+| Processor-equivalence test cannot run locally without the vendored config | 2, 4 |
+| Padding is 36-50% of input and maps to ~`-2.12`, not neutral | 3 (documented, not changed) |
+| Post-transform padding mask catches 0 of 2 pixels | 4 |
+| `p99 <= p1` pinned as the insufficient-variation criterion | 4 |
+| `MONOCHROME1` inversion is immaterial *only* under per-slice percentiles | 4 |
+| Canonicalization is **not idempotent** — a second pass silently un-canonicalizes | 5 |
+| Canonical target is not expressible as "left knee" | 5 |
+| Stacks of <= 4 slices can never meet the minimum-of-three | 6 |
+| The four flags are near-degenerate on 58 studies | 7 |
+| The harness had **no** classifier-leakage test until round 80 | 8 |
+
+Round 69's required wording for the `0.90` gate is carried into the global
+constraints so it survives into code comments.
+
+**Self-review before commit:** no placeholders; 8 tasks and 8 verification
+statements; no task depends on an unapproved section; no task instructs a
+Kaggle action.
+
+**Verification:** `uv run pytest -q` reports `264 passed`; `uv run ruff check
+.` reports `All checks passed!`; `git diff --check` clean.
+
+**Overnight pass complete.** Queue items 1-5 are done across rounds 79-85. No
+Kaggle run, dataset refresh, publication, push, or submission was performed
+at any point, and none is authorized. **Two things now await the user:** the
+plan itself needs approval before implementation begins, and specification
+sections 10-13 remain proposals that gate everything after Task 8.
