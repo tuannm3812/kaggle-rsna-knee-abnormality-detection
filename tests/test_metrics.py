@@ -45,3 +45,54 @@ def test_macro_auc_raises_on_single_class_column():
 
     with pytest.raises(ValueError, match="only one class"):
         macro_auc(y_true, y_pred)
+
+
+def _distinct_auc_frames() -> tuple[pd.DataFrame, pd.DataFrame, dict[str, float]]:
+    """Build a case where every label has a DIFFERENT, known AUC.
+
+    Every other fixture here gives all 12 columns identical values, which
+    makes three separate defects invisible at once: column identity (y
+    scored against the wrong prediction column), and whether the macro is a
+    mean, a max, or simply the first score. Distinct per-label AUCs pin all
+    three.
+    """
+    truth = [0, 0, 1, 1]
+    # Four prediction shapes with hand-checkable AUCs against `truth`.
+    shapes = {
+        1.0: [0.1, 0.2, 0.8, 0.9],  # perfectly ranked
+        0.75: [0.1, 0.5, 0.4, 0.9],  # one inversion of four pairs
+        0.5: [0.5, 0.5, 0.5, 0.5],  # no information
+        0.0: [0.9, 0.8, 0.2, 0.1],  # perfectly anti-ranked
+    }
+    cycle = list(shapes.items())
+    y_true, y_pred, expected = {}, {}, {}
+    for position, label in enumerate(LABEL_COLUMNS):
+        auc, prediction = cycle[position % len(cycle)]
+        y_true[label] = truth
+        y_pred[label] = prediction
+        expected[label] = auc
+    return pd.DataFrame(y_true), pd.DataFrame(y_pred), expected
+
+
+def test_per_label_auc_scores_each_label_against_its_own_column():
+    y_true, y_pred, expected = _distinct_auc_frames()
+
+    scores = per_label_auc(y_true, y_pred)
+
+    # Pins column identity: scoring every label against one shared column
+    # (e.g. LABEL_COLUMNS[0]) would make these all equal.
+    assert scores == pytest.approx(expected)
+    assert len(set(scores.values())) > 1
+
+
+def test_macro_auc_is_the_mean_not_the_max_or_the_first():
+    y_true, y_pred, expected = _distinct_auc_frames()
+    values = list(expected.values())
+
+    result = macro_auc(y_true, y_pred)
+
+    assert result == pytest.approx(sum(values) / len(values))
+    # The mean must be distinguishable from the two plausible wrong
+    # aggregations, otherwise this assertion proves nothing.
+    assert result != pytest.approx(max(values))
+    assert result != pytest.approx(values[0])

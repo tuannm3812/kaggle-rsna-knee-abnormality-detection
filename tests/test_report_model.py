@@ -10,6 +10,7 @@ import pytest
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.feature_extraction.text import TfidfVectorizer
 
+from knee_mri import report_model
 from knee_mri.labels import LABEL_COLUMNS
 from knee_mri.metrics import macro_auc, per_label_auc
 from knee_mri.report_model import (
@@ -187,3 +188,50 @@ def test_fit_report_model_refits_and_predicts_all_labels() -> None:
     assert probabilities.shape == (len(reports), len(LABEL_COLUMNS))
     assert np.isfinite(probabilities).all()
     assert ((probabilities >= 0.0) & (probabilities <= 1.0)).all()
+
+
+def test_cross_validation_never_fits_the_classifier_on_validation_rows(monkeypatch) -> None:
+    """Pin the classifier's fold-locality, not just the vectorizer's.
+
+    The vectorizer already has a leakage test; the classifier had none, so a
+    fit on every row -- the textbook leak, which inflates pooled OOF AUC
+    while every assertion still holds -- left the suite green.
+    """
+    reports = _reports()
+    y = _targets()
+    folds = _four_folds()
+    recorded_row_counts: list[int] = []
+    real_fit_classifier = report_model._fit_classifier
+
+    def recording_fit_classifier(classifier, features, targets):
+        recorded_row_counts.append(features.shape[0])
+        return real_fit_classifier(classifier, features, targets)
+
+    monkeypatch.setattr(report_model, "_fit_classifier", recording_fit_classifier)
+
+    cross_validate_report_model(reports, y, folds)
+
+    expected = [len(training_indices) for training_indices, _ in folds]
+    assert recorded_row_counts == expected
+    # The leak this guards against is a fit on the full frame.
+    assert all(count < len(y) for count in recorded_row_counts)
+
+
+def test_oof_coverage_guard_rejects_a_row_repeated_within_one_fold() -> None:
+    """`coverage[indices] += 1` is buffered, so an index repeated inside a
+    single fold increments only once and the guard's "exactly once"
+    invariant silently fails to hold. Duplication *across* folds was already
+    covered; duplication *within* one fold was not.
+    """
+    reports = _reports(8)
+    y = _targets(8)
+    positions = np.arange(8)
+    folds = (
+        (np.array([4, 5, 6, 7]), np.array([0, 1, 2, 3])),
+        # Row 7 appears twice in this one validation fold; row 3 never does.
+        (np.array([0, 1, 2, 3]), np.array([4, 5, 6, 7, 7])),
+    )
+    assert len(positions) == 8
+
+    with pytest.raises(ValueError, match="covered exactly once"):
+        cross_validate_report_model(reports, y, folds)

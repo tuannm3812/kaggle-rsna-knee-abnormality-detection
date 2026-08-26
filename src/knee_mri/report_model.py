@@ -163,7 +163,11 @@ def _validate_modeling_data(reports: pd.Series, y: pd.DataFrame) -> None:
 def _validate_oof_coverage(folds: tuple[FoldIndices, ...], row_count: int) -> None:
     coverage = np.zeros(row_count, dtype=int)
     for _, validation_indices in folds:
-        coverage[validation_indices] += 1
+        # `coverage[validation_indices] += 1` is buffered: an index repeated
+        # within one fold's array increments only once, so a row duplicated
+        # inside a single fold would satisfy the "exactly once" check below
+        # while actually being scored twice. `np.add.at` is unbuffered.
+        np.add.at(coverage, validation_indices, 1)
     if not np.equal(coverage, 1).all():
         raise ValueError("every OOF row must be covered exactly once")
 
