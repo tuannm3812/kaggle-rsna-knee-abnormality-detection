@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -136,6 +137,36 @@ INTERNAL_WORKFLOW_PHRASES = (
     "trusted",
     "review workflow",
 )
+
+
+# Citations into the project's own review history and process documents.
+# These read as bookkeeping to anyone outside the project and carry no
+# analytical content, so they are matched by shape rather than by an
+# ever-growing list of exact phrases.
+INTERNAL_PROVENANCE_PATTERNS = (
+    r"\bround \d+",
+    r"\bfinding \d+",
+    r"\bthe specification\b",
+    r"\brelease gate",
+    r"\brelease contract\b",
+    r"\bsign-off\b",
+    r"-approved\b",
+)
+
+
+@pytest.mark.parametrize("notebook_path", NOTEBOOK_PATHS)
+def test_notebook_prose_cites_no_internal_provenance(notebook_path: str) -> None:
+    """Public prose should carry the reasoning, never the paper trail.
+
+    Naming the round a decision was made in, or the gate it has to clear,
+    tells a reader nothing about the data and everything about a process
+    they cannot see.
+    """
+    markdown = _markdown_source(_load_json(notebook_path))
+
+    for pattern in INTERNAL_PROVENANCE_PATTERNS:
+        match = re.search(pattern, markdown, re.IGNORECASE)
+        assert match is None, f"internal provenance in prose: {match.group(0)!r}"
 
 
 @pytest.mark.parametrize("notebook_path", NOTEBOOK_PATHS)
