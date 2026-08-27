@@ -7118,3 +7118,80 @@ the wheel manifest and safety margin (§14) remain open. **No submission was
 made and none is authorized** -- gate 7 requires the user's explicit sign-off
 on an exact kernel version, which has not been given and is not requested
 here.
+
+### Round 91 — Claude: gate 5 closed; STOPPED on a codec licence decision (2026-08-27)
+
+**User decision:** "approved move to next step" — proceeding to the two items
+round 90 left outstanding: a representative timing sample for release gate 5,
+and the vendored codec wheel manifest.
+
+**Notebook prose cleaned first (`24eafab`).** The public notebooks cited the
+project's own review history — round numbers, findings, "the specification",
+"the release gates", "requires explicit sign-off". None of that tells a reader
+anything about the data; it describes a process they cannot see and it dates
+badly. Eight passages across two notebooks were rewritten to keep their full
+reasoning and lose only the paper trail, and a regex guard now matches
+provenance **by shape** rather than by an ever-growing phrase list — the old
+substring check would never have caught "round 55". Verified the guard bites
+by injecting a citation into a heading. Notebooks 01-03 needed no change:
+their only matches were intra-notebook "Section N" navigation.
+
+**Gate 5 addressed.** The previous timing figure extrapolated from the three
+visible test studies, which is not a representative sample. Per-study cost
+scales with how many DICOM files a study holds, because ordering validation
+reads every header of every candidate series rather than only the five slices
+ultimately decoded. The extraction is now instrumented per study at no extra
+cost, supplemented by a sample stratified into five bands across the whole
+training corpus drawn from outside the labeled cohort, and reported by
+stratum. Three projections are given: mean rate, slowest stratum as a
+pessimistic bound, and mean rate with a **3x safety margin** — justified by
+the separately measured I/O contention effect, where decode nearly tripled
+under concurrent load, so an idle-kernel figure flatters a busy one. Kernel
+version 2 is running.
+
+**STOPPED on the wheel manifest — `pylibjpeg-libjpeg` is GPL v3.0.** Reading
+the actual wheel metadata rather than assuming:
+
+| Wheel | Version | Licence |
+|---|---|---|
+| `pylibjpeg` | 2.1.0 | MIT |
+| `pylibjpeg-openjpeg` | 2.5.0 | MIT |
+| **`pylibjpeg-libjpeg`** | **2.4.0** | **GPL v3.0** |
+
+This repository declares itself MIT. Vendoring a GPL-v3 binary into it is a
+licence-compatibility question, and the split matters practically:
+**`openjpeg` (MIT) covers JPEG 2000, while `libjpeg` (GPL) is what covers
+JPEG Lossless.** Dropping the GPL wheel is not cost-free — it would leave one
+of the two compressed families this pipeline might meet undecodable.
+
+**Why this is a genuine decision and not a formality.** GPL obligations
+trigger on *distribution*, and the dataset and kernel are private, so ordinary
+private use imposes nothing. But competition rules sometimes require winners
+to publish their solution, and at that point the linkage would matter. The
+competition rule as recorded permits "freely & publicly available" external
+software, which GPL v3 plainly is — so this is a licence-compatibility and
+publication-risk judgement, not an eligibility one. It is the user's to make,
+exactly as the DINOv2 `cc-by-nc-4.0` question was.
+
+**Options:** (1) vendor all three and accept the GPL linkage, keeping full
+codec coverage; (2) vendor only the two MIT wheels, losing JPEG Lossless
+support; (3) vendor none, on the evidence that the corpus-wide census found
+**zero** compressed series in all 24,386 visible ones, and accept that an
+unobservable hidden set could still contain some.
+
+Claude's view, offered as input rather than a decision: option 1 is the
+lowest-risk engineering choice and the GPL exposure is remote given private
+use, but option 3 is defensible on the measured evidence and is the only one
+that keeps the repository's licence position clean.
+
+**Also relevant, measured rather than assumed:** both compiled wheels require
+`numpy>=2.0,<3.0`, and any install must use `--no-deps --no-index` so it
+cannot pull or replace the kernel's own numpy. Kaggle runs **Python 3.12**
+(observed in the kernel log), so the wheels must be `cp312` manylinux
+x86_64 — the first download attempt targeted 3.11 and would have produced
+wheels the kernel could not load.
+
+**Not yet done / authorization boundary:** the wheel manifest stays open
+pending that decision. No submission was made and none is authorized — gate 7
+requires explicit sign-off on an exact kernel version, which has not been
+given and is not requested here.
