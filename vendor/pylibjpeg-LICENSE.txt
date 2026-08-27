@@ -1,0 +1,49 @@
+Vendored DICOM codec wheels
+===========================
+
+Three wheels are vendored so compressed DICOM pixel data can be decoded on an
+offline Kaggle kernel. They are built for CPython 3.12 on manylinux x86_64,
+matching the Kaggle runtime observed in kernel logs — a wheel built for any
+other interpreter version will not load there.
+
+  pylibjpeg-2.1.0-py3-none-any.whl
+    SHA-256 25df9496a69e64e98c887fddee12a1271e275b5f74ba804f9bf98a08bb80993e
+    Licence: MIT
+    The plugin framework. Decodes nothing on its own.
+
+  pylibjpeg_openjpeg-2.5.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+    SHA-256 a22fcb649ba9849209d8e43dba88632445a5941f0cd6765338b3652a4c686140
+    Licence: MIT
+    Decodes JPEG 2000 transfer syntaxes.
+
+  pylibjpeg_libjpeg-2.4.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
+    SHA-256 01d950ef496476a9223e4966376cb88098fcf5c55a12a21f722d7b5f84daae43
+    Licence: GPL v3.0
+    Decodes JPEG Lossless transfer syntaxes.
+
+GPL notice
+----------
+`pylibjpeg-libjpeg` is licensed **GPL v3.0**, read from the wheel's own
+metadata rather than assumed. This repository is otherwise MIT. The wheel is
+vendored on a deliberate, recorded decision, made with the licence split in
+view: `openjpeg` (MIT) covers JPEG 2000, while `libjpeg` (GPL) is what covers
+JPEG Lossless, so dropping it would leave one of the two compressed families
+undecodable.
+
+GPL obligations attach to *distribution*. The source dataset and kernels using
+these wheels are private. If this solution is ever published — for instance if
+competition rules require a winner to do so — the GPL linkage becomes material
+and should be revisited at that point.
+
+Why these are vendored at all
+-----------------------------
+A header-only census of **every** series in both released splits found a
+single transfer syntax, `1.2.840.10008.1.2.1` (Explicit VR Little Endian,
+uncompressed), across all 24,386 of them — zero compressed series. These
+wheels are therefore insurance rather than a current requirement: the
+~1,300-study hidden test set cannot be inspected, and an undecodable slice
+there would fail silently into the last-resort fallback row.
+
+Installation must use `--no-deps --no-index`. Both compiled wheels declare
+`numpy>=2.0,<3.0`; without `--no-deps`, pip would try to resolve or replace
+the kernel's own numpy, which is neither wanted nor available offline.
