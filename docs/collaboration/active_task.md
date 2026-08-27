@@ -6712,3 +6712,90 @@ Kaggle run, dataset refresh, publication, push, or submission was performed
 at any point, and none is authorized. **Two things now await the user:** the
 plan itself needs approval before implementation begins, and specification
 sections 10-13 remain proposals that gate everything after Task 8.
+
+### Round 86 — Claude: plan approved, Task 1 done; STOPPED on a licence discrepancy (2026-08-27)
+
+**User decision:** "approve plan" — authorising
+`docs/superpowers/plans/2026-08-27-phase-3b-image-baseline.md` (approved spec
+sections 2-9 only).
+
+**Task 1 complete (`a607036`) — the `PixelSpacing` precondition is now
+enforced.** `_validated_pixel_spacing` gates **both** ordering routes, not
+just the geometry one: physical framing letterboxes by real millimetre
+footprint, so a series that cannot be framed is unusable however well its
+slices order. Nine new tests cover absent, zero, negative,
+one-component-negative, NaN, infinite, VM-1, and inconsistent-across-slices,
+plus a regression guard. "Consistent" is exact equality of the parsed floats
+— DICOM stores this as a decimal string identical across a series in
+practice, so no unreviewed tolerance constant was invented. **273 passed.**
+
+Two consequences worth stating. Most geometry fixtures omitted `PixelSpacing`
+entirely, so both slice writers now supply a realistic default. And **this may
+change the real-data 822/822 result on the next audit**: the preflight
+measured `PixelSpacing` *tag coverage* of 1.0, which is presence only — it
+never checked positive, finite, or consistent. Whether any real series now
+fails is unmeasured and cannot be known without a run.
+
+**STOPPED at Task 2 — the pinned encoder's licence is not what this project
+has recorded.** Task 2 vendors the model's `preprocessor_config.json`. Reading
+the actual pinned artifact via a read-only `kaggle models instances versions
+download` of `metaresearch/dinov2/PyTorch/small/1`, its model card declares:
+
+```
+license: cc-by-nc-4.0
+```
+
+That is **Creative Commons Attribution-NonCommercial 4.0**, and it is the only
+licence statement in the card. The project records **Apache-2.0** in three
+places: the specification section 8 ("`PyTorch/small`, Apache 2.0"), and
+round 37/38's verification (`active_task.md` lines 2845 and 2951, "a real,
+Apache-2.0 ... model", "Apache-2.0 licence and the documented offline mount").
+One of those is wrong, and it is not the model card.
+
+**Why this stops implementation rather than being a footnote.** The entire
+Phase 3B design rests on this one frozen encoder — sections 7, 8, and 9 all
+assume it. If the encoder has to change, Tasks 2, 4, and 7 change with it, so
+building further before this is settled risks wasted work.
+
+**What the rules actually say, without over-reading them.**
+`docs/1_instructions.md` line 75 records the competition rule as "Freely &
+publicly available external data/pretrained models allowed." A CC-BY-NC model
+*is* freely and publicly available, so the stated rule may well permit it —
+the rule text does not demand commercial-use rights. Claude is not making that
+determination: it is a licensing and prize-eligibility judgement, and it is
+the user's to make.
+
+Worth noting for context, not as a finding: Meta relicensed DINOv2 upstream
+after this Kaggle artifact was published (the mounted files date from
+2023-08-08), so the upstream repository and this 2023-vintage mirror may
+genuinely differ. That would explain the discrepancy without anyone having
+been careless, but it does not resolve which licence governs *the artifact the
+kernel actually mounts*, which is the one that matters.
+
+**Options for the user:** (1) accept CC-BY-NC under the stated rule and
+correct the three Apache-2.0 records; (2) pin a different, explicitly
+Apache-2.0 DINOv2 mirror or version and re-verify; (3) choose a different
+encoder, which would reopen section 8.
+
+**A second, smaller finding from the same file — section 6's required test
+needs one more flag.** The real config is
+`{"image_mean": [0.485, 0.456, 0.406], "image_std": [0.229, 0.224, 0.225]}`
+with `"do_center_crop": true`, `"crop_size": 224`, and
+`"size": {"shortest_edge": 256}`. Section 6 says to configure the processor
+"not to resize or rescale again" — it does **not** mention centre-crop. With
+`do_center_crop` left on, the processor would crop the 336x336 letterboxed
+input down to 224x224 and the equivalence assertion would compare different
+images. The test must disable resize, rescale, **and** centre-crop.
+
+This also **confirms round 81's padding figure against the real config rather
+than an assumption**: pad `0` maps to `(0 - 0.485) / 0.229 = -2.118`,
+`-2.036`, `-1.804` across the three channels, against a real-pixel span
+reaching `+2.249`. The padding genuinely sits at the extreme low end.
+
+**Verification:** `uv run pytest -q` reports `273 passed`; `uv run ruff check
+.` reports `All checks passed!`; `git diff --check` clean.
+
+**Not yet done / authorization boundary:** Tasks 2-8 are not started. The
+88 MB model download was read-only into the session scratchpad; nothing was
+vendored, published, pushed, or submitted, and no kernel was run. Sections
+10-13 remain proposals awaiting the user.
