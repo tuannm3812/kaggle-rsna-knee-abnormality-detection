@@ -13,6 +13,7 @@ NOTEBOOK_PATHS = (
     "notebooks/02_weak_label_evaluation.ipynb",
     "notebooks/03_baseline_modeling.ipynb",
     "notebooks/04_image_baseline_preflight.ipynb",
+    "notebooks/05_image_baseline.ipynb",
 )
 
 
@@ -566,6 +567,117 @@ def test_preflight_kernel_metadata_is_private_gpu_offline_with_dinov2() -> None:
     assert metadata["id"] == "tuannm3812/rsna-knee-image-baseline-preflight-audit"
     assert metadata["title"] == "RSNA Knee — Image Baseline Preflight Audit"
     assert metadata["code_file"] == "04_image_baseline_preflight.ipynb"
+    assert metadata["is_private"] is True
+    assert metadata["enable_gpu"] is True
+    assert metadata["enable_tpu"] is False
+    assert metadata["enable_internet"] is False
+    assert metadata["dataset_sources"] == ["tuannm3812/rsna-knee-mri-src"]
+    assert metadata["competition_sources"] == ["rsna-knee-abnormality-detection"]
+    assert metadata["model_sources"] == ["metaresearch/dinov2/PyTorch/small/1"]
+
+
+# -- Image-baseline-specific checks --
+
+
+def test_image_baseline_notebook_displays_only_aggregate_objects() -> None:
+    notebook = _load_json("notebooks/05_image_baseline.ipynb")
+    tree = ast.parse(_code_source(notebook))
+    displayed_names = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if node.func.id == "display" and len(node.args) == 1:
+                argument = node.args[0]
+                if isinstance(argument, ast.Name):
+                    displayed_names.append(argument.id)
+
+    assert displayed_names
+    assert set(displayed_names) <= {
+        "frozen_contract",
+        "environment_summary",
+        "extraction_telemetry",
+        "fold_identity",
+        "pooled_summary",
+        "per_label_summary",
+        "flag_variance",
+        "timing_summary",
+        "submission_summary",
+    }
+
+
+def test_image_baseline_notebook_writes_exactly_one_submission_path() -> None:
+    code = _code_source(_load_json("notebooks/05_image_baseline.ipynb"))
+
+    assert code.count("to_csv(") == 1
+    assert '"/kaggle/working/submission.csv"' in code
+
+
+def test_image_baseline_notebook_verifies_the_wheel_before_importing_knee_mri() -> None:
+    """Same ordering guarantee notebook 03 pins: checksum, install, return
+    code, version, sys.path, and only then the first knee_mri import.
+    """
+    code = _code_source(_load_json("notebooks/05_image_baseline.ipynb"))
+
+    checksum_index = code.index("hashlib.sha256(wheel_path.read_bytes())")
+    install_index = code.index("subprocess.run(")
+    returncode_index = code.index("install_result.returncode != 0")
+    version_index = code.index('importlib.metadata.version("iterative-stratification")')
+    sys_path_index = code.index("sys.path.insert(")
+    first_import_index = code.index("from knee_mri")
+
+    assert (
+        checksum_index
+        < install_index
+        < returncode_index
+        < version_index
+        < sys_path_index
+        < first_import_index
+    )
+    assert "check=True" not in code
+    assert "stderr=subprocess.DEVNULL" in code
+
+
+def test_image_baseline_notebook_uses_the_vendored_processor_statistics() -> None:
+    """Section 6 forbids a remembered-constant fallback, so the notebook must
+    load the attached model's own statistics and must not restate them.
+    """
+    code = _code_source(_load_json("notebooks/05_image_baseline.ipynb"))
+
+    assert "load_processor_statistics" in code
+    assert "dinov2-small-preprocessor_config.json" in code
+    for forbidden in ("0.485", "0.456", "0.406", "0.229", "0.224", "0.225"):
+        assert forbidden not in code
+
+
+def test_image_baseline_notebook_asserts_the_encoder_is_frozen() -> None:
+    code = _code_source(_load_json("notebooks/05_image_baseline.ipynb"))
+
+    assert "requires_grad_(False)" in code
+    assert "Encoder trainable parameters" in code
+
+
+def test_image_baseline_notebook_keeps_the_constant_prediction_sanity_check() -> None:
+    code = _code_source(_load_json("notebooks/05_image_baseline.ipynb"))
+
+    assert "constant_predictions" in code
+    assert "Metric wiring check failed" in code
+
+
+def test_image_baseline_notebook_never_stores_identifiers_in_telemetry() -> None:
+    code = _code_source(_load_json("notebooks/05_image_baseline.ipynb"))
+
+    assert 'telemetry["study' not in code
+    assert 'telemetry["series' not in code
+    assert "StudyInstanceUID\":" not in code
+    assert "SeriesInstanceUID\":" not in code
+
+
+def test_image_baseline_kernel_metadata_is_private_gpu_offline_with_dinov2() -> None:
+    metadata = _load_json("notebooks/kernels/image-baseline/kernel-metadata.json")
+
+    assert metadata["id"] == "tuannm3812/rsna-knee-image-baseline"
+    assert metadata["title"] == "RSNA Knee — Frozen Image Baseline"
+    assert len(metadata["title"]) <= 50
+    assert metadata["code_file"] == "05_image_baseline.ipynb"
     assert metadata["is_private"] is True
     assert metadata["enable_gpu"] is True
     assert metadata["enable_tpu"] is False

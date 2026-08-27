@@ -209,6 +209,50 @@ def select_validated_series(
     )
 
 
+def validated_plane_candidates(
+    series_df: pd.DataFrame,
+    series_root: Path,
+    study_id: str,
+    plane: str,
+    prefer_fluid_sensitive: bool = True,
+) -> list[tuple[str, tuple[Path, ...]]]:
+    """Every ranked candidate for a plane that passes ordering validation.
+
+    `select_validated_series` returns only the first candidate that
+    validates, which is right when ordering is the only thing that can fail.
+    But section 4 of the Phase 3B specification adds a second, later failure
+    mode -- fewer than three of the sampled slices decoding -- and requires
+    that to trigger the same same-plane retry. A caller cannot do that with
+    only the winner, so this returns the whole validated shortlist in
+    preference order and lets the decode stage keep walking it.
+
+    Args:
+        series_df: A `train_series.csv`/`test_series.csv`-shaped frame.
+        series_root: Directory containing
+            `<StudyInstanceUID>/<SeriesInstanceUID>/` DICOM subdirectories.
+        study_id: The `StudyInstanceUID` to rank candidates for.
+        plane: The `Anatomical_Plane` to require.
+        prefer_fluid_sensitive: Passed through to `rank_candidate_series`.
+
+    Returns:
+        `(series_instance_uid, ordered_paths)` for each candidate that
+        validated, in preference order. Empty when the plane has no series
+        or none of them validate -- the missing-plane case.
+    """
+    validated: list[tuple[str, tuple[Path, ...]]] = []
+    for series_id in rank_candidate_series(
+        series_df, series_root, study_id, plane, prefer_fluid_sensitive
+    ):
+        series_dir = series_root / study_id / series_id
+        try:
+            validation = validate_and_order_series(series_dir)
+        except FileNotFoundError:
+            continue
+        if validation.usable and validation.ordered_paths is not None:
+            validated.append((series_id, validation.ordered_paths))
+    return validated
+
+
 def split_labeled_studies(
     train_df: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:

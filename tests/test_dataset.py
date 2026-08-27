@@ -14,6 +14,7 @@ from knee_mri.dataset import (
     select_validated_series,
     series_for_study,
     split_labeled_studies,
+    validated_plane_candidates,
 )
 from knee_mri.labels import LABEL_COLUMNS
 
@@ -522,3 +523,69 @@ def test_prepare_modeling_inputs_rejects_non_string_test_report() -> None:
 
     with pytest.raises(ValueError, match=r"test.*non-string Report"):
         prepare_modeling_inputs(train_df, test_df, sample_df)
+
+
+def test_validated_plane_candidates_returns_the_whole_validated_shortlist(tmp_path: Path):
+    """Section 4's decode-failure retry needs more than the winner.
+
+    `select_validated_series` stops at the first candidate that validates,
+    which cannot support retrying when that candidate's slices fail to
+    decode later.
+    """
+    series_root = tmp_path / "series"
+    study_id = "study-1"
+    for series_id in ("aaa", "bbb"):
+        _write_series(series_root / study_id / series_id, slice_count=6)
+    series_df = pd.DataFrame(
+        [
+            {
+                "StudyInstanceUID": study_id,
+                "SeriesInstanceUID": series_id,
+                "Anatomical_Plane": "Sagittal",
+                "Fluid_Sensitive": 1,
+            }
+            for series_id in ("aaa", "bbb")
+        ]
+    )
+
+    candidates = validated_plane_candidates(series_df, series_root, study_id, "Sagittal")
+
+    assert [series_id for series_id, _ in candidates] == ["aaa", "bbb"]
+    assert all(len(paths) == 6 for _, paths in candidates)
+
+
+def test_validated_plane_candidates_skips_candidates_that_fail_validation(tmp_path: Path):
+    series_root = tmp_path / "series"
+    study_id = "study-1"
+    _write_series(series_root / study_id / "aaa", slice_count=4, valid_geometry=False)
+    _write_series(series_root / study_id / "bbb", slice_count=4)
+    series_df = pd.DataFrame(
+        [
+            {
+                "StudyInstanceUID": study_id,
+                "SeriesInstanceUID": series_id,
+                "Anatomical_Plane": "Sagittal",
+                "Fluid_Sensitive": 1,
+            }
+            for series_id in ("aaa", "bbb")
+        ]
+    )
+
+    candidates = validated_plane_candidates(series_df, series_root, study_id, "Sagittal")
+
+    assert [series_id for series_id, _ in candidates] == ["aaa", "bbb"]
+
+
+def test_validated_plane_candidates_is_empty_for_a_missing_plane(tmp_path: Path):
+    series_root = tmp_path / "series"
+    _write_series(series_root / "study-1" / "aaa", slice_count=4)
+    series_df = pd.DataFrame(
+        [{
+            "StudyInstanceUID": "study-1",
+            "SeriesInstanceUID": "aaa",
+            "Anatomical_Plane": "Sagittal",
+            "Fluid_Sensitive": 1,
+        }]
+    )
+
+    assert validated_plane_candidates(series_df, series_root, "study-1", "Axial") == []
