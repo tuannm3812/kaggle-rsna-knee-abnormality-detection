@@ -278,32 +278,36 @@ per study, before framing, so the odd padding pixel stays on the bottom/right.
 `tests/test_image_model.py`.
 
 **Steps:**
-- [ ] Failing test: fold identity — assert the ordered 58 study IDs and label
+- [x] Failing test: fold identity — assert the ordered 58 study IDs and label
       matrix match the Phase 3A input, and persist/compare a fold-assignment
       signature. `select_multilabel_folds` is row-order-sensitive, so exact
       membership must not be inferred from labels alone.
-- [ ] Failing test: **fold-locality of the scaler and classifier.** Round 80
+- [x] Failing test: **fold-locality of the scaler and classifier.** Round 80
       found the harness had **no** classifier-leakage test at all: fitting on
       every row left the suite green while inflating pooled OOF AUC. Assert
       per-fold training row counts equal the training-fold sizes and are
       always strictly less than the total.
-- [ ] Failing test: `StandardScaler` is fitted **inside** each outer training
+- [x] Failing test: `StandardScaler` is fitted **inside** each outer training
       fold, on the 384 continuous dimensions only, with the four binary flags
       left unscaled.
-- [ ] Failing test: `C = 0.1` frozen before evaluation; assert no code path
+- [x] Failing test: `C = 0.1` frozen before evaluation; assert no code path
       selects `C` from OOF scores.
-- [ ] Failing test: pooled OOF macro AUC is primary; per-label and per-fold
+- [x] Failing test: pooled OOF macro AUC is primary; per-label and per-fold
       are diagnostic; a constant `0.5` prediction frame scores exactly `0.5`.
-- [ ] Failing test: full-58 refit of scaler and classifier for inference.
-- [ ] Implement, reusing `select_multilabel_folds`, `macro_auc`,
+- [x] Failing test: full-58 refit of scaler and classifier for inference.
+- [x] Implement, reusing `select_multilabel_folds`, `macro_auc`,
       `per_label_auc`, and the frozen estimator shape with `C = 0.1`.
 
-**Verification:** all model tests pass; a deliberately leaked fit is caught
-by the fold-locality test (confirm by temporary mutation, then revert).
+**Verification:** DONE -- 17 model tests pass. Both the scaler and the
+classifier have fold-locality assertions recording per-fold training row
+counts. Non-convergence is fatal (mirroring Phase 3A), and a source scan
+asserts no grid-search symbol appears in the module.
 
 ---
 
 ## Stop here
+
+**Tasks 1-8 are complete as of 2026-08-27 (round 88).**
 
 After Task 8 the pipeline exists as tested library code with no Kaggle
 surface. **Do not proceed to a notebook, a kernel run, a timing sample, or a
