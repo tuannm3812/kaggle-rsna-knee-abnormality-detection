@@ -359,8 +359,12 @@ A single fixture per axis is insufficient — it cannot expose a sign error.
 Approved round 60 finding 4.
 
 - **Encoder:** `facebook/dinov2-small`, attached offline as the Kaggle Model
-  `metaresearch/dinov2` (`PyTorch/small`, Apache 2.0), 22,056,576 parameters,
-  fully frozen (`requires_grad_(False)`, `.eval()`).
+  `metaresearch/dinov2` (`PyTorch/small`, version 1), 22,056,576 parameters,
+  fully frozen (`requires_grad_(False)`, `.eval()`). Licensed **CC BY-NC
+  4.0** per that pinned artifact's own model card -- *not* Apache-2.0 as
+  rounds 37-38 recorded. Corrected and accepted by the user in round 86
+  under the competition rule "Freely & publicly available external
+  data/pretrained models allowed"; see `vendor/dinov2-small-LICENSE.txt`.
 - **Embedding:** the CLS token, `last_hidden_state[:, 0, :]`, 384 dimensions,
   with `interpolate_pos_encoding=True` (336 differs from the native training
   resolution).

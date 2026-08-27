@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 from pathlib import Path
 
 WHEEL_NAME = "iterative_stratification-0.1.9-py3-none-any.whl"
 WHEEL_SHA256 = "476f8deff6753fb1725612fe41e59cc2058f8f2524ae5d1ccee88eb8c8d3de80"
+
+PROCESSOR_NAME = "dinov2-small-preprocessor_config.json"
+PROCESSOR_SHA256 = "14e780d86fa1861f8751f868d7f45425b5feb55c38ca26f152ca5097ab30f828"
 
 
 def test_vendored_iterative_stratification_wheel_is_exact_release() -> None:
@@ -22,6 +26,45 @@ def test_vendored_iterative_stratification_license_is_bsd_3_clause() -> None:
     assert "BSD 3-Clause License" in license_text
     assert "Redistribution and use in source and binary forms" in license_text
     assert "THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS" in license_text
+
+
+def test_vendored_dinov2_processor_config_is_the_exact_mounted_artifact() -> None:
+    """Spec section 6 standardizes with the attached model's own image_mean /
+    image_std, and its required equivalence test cannot run locally without
+    them (the Kaggle Model mount is not present off-Kaggle). Pin the exact
+    bytes so a silent substitution -- remembered ImageNet constants above all
+    -- cannot pass unnoticed.
+    """
+    config_path = Path("vendor") / PROCESSOR_NAME
+
+    assert hashlib.sha256(config_path.read_bytes()).hexdigest() == PROCESSOR_SHA256
+
+    config = json.loads(config_path.read_text())
+    for key in ("image_mean", "image_std"):
+        values = config[key]
+        assert isinstance(values, list)
+        assert len(values) == 3
+        assert all(isinstance(v, (int, float)) and 0.0 < v < 1.0 for v in values)
+
+    # Section 6 says to disable resize and rescale for the equivalence test.
+    # The real config ALSO enables centre-cropping to 224, which would crop
+    # the 336x336 letterboxed input and compare a different image, so the
+    # test must disable that too (round 86).
+    assert config["do_center_crop"] is True
+    assert config["crop_size"] == {"height": 224, "width": 224}
+
+
+def test_vendored_dinov2_license_records_the_pinned_artifacts_terms() -> None:
+    """The pinned Kaggle Model version declares cc-by-nc-4.0, not the
+    Apache-2.0 this project recorded in rounds 37-38. Pin the corrected
+    record so it cannot silently revert.
+    """
+    license_text = Path("vendor/dinov2-small-LICENSE.txt").read_text()
+
+    assert "cc-by-nc-4.0" in license_text
+    assert "metaresearch/dinov2" in license_text
+    assert PROCESSOR_SHA256 in license_text
+    assert "No model weights are redistributed" in license_text
 
 
 def test_code_dataset_publisher_stages_vendor_directory(tmp_path: Path) -> None:
@@ -54,3 +97,5 @@ def test_code_dataset_publisher_stages_vendor_directory(tmp_path: Path) -> None:
 
     assert (captured_stage / "vendor" / WHEEL_NAME).is_file()
     assert (captured_stage / "vendor" / "iterative-stratification-LICENSE.txt").is_file()
+    assert (captured_stage / "vendor" / PROCESSOR_NAME).is_file()
+    assert (captured_stage / "vendor" / "dinov2-small-LICENSE.txt").is_file()

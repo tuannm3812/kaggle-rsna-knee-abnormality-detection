@@ -1,0 +1,34 @@
+DINOv2 (small) — image preprocessor configuration
+=================================================
+
+Vendored file: dinov2-small-preprocessor_config.json
+SHA-256:       14e780d86fa1861f8751f868d7f45425b5feb55c38ca26f152ca5097ab30f828
+
+Source
+------
+Kaggle Model `metaresearch/dinov2`, framework PyTorch, variation `small`,
+version 1 — the exact artifact the preflight kernel mounts offline. Retrieved
+read-only via `kaggle models instances versions download`. Mounted files are
+dated 2023-08-08.
+
+Licence
+-------
+The model card for that pinned artifact declares:
+
+    license: cc-by-nc-4.0
+
+i.e. Creative Commons Attribution-NonCommercial 4.0 International.
+See https://creativecommons.org/licenses/by-nc/4.0/
+
+This corrects an earlier record. `docs/collaboration/active_task.md` rounds
+37-38 and an earlier revision of the Phase 3B specification recorded this
+model as Apache-2.0; the model card for the pinned version does not. Meta
+relicensed DINOv2 upstream after this artifact was published, so the upstream
+repository and this 2023-vintage mirror may differ — but the licence that
+governs this project is the one on the artifact the kernel actually mounts,
+which is the one quoted above. Recorded in round 86 and accepted by the user
+under the competition rule "Freely & publicly available external data/
+pretrained models allowed" (`docs/1_instructions.md`).
+
+Only this metadata file is vendored. No model weights are redistributed here;
+they are mounted at run time from the Kaggle Model source.

@@ -27,6 +27,10 @@ dependencies = [
 dev = [
     "pytest>=8.4.2",
     "ruff>=0.8",
+    # Spec section 6 requires a LOCAL test asserting the manual intensity
+    # pipeline matches the attached model's own image processor. A skipped
+    # test is not a gate, so this is a test dependency, not an optional one.
+    "transformers>=4.45",
 ]
 notebook = [
     "jupyterlab>=4.0",

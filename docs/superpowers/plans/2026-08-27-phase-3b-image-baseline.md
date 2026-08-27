@@ -64,16 +64,19 @@ the tag **absent**, **negative**, or **zero** returns
 **Files:** modify `src/knee_mri/series_audit.py`, `tests/test_series_audit.py`.
 
 **Steps:**
-- [ ] Write failing tests: spacing absent, zero, negative, non-finite,
+- [x] Write failing tests: spacing absent, zero, negative, non-finite,
       wrong VM (1 element), and inconsistent across slices must each give
       `usable=False`.
-- [ ] Write a passing test: consistent positive finite spacing still
+- [x] Write a passing test: consistent positive finite spacing still
       validates by geometry, so no existing behavior regresses.
-- [ ] Add the check to the validation path under the existing narrow
+- [x] Add the check to the validation path under the existing narrow
       exception policy (`InvalidDicomError`, `OSError`, `ValueError`,
       `TypeError`, `AttributeError`, `IndexError`).
-- [ ] Re-run the full suite; the 822/822 geometry result must not depend on
-      this, so no existing geometry test may change.
+- [x] Re-run the full suite. NOTE: existing geometry fixtures omitted
+      `PixelSpacing` entirely, so both slice writers now supply a realistic
+      default; two round-77 assertions changed by design. This may also change
+      the real-data 822/822 result, since the audit measured tag *presence*
+      only (round 86).
 
 **Verification:** all new tests pass; `uv run pytest -q` green; the retry
 loop in `dataset.py` needs no change because unusable candidates already
@@ -94,13 +97,14 @@ license note; modify `pyproject.toml`, `scripts/publish_code_dataset.sh`,
 `tests/test_vendor_assets.py`.
 
 **Steps:**
-- [ ] Vendor the config verbatim with its Apache-2.0 attribution.
-- [ ] Test that the vendored file parses and exposes `image_mean` and
-      `image_std` as 3-element numeric lists.
-- [ ] Test that `publish_code_dataset.sh` stages it, mirroring the existing
-      wheel-staging assertion.
-- [ ] Add `transformers` to the dev/test dependency set so the Task 4
-      equivalence test can import it locally.
+- [x] Vendor the config verbatim with its **CC BY-NC 4.0** attribution (the pinned artifact's actual licence; round 86).
+- [x] Test that the vendored file parses and exposes `image_mean` and
+      `image_std` as 3-element numeric lists, pinned by SHA-256.
+- [x] Test that `publish_code_dataset.sh` stages it, mirroring the existing
+      wheel-staging assertion. (No script change needed -- it copies `vendor/`
+      wholesale.)
+- [x] Add `transformers` to the **dev** extra (a required local test is not
+      optional). Installed: transformers 5.15.0 alongside torch 2.13.0.
 
 **Verification:** vendor tests pass; `importlib.util.find_spec("transformers")`
 is not `None` in the dev environment.
@@ -151,7 +155,9 @@ the realistic band.
       excluded padding mapped to `0`.
 - [ ] Failing test: **processor equivalence** — the final tensor matches the
       Transformers image processor built from the Task 2 vendored config with
-      `do_resize=False, do_rescale=False`.
+      `do_resize=False, do_rescale=False`, **and `do_center_crop=False`** --
+      the real config enables centre-crop to 224, which would crop the 336x336
+      letterboxed input and compare a different image (round 86).
 - [ ] Failing test: missing or malformed processor metadata raises a hard
       error; assert no ImageNet constant appears anywhere in the module.
 - [ ] Implement steps 1-7 in the specified order.
