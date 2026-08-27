@@ -630,6 +630,7 @@ def test_image_baseline_notebook_displays_only_aggregate_objects() -> None:
         "pooled_summary",
         "per_label_summary",
         "flag_variance",
+        "timing_by_stratum",
         "timing_summary",
         "submission_summary",
     }
