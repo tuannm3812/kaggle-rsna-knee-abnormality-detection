@@ -250,23 +250,25 @@ directory name, or `.dcm` string appears in its repr.
 `tests/test_study_features.py`.
 
 **Steps:**
-- [ ] Failing test: the study vector is **exactly 388** dimensions — 384
+- [x] Failing test: the study vector is **exactly 388** dimensions — 384
       embedding + 3 plane-presence flags + 1 `laterality_reliable`.
-- [ ] Failing test: within-plane mean over decoded slices, then mean over
+- [x] Failing test: within-plane mean over decoded slices, then mean over
       **present planes only**; an absent plane is excluded from the
       denominator, never zero-filled into it.
-- [ ] Failing test: encoder is frozen — no parameter has `requires_grad`, and
+- [x] Failing test: encoder is frozen — no parameter has `requires_grad`, and
       the module is in `eval()` mode.
-- [ ] Failing test: the pipeline order is framing → intensity → laterality →
+- [x] Failing test: the pipeline order is framing → intensity → laterality →
       encode, and laterality is applied exactly once per study.
-- [ ] Implement against a stub encoder in tests so no model download is
+- [x] Implement against a stub encoder in tests so no model download is
       needed; the real encoder is injected.
-- [ ] Document that with 58 studies the four flags are near-degenerate
+- [x] Document that with 58 studies the four flags are near-degenerate
       (all-450/450 plane resolution measured, so presence flags are likely
       constant `1`; ~2.75 of 58 expected `laterality_reliable = 0`), so the
       head **cannot** be relied on to learn plane compensation.
 
-**Verification:** all feature tests pass; dimensionality asserted exactly.
+**Verification:** DONE -- 11 feature tests pass; the 388 dimensions are
+asserted exactly and decomposed as `384 + 3 + 1`. Canonicalization runs once
+per study, before framing, so the odd padding pixel stays on the bottom/right.
 
 ---
 

@@ -193,7 +193,10 @@ def canonicalize_volume(
 
     array = np.asarray(volume)
     if decision.reverse:
-        array = np.flip(array, axis=_AXIS_TO_ARRAY_AXIS[decision.array_axis])
+        # np.flip returns a negative-stride view, which torch.from_numpy
+        # rejects outright. Materialize a contiguous array here so no
+        # downstream consumer has to know or care.
+        array = np.ascontiguousarray(np.flip(array, axis=_AXIS_TO_ARRAY_AXIS[decision.array_axis]))
     return CanonicalVolume(array=array, canonicalized=True)
 
 
