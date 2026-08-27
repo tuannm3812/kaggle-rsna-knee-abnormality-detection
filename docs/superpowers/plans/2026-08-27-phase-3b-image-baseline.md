@@ -222,24 +222,25 @@ the labels, which is why it passed while the hand-written one failed.
 `tests/test_slice_sampling.py`.
 
 **Steps:**
-- [ ] Failing test: five deterministic central-band indices from the
+- [x] Failing test: five deterministic central-band indices from the
       validated order via `central_band_indices`.
-- [ ] Failing test: **at least three successful decodes required**; mean over
+- [x] Failing test: **at least three successful decodes required**; mean over
       the 3-5 that succeeded.
-- [ ] Failing test: below three, the series fails and the next ranked
+- [x] Failing test: below three, the series fails and the next ranked
       same-plane candidate is tried; the plane is absent only after
       exhaustion.
-- [ ] Failing test: **stacks of four slices or fewer can never satisfy the
-      minimum** (round 83 — rounding collapses duplicate positions, so such a
-      stack yields fewer than three indices). Assert the behavior explicitly
-      so it is a known outcome rather than a surprise. Unreachable on
-      observed data: the shortest corpus series has 11 slices.
-- [ ] Failing test: counters for attempted, decoded, retried, and absent are
+- [x] Failing test: **stacks of exactly 1, 2, or 4 slices can never satisfy
+      the minimum** — rounding collapses duplicate positions. NOT monotonic:
+      3 slices yield `[0, 1, 2]` and CAN meet it, 4 yield only `[1, 2]` and
+      cannot. Round 83's "four or fewer" was wrong; corrected round 87.
+      Unreachable on observed data (shortest corpus series has 11 slices).
+- [x] Failing test: counters for attempted, decoded, retried, and absent are
       returned as aggregates with **no identifiers**.
-- [ ] Implement.
+- [x] Implement.
 
-**Verification:** all sampling tests pass; no identifier appears in any
-returned structure.
+**Verification:** DONE -- 19 sampling tests pass; `counters()` exposes only
+`{attempted, decoded, candidates_tried, absent}` and a test asserts no path,
+directory name, or `.dcm` string appears in its repr.
 
 ---
 

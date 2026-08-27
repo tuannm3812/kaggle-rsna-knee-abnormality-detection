@@ -206,13 +206,19 @@ def test_central_band_indices_yields_the_full_sample_for_every_observed_stack_de
 
 
 def test_central_band_indices_collapses_only_on_very_short_stacks():
-    """The converse, pinned so the boundary cannot drift unnoticed: at four
-    slices the sampler returns two indices, which is already below section
-    4's minimum of three successful decodes -- such a series can never
-    satisfy that rule however well it decodes. Unreachable on observed data
-    (minimum observed depth is 11) but recorded rather than assumed.
+    """The converse, pinned so the boundary cannot drift unnoticed.
+
+    Section 4 needs at least three decoded slices, so the depths that can
+    never satisfy it are exactly those yielding fewer than three indices:
+    **{1, 2, 4}**. The set is NOT monotonic -- three slices yield [0, 1, 2]
+    and can meet the minimum, while four yield only [1, 2] and cannot.
+    Round 83 recorded this as "four or fewer", which is wrong; corrected in
+    round 87. Unreachable on observed data (minimum observed depth is 11).
     """
-    assert [len(central_band_indices(n, 5)) for n in range(1, 7)] == [1, 2, 3, 2, 3, 4]
+    lengths = [len(central_band_indices(n, 5)) for n in range(1, 7)]
+
+    assert lengths == [1, 2, 3, 2, 3, 4]
+    assert [n for n in range(1, 7) if lengths[n - 1] < 3] == [1, 2, 4]
 
 
 def test_central_band_indices_rejects_non_positive_inputs():

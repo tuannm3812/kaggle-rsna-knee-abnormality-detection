@@ -6799,3 +6799,54 @@ reaching `+2.249`. The padding genuinely sits at the extreme low end.
 88 MB model download was read-only into the session scratchpad; nothing was
 vendored, published, pushed, or submitted, and no kernel was run. Sections
 10-13 remain proposals awaiting the user.
+
+### Round 87 — Claude: Tasks 3-6 implemented; a round-83 claim corrected (2026-08-27)
+
+**User decision:** "approve you can finish all phase, tell me if you need any
+decision from me" — continue through the plan autonomously, stopping only for
+decisions.
+
+**Tasks 3-6 complete.** `framing.py` (`211d64d`), `intensity.py` (`8e7edcf`),
+`laterality.py` (`2aa99fd`), and `slice_sampling.py`. **374 tests pass**, up
+from 296. Each module's frozen constants and every constraint discovered in
+rounds 79-86 are enforced by tests rather than described in comments.
+
+**Correction to round 83 — the short-stack boundary was stated wrongly.**
+Round 83 recorded that "a series of four slices or fewer can never satisfy
+section 4's minimum-of-three". That is **wrong**, and implementing Task 6
+surfaced it: `central_band_indices` yields `[0, 1, 2]` for a 3-slice stack,
+which **can** meet the minimum, while a 4-slice stack yields only `[1, 2]` and
+cannot. The affected set is exactly **{1, 2, 4}** and it is **not monotonic** —
+which is precisely why the sloppy "four or fewer" phrasing sounded right and
+was not. Corrected in the module docstring, in round 83's own test (which had
+pinned the correct `[1, 2, 3, 2, 3, 4]` lengths but described them wrongly),
+and in the plan. A new test pins both halves of the boundary: depths `{1, 2,
+4}` cannot meet the minimum and depths `{3, 5, 6}` can. Unreachable either way
+on observed data, where the shortest series has 11 slices.
+
+**Two verifications worth recording, because both were assumptions until
+now.** Section 6's required processor-equivalence test now runs **locally**
+and matches the attached processor to `3.7e-07`. And round 86's centre-crop
+finding is confirmed load-bearing: leaving `do_center_crop` enabled returns
+`(3, 224, 224)` instead of `(3, 336, 336)`, so the assertion would have
+silently compared a different image.
+
+**A test bug caught by the code, not the reverse.** The first laterality run
+failed one assertion; the cause was inverted sign labels in the *test*
+fixture's orientation table, not the implementation. The twelve-combination
+test passed throughout because it derives its expectation from
+`patient_lr_axis_metrics` rather than trusting the hand-written labels — the
+hand-written one was the only one that could be wrong, and it was.
+
+**Round 79's non-idempotence hazard is closed structurally**, not by
+convention: `canonicalize_volume` returns a `CanonicalVolume` carrying an
+applied-flag and raises `AlreadyCanonicalizedError` on a second pass, rather
+than silently double-flipping back to the original orientation.
+
+**Verification:** `uv run pytest -q` reports `374 passed`; `uv run ruff check
+.` reports `All checks passed!`; `git diff --check` clean.
+
+**Not yet done / authorization boundary:** Tasks 7 (study feature assembly)
+and 8 (classifier and evaluation) remain. No Kaggle run, dataset refresh,
+publication, push, or submission was performed or is authorized. Sections
+10-13 remain proposals awaiting the user, and gate everything after Task 8.
