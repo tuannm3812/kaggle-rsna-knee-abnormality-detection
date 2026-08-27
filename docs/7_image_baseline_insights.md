@@ -901,3 +901,66 @@ Round 86 flagged that enforcing it might reduce the usable-series count, since
 the preflight had only ever measured tag *presence*. On these 58 studies no
 plane was lost. That does not clear the 4,407-study corpus, which was never
 re-audited under the new precondition.
+
+## 2026-08-27 — Image baseline v2: representative timing (`05_image_baseline.ipynb`)
+
+**Why this round exists.** v1's runtime projection extrapolated from the
+**three** visible test studies, which is not a representative sample of
+anything. Per-study cost scales with how many DICOM files a study holds,
+because ordering validation reads every header of every candidate series, not
+only the five slices ultimately decoded. This round times **83** studies — the
+58 labeled ones, instrumented at no extra cost, plus 25 drawn from five
+strata spanning the whole training corpus.
+
+**Kernel:** version 2, T4, `COMPLETE`, zero error markers.
+
+### The small sample was pessimistic, not optimistic
+
+| Sample | Seconds/study | Projected hours (~1,300) |
+|---|---:|---:|
+| v1 — 3 visible test studies | 3.167 | 1.144 |
+| **v2 — 83 stratified studies** | **2.120** | **0.765** |
+
+The three visible test studies were **49% slower per study** than the
+stratified population. That direction is worth noting: a tiny sample is
+usually assumed to flatter a result, and here it did the opposite. Either
+direction would have been wrong to rely on — which is the point of measuring
+rather than extrapolating.
+
+### With the safety margin
+
+| Basis | Hours | Headroom vs 9 h |
+|---|---:|---:|
+| Mean rate | 0.765 | 11.8x |
+| Slowest stratum | 1.266 | 7.1x |
+| **Mean rate x3 safety margin** | **2.296** | **3.9x** |
+
+The margin covers the separately measured I/O contention effect, where decode
+nearly tripled under concurrent load. Even the deliberately pessimistic
+reading — slowest stratum, no margin — leaves 7x. Runtime is not a constraint
+on this design.
+
+The stratified sample spans a median of **166** DICOM files per study and a
+maximum of **572**, so the range the hidden set will contain is represented
+rather than assumed. The slowest stratum runs **65%** above the mean, which
+confirms cost is slice-count-driven rather than fixed per study.
+
+### The pipeline is deterministic across runs
+
+v1 and v2 produced a **bit-identical** pooled OOF macro AUC of
+`0.6345688959` from independent kernel executions. Same folds, same seed, same
+frozen contract, same result. That is a real property worth having measured:
+it means a future score change is attributable to a deliberate change rather
+than to run-to-run drift.
+
+Wall-clock extraction over the same 58 studies varied by `1.31x` between the
+two runs (166.6 s versus 127.1 s) while producing identical numbers — I/O
+timing is noisy, the computation is not.
+
+### Everything else unchanged
+
+Planes absent `0`; retries `0`; header-read failures `0`; decoded slices per
+plane `5.0` mean and minimum; **studies with no usable plane `0`**. Studies
+with unreliable laterality `3`, again matching the prediction. The retry,
+minimum-of-three, and missing-plane fallbacks remain implemented, tested, and
+never exercised on real data.
