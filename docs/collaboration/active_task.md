@@ -7195,3 +7195,49 @@ wheels the kernel could not load.
 pending that decision. No submission was made and none is authorized — gate 7
 requires explicit sign-off on an exact kernel version, which has not been
 given and is not requested here.
+
+### Round 92 — User Approval: vendor all three codec wheels, GPL accepted (2026-08-27)
+
+**User decision:** asked to choose between vendoring all three codec wheels,
+only the two MIT ones, or none, the user selected **all three, accepting the
+GPL linkage** in exchange for full codec coverage.
+
+**Vendored** with pinned SHA-256 checksums:
+
+| Wheel | Version | Licence | Covers |
+|---|---|---|---|
+| `pylibjpeg` | 2.1.0 | MIT | plugin framework only |
+| `pylibjpeg-openjpeg` | 2.5.0 | MIT | JPEG 2000 |
+| `pylibjpeg-libjpeg` | 2.4.0 | **GPL v3.0** | JPEG Lossless |
+
+The GPL split is recorded in `vendor/pylibjpeg-LICENSE.txt` rather than left
+to be rediscovered, including the point that obligations attach to
+*distribution* — the dataset and kernels are private, but publishing the
+solution, as competition rules sometimes require of a winner, would make the
+linkage material and should trigger a revisit.
+
+**Two things measured rather than guessed, both of which would have failed
+silently.** Kaggle runs **CPython 3.12**, observed in the kernel log, so the
+wheels are `cp312` manylinux x86_64 — the first download attempt targeted 3.11
+and would have produced wheels that installed cleanly here and then failed to
+load there. And both compiled wheels declare `numpy>=2.0,<3.0`, so the install
+uses `--no-deps`: without it, pip would try to resolve or replace the kernel's
+own numpy, offline and unasked.
+
+**The notebook verifies then proves.** Each checksum is checked before
+install, and all three plugins are asserted importable afterwards, because a
+checksum proves the bytes arrived, not that a compiled extension loads on that
+interpreter.
+
+**These remain insurance, not a requirement.** The corpus-wide census found
+**zero** compressed series across all 24,386 visible ones. They exist for the
+~1,300-study hidden set, where an undecodable slice would otherwise fail
+silently into the last-resort fallback row.
+
+**Both of the specification's open items are now closed** — the timing safety
+margin in round 91, the wheel manifest here. Kernel version 3 is running to
+confirm the codec install and smoke test pass in the real environment.
+
+**Not yet done / authorization boundary:** no submission has been made and
+none is authorized. Gate 7 requires the user's explicit sign-off on an exact
+kernel version, which has not been given and is not requested here.
