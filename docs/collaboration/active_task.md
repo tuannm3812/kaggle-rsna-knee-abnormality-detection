@@ -7241,3 +7241,66 @@ confirm the codec install and smoke test pass in the real environment.
 **Not yet done / authorization boundary:** no submission has been made and
 none is authorized. Gate 7 requires the user's explicit sign-off on an exact
 kernel version, which has not been given and is not requested here.
+
+### Round 93 — Claude: kernel v3 green; release gates 1-6 satisfied (2026-08-27)
+
+**Kernel version 3, T4, `COMPLETE`, zero error markers.** Full detail in
+`docs/7_image_baseline_insights.md`'s v3 section.
+
+**The vendored codecs work.** All three `cp312` wheels installed from the
+private dataset with `--no-index --no-deps` and imported:
+`['libjpeg', 'openjpeg', 'pylibjpeg']`. This is the assertion a checksum
+cannot make — the checksum proves the right bytes arrived, the import proves
+the compiled extension loads on that interpreter. The 3.11 wheels the first
+download produced would have installed cleanly and failed here.
+
+**The stratum profile settles a question the mean could not.** Cost rises
+monotonically across all five bands, `2.00` s/study at a median of 110 DICOM
+files up to `5.46` at 273 — **2.7x**. Per-study cost tracks how many files a
+study holds, because ordering validation reads every header of every candidate
+series. A hidden set skewed toward large studies costs proportionally more,
+which is why the projection carries a margin rather than a point estimate.
+
+**An honest unresolved observation.** The same extraction path measured
+`2.12` s/study in v2 and `3.23` in v3 — a `1.52x` swing between consecutive
+runs. Two explanations fit and a single run cannot separate them: shared
+storage I/O contention, independently measured to nearly triple decode cost;
+or the newly installed codec plugins adding handler-selection overhead to
+every decode, even though this corpus is entirely uncompressed and no plugin
+should engage. Recorded as unresolved rather than attributed to whichever is
+convenient. A run with the wheels vendored but not installed would separate
+them, and that is worth doing only if runtime ever becomes tight.
+
+It is not tight. Even on v3, the slowest run so far: mean rate with the 3x
+margin is `3.50` hours against a 9-hour budget (2.6x headroom), and the
+slowest stratum unmargined is `1.97` hours (4.6x). The variance is itself the
+argument for having set the margin at 3x rather than something tighter.
+
+**Determinism now holds across three independent runs.** Pooled OOF macro AUC
+is bit-identical at `0.6345688959` in v1, v2 and v3, while per-study timing
+swung by half again. The computation is reproducible; only the clock is noisy.
+
+### Release gate status
+
+| Gate | Status |
+|---|---|
+| 1. Local suite, ruff, diff-check, notebooks output-free | **Met** — 428 passed |
+| 2. Processor-equivalence test passes | **Met** — locally, to `3.7e-07` |
+| 3. No labeled study with all planes absent | **Met** — `0` of 58 |
+| 4. Private full-pipeline dry run on visible test studies | **Met** — v1, v2, v3 |
+| 5. Representative timing, complete path, stated margin | **Met** — 83 studies, 5 strata, 3x margin |
+| 6. Private kernel completes end to end | **Met** — v3 `COMPLETE`, zero errors |
+| **7. Explicit user sign-off on an exact kernel version** | **NOT given, not requested** |
+
+**Gates 1-6 are satisfied on evidence.** Both of the specification's open
+items are closed. Gate 7 is the only remaining step and it is the user's
+alone; no submission has been made and none is authorized.
+
+**What a reviewer should still weigh before that decision, stated plainly
+rather than buried:** the pooled OOF macro AUC of `0.6346` is above chance on
+58 studies but has no confidence interval and no report-baseline counterpart
+to compare against, since Phase 3A never reached cross-validation. The retry,
+minimum-of-three, and missing-plane fallbacks remain implemented, tested, and
+**never exercised on real data**. And the whole design rests on an encoder
+whose pinned artifact is licensed `cc-by-nc-4.0`, accepted in round 86 under
+the competition's "freely and publicly available" rule.
