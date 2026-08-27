@@ -964,3 +964,65 @@ plane `5.0` mean and minimum; **studies with no usable plane `0`**. Studies
 with unreliable laterality `3`, again matching the prediction. The retry,
 minimum-of-three, and missing-plane fallbacks remain implemented, tested, and
 never exercised on real data.
+
+## 2026-08-27 — Image baseline v3: codecs installed, stratum profile visible
+
+**Kernel:** version 3, T4, `COMPLETE`, zero error markers.
+
+### The vendored codecs load on Kaggle
+
+`Codec plugins importable: ['libjpeg', 'openjpeg', 'pylibjpeg']` — all three
+`cp312` wheels installed from the private dataset with `--no-index --no-deps`
+and imported successfully. This is the check a checksum cannot make: the
+checksum proves the right bytes arrived, the import proves the compiled
+extension actually loads on that interpreter. Had the wheels been built for
+3.11, as the first download attempt produced, they would have installed
+cleanly and failed here.
+
+`Encoder trainable parameters: 0`, again.
+
+### Cost is slice-count driven, and now visibly so
+
+| Stratum | Median DICOM files | Mean seconds/study |
+|---|---:|---:|
+| 0 | 110 | 2.00 |
+| 1 | 130 | 2.41 |
+| 2 | 166 | 3.01 |
+| 3 | 190 | 3.22 |
+| 4 | 273 | **5.46** |
+
+Monotonic across all five bands, with the largest stratum **2.7x** the
+smallest. This settles what the single mean could not: per-study cost tracks
+how many DICOM files a study holds, because ordering validation reads every
+header of every candidate series. A hidden set skewed toward large studies
+would cost proportionally more, which is exactly why the projection carries a
+margin rather than a point estimate.
+
+### Run-to-run variance is large, which vindicates the margin
+
+The same extraction path measured **2.12 s/study in v2 and 3.23 s/study in
+v3** — a `1.52x` swing between consecutive runs. Earlier, v1 and v2 differed
+by `1.31x` on wall clock over identical studies.
+
+**Two explanations are consistent with this and one run cannot separate
+them:** shared-storage I/O contention, which was independently measured to
+nearly triple decode cost under load; or the newly installed codec plugins
+adding handler-selection overhead to every decode, even though this corpus is
+entirely uncompressed and no plugin should engage. Recorded as unresolved
+rather than attributed to the convenient explanation. If it matters later, the
+way to separate them is a run with the wheels vendored but not installed.
+
+Either way the practical conclusion holds, and it is the reason the safety
+margin was set at 3x rather than something tighter:
+
+| Basis (v3, the slowest run so far) | Hours | Headroom vs 9 h |
+|---|---:|---:|
+| Mean rate x3 margin | 3.50 | 2.6x |
+| Slowest stratum, no margin | 1.97 | 4.6x |
+
+### Determinism holds across three independent runs
+
+Pooled OOF macro AUC is `0.6345688959` in v1, v2 **and** v3 — bit-identical,
+while per-study timing swung by half again. The computation is reproducible;
+only the clock is noisy. A future score change is therefore attributable to a
+deliberate change rather than to drift.
