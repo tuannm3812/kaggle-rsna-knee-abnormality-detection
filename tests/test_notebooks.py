@@ -674,7 +674,10 @@ def test_image_baseline_notebook_never_stores_identifiers_in_telemetry() -> None
 def test_image_baseline_kernel_metadata_is_private_gpu_offline_with_dinov2() -> None:
     metadata = _load_json("notebooks/kernels/image-baseline/kernel-metadata.json")
 
-    assert metadata["id"] == "tuannm3812/rsna-knee-image-baseline"
+    # Kaggle derives the slug from the TITLE, not the requested id, and
+    # silently migrates it -- the same trap round 39 hit. Pinned to the
+    # server-assigned slug so a push and a status query cannot diverge.
+    assert metadata["id"] == "tuannm3812/rsna-knee-frozen-image-baseline"
     assert metadata["title"] == "RSNA Knee — Frozen Image Baseline"
     assert len(metadata["title"]) <= 50
     assert metadata["code_file"] == "05_image_baseline.ipynb"
