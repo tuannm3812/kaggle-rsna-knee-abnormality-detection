@@ -21,6 +21,7 @@ from knee_mri.labels import LABEL_COLUMNS
 from knee_mri.study_features import STUDY_VECTOR_DIM
 
 ROW_COUNT = 24
+SEED_FOR_TESTS = 11
 
 
 def _features(row_count: int = ROW_COUNT) -> pd.DataFrame:
@@ -256,3 +257,80 @@ def test_the_penalty_deprecation_notice_is_silenced_not_fatal():
     with warnings.catch_warnings():
         warnings.simplefilter("error", FutureWarning)
         fit_image_model(features, y)
+
+
+# -- uncertainty diagnostics --
+
+
+def test_bootstrap_interval_brackets_the_point_estimate():
+    from knee_mri.image_model import bootstrap_macro_auc
+
+    y = _targets()
+    rng = np.random.default_rng(3)
+    probabilities = pd.DataFrame(
+        rng.random((ROW_COUNT, len(LABEL_COLUMNS))), index=y.index, columns=LABEL_COLUMNS
+    )
+
+    result = bootstrap_macro_auc(y, probabilities, iterations=200, seed=SEED_FOR_TESTS)
+
+    assert result.lower <= result.point <= result.upper
+    assert 0.0 <= result.lower and result.upper <= 1.0
+    assert result.iterations == 200
+    assert 0.0 <= result.complete_label_fraction <= 1.0
+
+
+def test_bootstrap_is_deterministic_for_a_given_seed():
+    from knee_mri.image_model import bootstrap_macro_auc
+
+    y = _targets()
+    rng = np.random.default_rng(4)
+    probabilities = pd.DataFrame(
+        rng.random((ROW_COUNT, len(LABEL_COLUMNS))), index=y.index, columns=LABEL_COLUMNS
+    )
+
+    first = bootstrap_macro_auc(y, probabilities, iterations=100, seed=7)
+    second = bootstrap_macro_auc(y, probabilities, iterations=100, seed=7)
+
+    assert first == second
+
+
+def test_bootstrap_reports_when_labels_became_degenerate():
+    """Resampling 58 studies with replacement can lose every positive for a
+    rare label. Those labels are excluded from that resample's macro, and the
+    fraction of fully-estimable resamples is reported rather than hidden.
+    """
+    from knee_mri.image_model import bootstrap_macro_auc
+
+    y = _targets()
+    # One label with a single positive is very likely to vanish in a resample.
+    y = y.copy()
+    y[LABEL_COLUMNS[0]] = [1] + [0] * (ROW_COUNT - 1)
+    rng = np.random.default_rng(5)
+    probabilities = pd.DataFrame(
+        rng.random((ROW_COUNT, len(LABEL_COLUMNS))), index=y.index, columns=LABEL_COLUMNS
+    )
+
+    result = bootstrap_macro_auc(y, probabilities, iterations=200, seed=SEED_FOR_TESTS)
+
+    assert result.complete_label_fraction < 1.0
+
+
+def test_repeated_fold_scores_include_the_frozen_seed_result():
+    from knee_mri.image_model import repeated_fold_macro_auc
+
+    features, y = _features(), _targets()
+
+    scores = repeated_fold_macro_auc(features, y, seeds=(42, 43))
+
+    assert len(scores) == 2
+    assert all(0.0 <= score <= 1.0 for score in scores)
+
+
+def test_repeated_fold_scores_are_reproducible():
+    from knee_mri.image_model import repeated_fold_macro_auc
+
+    features, y = _features(), _targets()
+
+    assert repeated_fold_macro_auc(features, y, seeds=(42,)) == repeated_fold_macro_auc(
+        features, y, seeds=(42,)
+    )

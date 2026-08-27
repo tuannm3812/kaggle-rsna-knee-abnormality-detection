@@ -41,10 +41,12 @@ import numpy as np
 import pandas as pd
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score
 from sklearn.multiclass import OneVsRestClassifier
 
 from knee_mri.labels import LABEL_COLUMNS
 from knee_mri.metrics import macro_auc, per_label_auc
+from knee_mri.model_selection import select_multilabel_folds
 
 # The shared OOF-coverage guard is imported rather than reimplemented. It
 # contains a fix that was subtle enough to ship broken once (buffered
@@ -256,3 +258,124 @@ def fit_image_model(
     classifier = build_image_classifier()
     _fit_classifier(classifier, scaler.transform(matrix), y)
     return scaler, classifier
+
+
+@dataclass(frozen=True)
+class BootstrapInterval:
+    """A percentile bootstrap interval for the pooled macro AUC.
+
+    Attributes:
+        point: The macro AUC on the observed data, unresampled.
+        lower: Lower percentile bound.
+        upper: Upper percentile bound.
+        iterations: Resamples drawn.
+        complete_label_fraction: Fraction of resamples in which **every**
+            label still had both classes present. Below 1.0 means some
+            resamples scored a macro over fewer than all twelve labels,
+            which widens and slightly redefines the interval -- reported
+            rather than hidden, because at this sample size it is common.
+    """
+
+    point: float
+    lower: float
+    upper: float
+    iterations: int
+    complete_label_fraction: float
+
+
+def bootstrap_macro_auc(
+    y: pd.DataFrame,
+    oof_probabilities: pd.DataFrame,
+    *,
+    iterations: int = 2_000,
+    seed: int = 42,
+    percentiles: tuple[float, float] = (2.5, 97.5),
+) -> BootstrapInterval:
+    """Percentile bootstrap over studies, holding predictions fixed.
+
+    Answers a narrow question: how much would this score move if the same
+    model were evaluated on a different draw of studies from the same
+    population? It does **not** capture fold-assignment variance (see
+    `repeated_fold_macro_auc`) and it does not refit anything, so it cannot
+    reflect how the model itself would change on different training data.
+
+    Resampling 58 studies with replacement can leave a rare label with no
+    positives at all. Such a label is undefined for AUC, so it is dropped
+    from that resample's macro and the fraction of fully-estimable resamples
+    is reported alongside.
+
+    Args:
+        y: Binary targets in canonical label-column order.
+        oof_probabilities: Out-of-fold probabilities, same index and columns.
+        iterations: Resamples to draw.
+        seed: Generator seed, so the interval is reproducible.
+        percentiles: Lower and upper percentile bounds.
+
+    Returns:
+        The point estimate and its interval.
+    """
+    if not y.index.equals(oof_probabilities.index):
+        raise ValueError("y and oof_probabilities must share the same index")
+
+    truth = y.to_numpy()
+    predictions = oof_probabilities.to_numpy()
+    generator = np.random.default_rng(seed)
+    row_count = len(y)
+
+    scores: list[float] = []
+    complete = 0
+    for _ in range(iterations):
+        rows = generator.integers(0, row_count, size=row_count)
+        label_scores = []
+        for position in range(truth.shape[1]):
+            resampled_truth = truth[rows, position]
+            if len(np.unique(resampled_truth)) < 2:
+                continue
+            label_scores.append(roc_auc_score(resampled_truth, predictions[rows, position]))
+        if not label_scores:
+            continue
+        if len(label_scores) == truth.shape[1]:
+            complete += 1
+        scores.append(float(np.mean(label_scores)))
+
+    if not scores:
+        raise ValueError("no bootstrap resample yielded an estimable label")
+
+    lower, upper = np.percentile(scores, percentiles)
+    return BootstrapInterval(
+        point=macro_auc(y, oof_probabilities),
+        lower=float(lower),
+        upper=float(upper),
+        iterations=iterations,
+        complete_label_fraction=complete / len(scores),
+    )
+
+
+def repeated_fold_macro_auc(
+    features: pd.DataFrame,
+    y: pd.DataFrame,
+    seeds: Sequence[int],
+) -> tuple[float, ...]:
+    """Pooled macro AUC under repeated fold assignments.
+
+    Answers the other uncertainty question: how much of the reported score is
+    an artifact of which split the frozen seed happened to produce?
+
+    **This is a diagnostic and must never become a selection.** The contract's
+    score is the one from the frozen seed; reporting the spread across other
+    seeds is honest, choosing the best of them would be exactly the optimistic
+    bias the evaluation protocol exists to prevent.
+
+    Args:
+        features: One study vector per labelled study.
+        y: Binary targets in canonical label-column order.
+        seeds: Fold seeds to evaluate, fixed in advance.
+
+    Returns:
+        One pooled macro AUC per seed, in the order given.
+    """
+    scores = []
+    for seed in seeds:
+        _, folds = select_multilabel_folds(y, seed=seed)
+        scores.append(cross_validate_image_model(features, y, folds).pooled_macro_auc)
+    return tuple(scores)
