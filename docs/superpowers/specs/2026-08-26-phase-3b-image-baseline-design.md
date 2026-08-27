@@ -8,9 +8,14 @@ load-bearing** — do not read the document as uniformly frozen:
 
 | Authority | Sections |
 |---|---|
-| **Approved** — a round records the user approving it | §2, §3, §4, §5, §6, §7, §8, §9 (except the fold-identity invariant) |
-| **Proposed, not approved** — recommended but never confirmed by a round | §10 (disposition), §11, §12, §13, §9's fold-identity invariant |
+| **Approved** — a round records the user approving it | §2-§13 (§2-§9 in rounds 46-75; §10-§13 in round 89) |
 | **Open** | §14 |
+
+**One approval is deliberately still outstanding and is not covered by
+round 89.** §13 gate 7 requires the user's explicit sign-off on the **exact
+kernel version** before any competition submission. Approving §13 approves
+the *gates*; it does not approve passing through the last one. That sign-off
+has never been given and is not implied by anything in this document.
 
 The audit found no fabricated technical constant, no misquoted threshold, and
 no contradiction against the implemented code in §3. Its substantive finding

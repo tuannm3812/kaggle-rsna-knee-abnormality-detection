@@ -7024,3 +7024,33 @@ submission authorization.
 changed no source, test, notebook, dataset, kernel, publication, or submission
 state. The corrective task and sections 10-13 still require the user's
 explicit decision.
+
+### Round 89 — User Approval: specification sections 10-13 (2026-08-27)
+
+**User decision:** "I approve your plan" — read as approving the four
+sections round 88 listed as outstanding proposals, since the implementation
+plan itself was already complete at that point and those were the only
+open proposals named.
+
+**Now approved:** §10 (codec disposition), §11 (notebook structure), §12
+(telemetry), and §13 (release gates). The specification's authority table is
+updated accordingly; §2-§13 are approved and only §14's open items remain.
+
+**What this deliberately does NOT approve, stated plainly because the
+distinction matters most at exactly this point.** §13's own gate 7 requires
+the user's explicit sign-off on the **exact kernel version** before any
+competition submission. Approving §13 approves the *gates*; it does not
+approve passing through the final one. That sign-off has never been given,
+is not implied by this round, and is not being requested. No submission will
+be made without it.
+
+**What it does authorize:** building the notebook to §11's structure, the
+§12 telemetry, and the §13 gates 1-6 work — including the private dry run
+and the representative full-path timing sample, both of which require a
+private Kaggle kernel and neither of which is a submission.
+
+**Carried forward into that work, from the specification's own open items and
+from round 88:** the vendored codec wheel manifest (§14) and the timing
+safety margin (§14) are still unfixed, and Task 1's `PixelSpacing`
+precondition **may change the real-data 822/822 result** — the preflight only
+ever measured tag presence, so this is unmeasured until a run.
