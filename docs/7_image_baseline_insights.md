@@ -820,3 +820,84 @@ independently requires unique, parseable `InstanceNumber` values before it
 will use that route at all, and which chose geometry for 822/822 sampled
 series regardless. `order_agreement` is a diagnostic, never the production
 ordering path.
+
+## 2026-08-27 — Image baseline v1, first end-to-end run (`05_image_baseline.ipynb`)
+
+**What this is.** The first execution of the actual Phase 3B pipeline rather
+than an audit of its inputs: series selection, ordering validation, decode,
+intensity normalization, letterbox framing, signed laterality
+canonicalization, frozen DINOv2-small encoding, shared-mean aggregation, and
+the regularized multilabel head, evaluated out-of-fold on all 58 human-
+labeled studies.
+
+**Kernel:** `tuannm3812/rsna-knee-frozen-image-baseline`, version 1, T4,
+`KernelWorkerStatus.COMPLETE`, zero traceback or error markers in the log.
+
+### Result
+
+| Measure | Value |
+|---|---|
+| **Pooled OOF macro AUC** | **0.6346** |
+| Fold macro AUC (mean / min / max) | 0.6246 / 0.5573 / 0.6922 |
+| Constant-prediction sanity check | 0.5000 (exact) |
+| Selected fold count | 5 |
+
+**Read this narrowly.** `0.6346` is above chance on 58 studies across 12
+labels, which is genuine signal rather than noise around 0.5. It is **not**
+evidence that the pipeline is good: the fold spread of `0.557` to `0.692` is
+wide, exactly as expected when each fold validates roughly a dozen studies,
+and no confidence interval was computed. There is also **no report-baseline
+number to compare against** — Phase 3A's kernel errored during input
+preparation, before it ever reached cross-validation, so a comparison that
+was a design goal simply has no counterpart yet.
+
+### Two predictions confirmed by measurement
+
+Both were stated in advance and are now observed rather than assumed:
+
+- **Laterality-unreliable studies: 3 of 58.** Round 88 predicted "roughly
+  2.7 to 2.8 of 58" from the audited orientation distribution and the frozen
+  `0.90` gate. Measured exactly 3.
+- **The presence flags are constant.** Flags 0-2 (Sagittal, Coronal, Axial
+  presence) have variance **exactly `0.0`**, and the laterality flag has
+  variance `0.0499`, which is `p(1-p)` for `3/58` to four decimals. The
+  "near-degenerate flags" claim from rounds 70 and 88 is now measured. The
+  388-dimensional vector is, in practice, 384 informative dimensions plus one
+  barely-varying flag and three inert ones.
+
+### The complete-path timing overturns the encoder-only estimate
+
+| Estimate | Projected hours for ~1,300 studies | Headroom vs 9 h |
+|---|---:|---:|
+| Encoder-only lower bound (audit v8) | 0.337 | 26.7x |
+| **Measured complete path (this run)** | **1.144** | **7.9x** |
+
+The real pipeline costs **3.4x** the encoder-only bound. This is precisely
+why release gate 5 demanded a complete decode-preprocess-encoder-head
+measurement instead of extrapolating from the encoder probe, and it retires
+the comfortable ~27x figure that bound implied. 7.9x is still ample margin,
+but it is a different order of comfort, and the projection is a linear
+extrapolation from **three** visible test studies, so it carries real
+uncertainty. Decode cost was separately measured to be I/O-contention-
+sensitive (audit v8: decode nearly tripled under concurrent load), so a busy
+kernel would be slower than this idle-kernel figure.
+
+### Every fallback path stayed unexercised, again
+
+Planes absent `0`; plane retries triggered `0`; header-read failures `0`;
+decoded slices per plane mean and minimum both `5.0`; planes with fewer than
+five decoded `0`; **studies with no usable plane `0`** (the release-gate
+condition). A mean of `1.93` validated candidates per plane means retry had
+alternatives available and simply never needed them.
+
+So the retry, minimum-of-three, and missing-plane fallbacks remain implemented
+and tested but **never exercised on real data** — the same standing caveat as
+every prior round. They exist for the ~1,300-study hidden set, which cannot be
+inspected.
+
+### Task 1's `PixelSpacing` precondition changed nothing observable here
+
+Round 86 flagged that enforcing it might reduce the usable-series count, since
+the preflight had only ever measured tag *presence*. On these 58 studies no
+plane was lost. That does not clear the 4,407-study corpus, which was never
+re-audited under the new precondition.
