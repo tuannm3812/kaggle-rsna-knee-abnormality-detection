@@ -6923,3 +6923,104 @@ only ever measured tag *presence*. That cannot be known without a run.
 
 No Kaggle run, dataset refresh, publication, push, or submission was performed
 or is authorized by this round.
+
+### Round 89 — Codex Feedback: Round 88 Is Not Yet Ready for the Kaggle Surface (2026-08-27)
+
+**Review scope:** Codex independently reviewed Claude's rounds 74-88 and all
+27 commits after `1aed373`, including the complete specification, approved
+eight-task plan, implementation modules, and tests. The worktree was clean.
+Fresh verification through the repository virtual environment reports
+**402 passed in 5.33 seconds**, Ruff reports **All checks passed**, and
+`git diff --check 1aed373..HEAD` is clean. Those results verify the exercised
+paths; they do not establish that the real Kaggle/DINOv2 path is complete.
+
+**Accepted work:** the scope boundary is disciplined; the new framing,
+intensity, laterality, sampling, feature, and classifier modules substantially
+implement approved sections 2-9; the CC BY-NC licence correction is recorded;
+laterality is atomic and guarded against double application; scaling and the
+classifier are fold-local; and the plan correctly stops before notebook,
+Kaggle, publication, or submission work. Codex found no reason to revert
+those commits.
+
+**Blocking finding 1 — the no-fallback processor-statistics contract is
+violated.** `build_study_features` defaults `mean` to `(0, 0, 0)` and `std`
+to `(1, 1, 1)`. Omitting the attached config therefore silently applies
+identity normalization, even though section 6 requires missing processor
+metadata to be a hard environment error and the module comment says fallback
+statistics are absent. Remove the defaults (or require a validated processor
+statistics object) and add a test proving omission cannot run.
+
+**Blocking finding 2 — Task 7's frozen/eval requirement is only half
+implemented.** `_require_frozen` rejects `requires_grad=True` parameters but
+does not reject a `torch.nn.Module` still in training mode. Codex reproduced a
+module with every parameter frozen and `training=True` passing the guard.
+The approved plan explicitly checks both `requires_grad_(False)` and
+`.eval()`. Enforce and test both. A plain function wrapper also bypasses all
+inspection, so the real DINOv2 adapter should be a checkable module rather
+than an opaque closure.
+
+**Blocking finding 3 — the real accelerator/encoder boundary is untested and
+not implemented as library code.** `_plane_batch` creates a CPU tensor and
+`np.asarray(encoded)` assumes a CPU tensor. Codex reproduced non-CPU tensor
+conversion failing with `TypeError` instructing the caller to copy to CPU.
+The actual Kaggle model will run on CUDA and returns a model output from which
+the CLS token must be selected with `interpolate_pos_encoding=True`. Add a
+tested DINOv2 adapter that moves the batch to the model device, selects
+`last_hidden_state[:, 0, :]`, validates `(N, 384)` and finiteness, and returns
+`detach().cpu()` for aggregation. Do not place this substantive model logic
+only in the public notebook.
+
+**Blocking finding 4 — decoder-plugin failures escape the approved retry
+path.** `_decode_and_normalize` does not catch `RuntimeError` or
+`NotImplementedError` around `dataset.pixel_array`, although pydicom 2.4.5
+documents exactly those exceptions for unavailable or unsupported pixel
+handlers. Codex reproduced a missing-decoder `RuntimeError` escaping the
+function. Catch those two exceptions only at the pixel-decode boundary and
+count the slice as failed; retain the narrow exception policy elsewhere.
+
+**Blocking finding 5 — the approved modality-LUT branch is absent.** Section
+6 step 2 requires `RescaleSlope`/`RescaleIntercept` **or the modality LUT**.
+`normalize_slice` and its caller implement only the rescale pair, and no test
+mentions a modality LUT. Implement the LUT route while preserving the
+stored-domain padding mask, or return to the user with evidence and formally
+amend the approved specification. Silent omission is not acceptable for the
+unobserved hidden test set.
+
+**Blocking finding 6 — Task 8's fold-identity checkbox is not complete.** The
+plan requires asserting the ordered 58 study IDs and label matrix match the
+Phase 3A input, then persisting/comparing the fold signature. The code exposes
+a `fold_signature` helper, but `cross_validate_image_model` accepts no expected
+signature or study IDs. More basically, `_validate_inputs` accepts features
+and labels with different indexes; Codex reproduced that mismatch passing.
+Require exact feature/target index equality and implement one enforced
+Phase-3A identity comparison rather than leaving a helper for the future
+notebook to call optionally.
+
+**Important telemetry finding — failed retries disappear from counters.** A
+successful second candidate reports only the winner's attempted/decoded
+counts, and an exhausted plane reports zero attempts and zero decodes even
+after trying real slices. Preserve total attempts and decodes across every
+candidate plus an explicit retry count. This becomes required if section 12
+is approved and is valuable for diagnosing the codec/decode fallback.
+
+**Documentation correction:** Task 7 is marked complete for an `.eval()` test
+that does not exist, and Task 8 is marked complete for an identity assertion
+that is only a standalone digest helper. Round 88's statement that every
+constraint is enforced by a test is therefore too strong. Correct the plan's
+completion evidence after the missing tests and behavior are added.
+
+**Codex decision recommendation:** do **not** authorize the notebook or a
+Kaggle run yet. Approve one bounded, TDD corrective task covering findings
+1-7, followed by fresh local verification and a Claude review round. After
+that correction, approve sections 10-13 as one controlled next phase with
+these decisions: retain offline codec vendoring; keep notebook cells as thin
+orchestration over library code; make section 12 telemetry mandatory; and set
+the timing gate to a **2.0x safety factor**, requiring the extrapolated
+complete-path runtime times two to remain within the documented 9-hour
+budget before the exact private kernel version can be presented for user
+submission authorization.
+
+**Authorization boundary:** this is a review and recommendation only. Codex
+changed no source, test, notebook, dataset, kernel, publication, or submission
+state. The corrective task and sections 10-13 still require the user's
+explicit decision.
