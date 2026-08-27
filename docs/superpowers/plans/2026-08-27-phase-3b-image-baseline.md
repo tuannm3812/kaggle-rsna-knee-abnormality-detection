@@ -116,23 +116,25 @@ is not `None` in the dev environment.
 **Files:** create `src/knee_mri/framing.py`, `tests/test_framing.py`.
 
 **Steps:**
-- [ ] Failing test: output is exactly `336 x 336` for square, portrait,
+- [x] Failing test: output is exactly `336 x 336` for square, portrait,
       landscape, and both extreme aspect ratios.
-- [ ] Failing test: the longer physical side maps to `336`; the shorter is
+- [x] Failing test: the longer physical side maps to `336`; the shorter is
       `floor(value + 0.5)` clamped to `[1, 336]`.
-- [ ] Failing test: padding splits evenly with the **extra pixel on the
+- [x] Failing test: padding splits evenly with the **extra pixel on the
       bottom or right**.
-- [ ] Failing test: no anatomy is cropped — corner markers survive inside
+- [x] Failing test: no anatomy is cropped — corner markers survive inside
       the resized region.
-- [ ] Implement using `F.interpolate(..., mode="bilinear", antialias=True)`
+- [x] Implement using `F.interpolate(..., mode="bilinear", antialias=True)`
       (confirmed available on torch 2.13.0) and `F.pad(..., value=0.0)`.
-- [ ] Document in the module docstring that padding is **36-50% of the input
+- [x] Document in the module docstring that padding is **36-50% of the input
       for ordinary anisotropic acquisitions** and maps to roughly `-2.12`
       after §6 standardization — i.e. it is not neutral. Do **not** change
       the pad value; §5 is approved and this is recorded for the user.
 
-**Verification:** all framing tests pass; aspect fidelity within `1%` across
-the realistic band.
+**Verification:** DONE -- 21 framing tests pass; worst relative aspect error
+`0.5714%` across the realistic band; padding share measured at 36.0% / 36.0% /
+50.0% and pad-`0` at `-2.118 / -2.036 / -1.804` against the *vendored* config,
+matching rounds 81 and 86 exactly.
 
 ---
 

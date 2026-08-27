@@ -1122,6 +1122,7 @@ dependencies = [
 dev = [
     { name = "pytest" },
     { name = "ruff" },
+    { name = "torch" },
     { name = "transformers" },
 ]
 dicom-extra = [
@@ -1160,6 +1161,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8" },
     { name = "scikit-learn", specifier = ">=1.4,<1.10" },
     { name = "seaborn", marker = "extra == 'notebook'", specifier = ">=0.13" },
+    { name = "torch", marker = "extra == 'dev'", specifier = ">=2.9.1" },
     { name = "torch", marker = "extra == 'torch'", specifier = ">=2.9.1" },
     { name = "transformers", marker = "extra == 'dev'", specifier = ">=4.45" },
     { name = "transformers", marker = "extra == 'torch'", specifier = ">=4.45" },

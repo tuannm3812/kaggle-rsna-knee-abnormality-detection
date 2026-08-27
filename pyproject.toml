@@ -27,9 +27,11 @@ dependencies = [
 dev = [
     "pytest>=8.4.2",
     "ruff>=0.8",
-    # Spec section 6 requires a LOCAL test asserting the manual intensity
-    # pipeline matches the attached model's own image processor. A skipped
-    # test is not a gate, so this is a test dependency, not an optional one.
+    # Spec sections 5 and 6 require LOCAL tests: bilinear+antialias framing
+    # (a torch op) and equivalence against the attached model's own image
+    # processor. A skipped test is not a gate, so these are test
+    # dependencies, not optional ones.
+    "torch>=2.9.1",
     "transformers>=4.45",
 ]
 notebook = [
