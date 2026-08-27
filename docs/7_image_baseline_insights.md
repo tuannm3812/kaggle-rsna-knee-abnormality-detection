@@ -1026,3 +1026,81 @@ Pooled OOF macro AUC is `0.6345688959` in v1, v2 **and** v3 — bit-identical,
 while per-study timing swung by half again. The computation is reproducible;
 only the clock is noisy. A future score change is therefore attributable to a
 deliberate change rather than to drift.
+
+## 2026-08-28 — Image baseline v4: how much to believe 0.6346
+
+**Kernel:** version 4, T4, `COMPLETE`, zero error markers.
+
+Two diagnostics, answering two different questions the point estimate cannot.
+
+### The interval excludes chance, but the estimate is thin
+
+| | Value |
+|---|---|
+| Pooled OOF macro AUC (frozen seed) | **0.6346** |
+| Bootstrap 95% interval (2,000 resamples) | **[0.5704, 0.6973]** |
+| Interval width | 0.127 |
+
+The lower bound sits **above 0.5**, so the signal is distinguishable from
+chance rather than a plausible-looking accident. It is also `±0.063` wide,
+which is the honest cost of 58 studies: the direction is established, the
+magnitude is not. A second baseline scoring 0.68 could not be called better
+than this one on this evidence.
+
+The concern flagged in advance — that resampling would leave a rare label with
+no positives and quietly redefine the macro — **did not materialize**. All
+twelve labels were estimable in **100%** of resamples, because the rarest has
+9 positives out of 58 and losing all of them is very unlikely. Worth recording
+that the guard was unnecessary here rather than quietly dropping the caveat.
+
+### Fold assignment is not the problem; sample size is
+
+| Source of variance | Magnitude |
+|---|---|
+| Fold assignment (10 seeds) | std **0.0157** |
+| Study sampling (bootstrap) | half-width **0.0634** |
+
+Study-sampling uncertainty is **4x** larger than fold-assignment uncertainty.
+That has a direct practical consequence: more folds, more repeats, or a
+better split will not meaningfully tighten this number. **More labeled
+studies would.** Effort spent on the evaluation protocol is effort misplaced.
+
+The frozen seed also turns out not to be a lucky draw — `0.6346` against a
+ten-seed mean of `0.6301`, `z = 0.28`. The reported score is an ordinary
+member of its own distribution, which is what one wants and not what one is
+entitled to assume.
+
+### The macro hides a strongly uneven picture
+
+| Label | Pooled AUC | Positives |
+|---|---:|---:|
+| Effusion | **0.811** | 35 |
+| ACL | **0.786** | 24 |
+| Lateral Meniscus | **0.755** | 23 |
+| Medial OA | **0.752** | 15 |
+| Lateral OA | 0.652 | 11 |
+| Contusion | 0.609 | 19 |
+| Baker's | 0.585 | 12 |
+| Medial Meniscus | 0.570 | 26 |
+| Synovitis | 0.570 | 27 |
+| PF OA | 0.551 | 21 |
+| MCL | 0.519 | 9 |
+| Fracture | **0.456** | 18 |
+
+This is the most useful result of the run. The baseline is **not** uniformly
+mediocre at 0.63 — it is genuinely informative for four findings and at or
+near chance for five. Effusion at `0.811` from a frozen encoder that never saw
+a knee is a real result; `MCL` at `0.519` and `PF OA` at `0.551` are not.
+
+`Fracture` at `0.456` is below chance. That is **not** evidence of a wiring
+error — the constant-prediction check returns exactly `0.5`, and with 18
+positives and no per-label interval, `0.456` is comfortably within noise of
+chance. It would only become interesting if it persisted with a tighter
+interval.
+
+**Design implication.** A single shared 384-dimension embedding, mean-pooled
+across planes, carries effusion and cruciate-ligament signal but evidently not
+fine cartilage or patellofemoral detail. That is the expected weakness of
+mean-pooling five central-band slices at 336 pixels, and it points at where a
+future design would have to change — plane-specific features or higher
+resolution — rather than at more regularization tuning.
