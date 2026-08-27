@@ -143,33 +143,35 @@ matching rounds 81 and 86 exactly.
 **Files:** create `src/knee_mri/intensity.py`, `tests/test_intensity.py`.
 
 **Steps:**
-- [ ] Failing test: the padding mask is built in the **stored-value domain
+- [x] Failing test: the padding mask is built in the **stored-value domain
       before** the modality transform, including the inclusive interval when
       both `PixelPaddingValue` and `PixelPaddingRangeLimit` are present.
       Round 82 measured that a post-transform mask catches **0 of 2** padding
       pixels under `slope=2, intercept=-1024`.
-- [ ] Failing test: `MONOCHROME1` is inverted so higher means brighter.
-- [ ] Failing test: **`p99 <= p1` is the insufficient-variation criterion**
+- [x] Failing test: `MONOCHROME1` is inverted so higher means brighter.
+- [x] Failing test: **`p99 <= p1` is the insufficient-variation criterion**
       (§6 step 4 leaves "insufficient" undefined; pin it). Constant,
       all-padding, and sparse-bright slices must all raise the
       decode-failure signal; a normal slice must not.
-- [ ] Failing test: per-slice `p1`/`p99` clip and rescale to `[0, 1]`, with
+- [x] Failing test: per-slice `p1`/`p99` clip and rescale to `[0, 1]`, with
       excluded padding mapped to `0`.
-- [ ] Failing test: **processor equivalence** — the final tensor matches the
+- [x] Failing test: **processor equivalence** — the final tensor matches the
       Transformers image processor built from the Task 2 vendored config with
       `do_resize=False, do_rescale=False`, **and `do_center_crop=False`** --
       the real config enables centre-crop to 224, which would crop the 336x336
       letterboxed input and compare a different image (round 86).
-- [ ] Failing test: missing or malformed processor metadata raises a hard
+- [x] Failing test: missing or malformed processor metadata raises a hard
       error; assert no ImageNet constant appears anywhere in the module.
-- [ ] Implement steps 1-7 in the specified order.
-- [ ] Add a comment recording that the `MONOCHROME1` inversion reference is
+- [x] Implement steps 1-7 in the specified order.
+- [x] Add a comment recording that the `MONOCHROME1` inversion reference is
       immaterial **only because** step 5 is per-slice percentile
       normalization — the equivalence breaks if bounds ever become
       per-series pooled or VOI-driven (round 82).
 
-**Verification:** all intensity tests pass, including processor equivalence
-running **locally**.
+**Verification:** DONE -- 26 intensity tests pass, including processor
+equivalence running **locally** at `atol=1e-5` (measured max difference
+`3.7e-07`). Confirmed the centre-crop guard is load-bearing: leaving
+`do_center_crop` on yields `(3, 224, 224)` instead of `(3, 336, 336)`.
 
 ---
 
