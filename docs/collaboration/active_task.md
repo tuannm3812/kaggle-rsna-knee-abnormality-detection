@@ -6850,3 +6850,76 @@ than silently double-flipping back to the original orientation.
 and 8 (classifier and evaluation) remain. No Kaggle run, dataset refresh,
 publication, push, or submission was performed or is authorized. Sections
 10-13 remain proposals awaiting the user, and gate everything after Task 8.
+
+### Round 88 — Claude: Tasks 7-8 complete; the approved plan is finished (2026-08-27)
+
+**All eight tasks of the approved plan are implemented.** `402 tests pass`,
+up from `264` when the plan was approved. Every module's frozen constants and
+every constraint discovered across rounds 79-87 are enforced by a test rather
+than described in a comment.
+
+| Task | Module | Spec section |
+|---|---|---|
+| 1 | `series_audit` (extended) | 5's `PixelSpacing` precondition |
+| 2 | `vendor/` + `pyproject` | 6's processor statistics |
+| 3 | `framing.py` | 5 |
+| 4 | `intensity.py` | 6 |
+| 5 | `laterality.py` | 7 |
+| 6 | `slice_sampling.py` | 4 |
+| 7 | `study_features.py` | 2 and 8 |
+| 8 | `image_model.py` | 9 |
+
+**Three defects were caught during implementation that no amount of design
+review had surfaced**, which is the argument for building before freezing
+further:
+
+1. **`np.flip` returns a negative-stride view** that `torch.from_numpy`
+   rejects outright. Fixed at the source in `laterality.py` so no downstream
+   consumer has to know. Invisible until pixels actually flowed through.
+2. **Non-convergence was not fatal** in the new classifier. Phase 3A treats
+   `ConvergenceWarning` as an error, because the coefficients are then
+   wherever the solver stopped and any score from them is not the frozen
+   contract's score. The new module silently inherited none of that; now it
+   mirrors Phase 3A and a test proves it raises.
+3. **Round 83's short-stack claim was wrong** (recorded in round 87): the set
+   that can never meet the minimum-of-three is `{1, 2, 4}`, not "four or
+   fewer" -- a 3-slice stack yields `[0, 1, 2]` and can meet it. Non-monotonic,
+   which is exactly why the loose phrasing sounded right.
+
+**Two verifications that were assumptions until now.** Section 6's required
+processor-equivalence test runs **locally** and matches the attached processor
+to `3.7e-07`. And round 86's centre-crop finding is confirmed load-bearing:
+leaving `do_center_crop` enabled returns `(3, 224, 224)` rather than
+`(3, 336, 336)`, so the assertion would have silently compared a different
+image.
+
+**Round 79's non-idempotence hazard is closed structurally**, not by
+convention: `canonicalize_volume` carries an applied-flag and raises rather
+than silently double-flipping back to the original orientation.
+
+**Round 80's leakage gap does not recur.** Both the scaler and the classifier
+carry fold-locality assertions from the start, and the OOF coverage guard is
+imported rather than reimplemented, since it shipped broken once and a second
+copy could drift back.
+
+**Verification:** `uv run pytest -q` reports `402 passed`; `uv run ruff check
+.` reports `All checks passed!`; `git diff --check` clean.
+
+**The plan stops here by design, and what remains needs the user.** No
+notebook, no Kaggle run, and no submission is in scope, because those live in
+specification sections 10-13, which remain **proposals awaiting approval**:
+
+- **Section 10** — the codec disposition (recommended round 75, never
+  confirmed).
+- **Section 11** — notebook structure.
+- **Section 12** — telemetry as a contract.
+- **Section 13** — release gates, which round 75 records as open.
+
+Two open items from the specification also remain: the vendored codec wheel
+manifest, and the safety margin for the full-path timing gate. And one
+consequence of Task 1 is still unmeasured: enforcing the `PixelSpacing`
+precondition **may change the real-data 822/822 result**, since the preflight
+only ever measured tag *presence*. That cannot be known without a run.
+
+No Kaggle run, dataset refresh, publication, push, or submission was performed
+or is authorized by this round.
