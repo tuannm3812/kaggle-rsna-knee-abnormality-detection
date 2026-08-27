@@ -44,6 +44,11 @@ def _write_synthetic_slice(
     ds.BitsStored = 16
     ds.HighBit = 15
     ds.PixelRepresentation = 0
+    # Real MRI always carries PixelSpacing (measured coverage 1.0), and the
+    # spec section 5 precondition makes a series without usable spacing
+    # unusable, so the fixture must supply it or every case here would be
+    # rejected for the wrong reason.
+    ds.PixelSpacing = [1.0, 1.0]
 
     if image_position_patient is not None:
         ds.ImagePositionPatient = list(image_position_patient)

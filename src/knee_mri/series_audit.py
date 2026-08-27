@@ -568,6 +568,44 @@ def _validated_instance_number_order(
     return [dcm_paths[i] for i in order]
 
 
+def _validated_pixel_spacing(
+    headers: Sequence[pydicom.Dataset],
+) -> tuple[float, ...] | None:
+    """The `PixelSpacing` precondition from the Phase 3B spec, section 5.
+
+    Physical framing letterboxes each slice by its real millimetre footprint,
+    so it needs spacing that is present, parseable as two finite values,
+    strictly positive, and identical across the series. A candidate failing
+    any of those cannot be framed however well its slices order, which is why
+    this gates both ordering routes rather than only the geometry one.
+
+    "Consistent" is checked as exact equality of the parsed floats rather
+    than within a tolerance. DICOM stores `PixelSpacing` as a decimal string
+    that is in practice identical on every slice of a series, so no tolerance
+    constant is invented here; a series that genuinely varies shows up as
+    unusable in the aggregate telemetry rather than being silently accepted.
+
+    Returns:
+        The shared `(row_spacing, column_spacing)`, or `None` if any slice
+        fails the precondition.
+    """
+    reference: tuple[float, ...] | None = None
+    for dataset in headers:
+        if "PixelSpacing" not in dataset:
+            return None
+        # `_finite_floats` also rejects a zero-length element (reads back as
+        # `None`) and a VM-1 value (a bare `DSfloat`), both of which are
+        # present-but-unusable rather than absent.
+        spacing = _finite_floats(dataset.PixelSpacing, 2)
+        if spacing is None or any(value <= 0.0 for value in spacing):
+            return None
+        if reference is None:
+            reference = spacing
+        elif spacing != reference:
+            return None
+    return reference
+
+
 def _validate_and_order(
     dcm_paths: Sequence[Path],
     headers: Sequence[pydicom.Dataset],
@@ -576,6 +614,9 @@ def _validate_and_order(
     unit_norm_tolerance: float,
     orthogonality_tolerance: float,
 ) -> OrderingValidation:
+    if _validated_pixel_spacing(headers) is None:
+        return OrderingValidation(usable=False, method=None, ordered_paths=None)
+
     geometry_order = _validated_geometry_order(
         dcm_paths,
         headers,

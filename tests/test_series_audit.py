@@ -267,7 +267,7 @@ def _write_synthetic_slice(
     *,
     image_position_patient: tuple[float, float, float] | None = None,
     image_orientation_patient: tuple[float, ...] | None = None,
-    pixel_spacing: tuple[float, float] | None = None,
+    pixel_spacing: tuple[float, ...] | None = (1.0, 1.0),
     laterality: str | None = None,
     image_laterality: str | None = None,
     corrupt_pixel_data: bool = False,
@@ -508,7 +508,9 @@ def test_audit_series_handles_missing_geometry_tags(tmp_path: Path):
     series_dir = tmp_path / "series"
     series_dir.mkdir()
     for instance_number in (1, 2):
-        _write_synthetic_slice(series_dir / f"{instance_number}.dcm", instance_number)
+        _write_synthetic_slice(
+            series_dir / f"{instance_number}.dcm", instance_number, pixel_spacing=None
+        )
 
     result = audit_series(series_dir)
 
@@ -663,11 +665,15 @@ def test_audit_series_handles_wholly_unreadable_series(tmp_path: Path):
 
 
 @pytest.mark.parametrize(
-    ("label", "orientation", "spacing", "expected_spacing"),
+    ("label", "orientation", "spacing", "expected_spacing", "expected_ordering_usable"),
     [
-        ("pixel_spacing_zero_length", (1.0, 0.0, 0.0, 0.0, 1.0, 0.0), (), None),
-        ("pixel_spacing_vm_1", (1.0, 0.0, 0.0, 0.0, 1.0, 0.0), (0.5,), None),
-        ("orientation_zero_length", (), (0.5, 0.5), (0.5, 0.5)),
+        # Unusable spacing now fails spec section 5's precondition, so the
+        # series is not orderable either -- framing could not letterbox it.
+        ("pixel_spacing_zero_length", (1.0, 0.0, 0.0, 0.0, 1.0, 0.0), (), None, False),
+        ("pixel_spacing_vm_1", (1.0, 0.0, 0.0, 0.0, 1.0, 0.0), (0.5,), None, False),
+        # Spacing is fine here; only the orientation is valueless, so the
+        # geometry route fails and the InstanceNumber route still validates.
+        ("orientation_zero_length", (), (0.5, 0.5), (0.5, 0.5), True),
     ],
 )
 def test_audit_series_survives_present_but_valueless_tags(
@@ -676,6 +682,7 @@ def test_audit_series_survives_present_but_valueless_tags(
     orientation: tuple,
     spacing: tuple,
     expected_spacing: tuple | None,
+    expected_ordering_usable: bool,
 ):
     # A tag can be present and still carry no usable value: a zero-length
     # element reads back as None and a VM-1 PixelSpacing as a bare DSfloat,
@@ -700,7 +707,7 @@ def test_audit_series_survives_present_but_valueless_tags(
     # Geometry-derived laterality cannot resolve from a valueless tag, but
     # that degrades one diagnostic rather than condemning the series.
     assert result.laterality_from_geometry is None
-    assert result.ordering_usable is True
+    assert result.ordering_usable is expected_ordering_usable
 
 
 # -- series_transfer_syntax (codec census, round 60 finding 8) --
@@ -1124,3 +1131,65 @@ def test_aggregate_group_laterality_all_unresolved():
     assert result == GroupLateralityAgreement(
         total=2, resolved=0, consistent=True, consensus_call=None
     )
+
+
+# -- PixelSpacing precondition (spec section 5, plan task 1) --
+
+
+def _write_spacing_pair(series_dir: Path, first_spacing, second_spacing) -> None:
+    """Two otherwise-valid geometry slices with unique InstanceNumbers.
+
+    Both ordering routes would validate this series, so any `usable=False`
+    below is attributable to the PixelSpacing precondition alone.
+    """
+    orientation = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    for instance_number, spacing in ((1, first_spacing), (2, second_spacing)):
+        _write_synthetic_slice(
+            series_dir / f"{instance_number}.dcm",
+            instance_number=instance_number,
+            image_position_patient=(0.0, 0.0, float(instance_number)),
+            image_orientation_patient=orientation,
+            pixel_spacing=spacing,
+        )
+
+
+@pytest.mark.parametrize(
+    ("label", "first_spacing", "second_spacing"),
+    [
+        ("absent", None, None),
+        ("zero", (0.0, 0.0), (0.0, 0.0)),
+        ("negative", (-0.5, -0.5), (-0.5, -0.5)),
+        ("one_component_negative", (0.5, -0.5), (0.5, -0.5)),
+        ("non_finite", (float("nan"), 0.5), (float("nan"), 0.5)),
+        ("infinite", (float("inf"), 0.5), (float("inf"), 0.5)),
+        ("wrong_vm_single_value", (0.5,), (0.5,)),
+        ("inconsistent_across_slices", (0.5, 0.5), (0.6, 0.6)),
+    ],
+)
+def test_validate_and_order_series_requires_usable_pixel_spacing(
+    tmp_path: Path, label: str, first_spacing, second_spacing
+):
+    """Spec section 5: a candidate without present, finite, positive and
+    consistent PixelSpacing is unusable, so the caller retries the next
+    ranked same-plane series. Physical framing cannot letterbox without it,
+    which is why this holds regardless of which ordering route would succeed.
+    """
+    series_dir = tmp_path / label
+    series_dir.mkdir()
+    _write_spacing_pair(series_dir, first_spacing, second_spacing)
+
+    result = validate_and_order_series(series_dir)
+
+    assert result == OrderingValidation(usable=False, method=None, ordered_paths=None)
+
+
+def test_validate_and_order_series_accepts_consistent_positive_spacing(tmp_path: Path):
+    """Regression guard: the precondition must not reject ordinary series."""
+    series_dir = tmp_path / "series"
+    series_dir.mkdir()
+    _write_spacing_pair(series_dir, (0.5, 0.4), (0.5, 0.4))
+
+    result = validate_and_order_series(series_dir)
+
+    assert result.usable is True
+    assert result.method == "geometry"
