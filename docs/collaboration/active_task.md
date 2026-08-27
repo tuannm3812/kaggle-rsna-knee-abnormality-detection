@@ -7054,3 +7054,67 @@ from round 88:** the vendored codec wheel manifest (§14) and the timing
 safety margin (§14) are still unfixed, and Task 1's `PixelSpacing`
 precondition **may change the real-data 822/822 result** — the preflight only
 ever measured tag presence, so this is unmeasured until a run.
+
+### Round 90 — Claude: notebook built, first end-to-end run complete (2026-08-27)
+
+**Authorized by round 89.** Sections 11 (notebook), 12 (telemetry), and 13
+gates 1-6 are approved; gate 7's submission sign-off is not, was not
+requested, and nothing was submitted.
+
+**Built (`bf4ce0c`):** `notebooks/05_image_baseline.ipynb` to section 11's
+structure, with section 12's telemetry aggregate-only by construction, plus
+`dataset.validated_plane_candidates` to close a real integration gap --
+`select_validated_series` returns only the first candidate that validates,
+which cannot support section 4's decode-failure retry. Eight notebook policy
+tests, including one asserting **no ImageNet literal appears anywhere in the
+notebook**, since section 6 forbids a remembered-constant fallback.
+`418 passed`.
+
+**Ran (kernel v1, T4, `COMPLETE`, zero error markers).** Full results in
+`docs/7_image_baseline_insights.md`'s new "Image baseline v1" section.
+
+**Pooled OOF macro AUC `0.6346`**, with the constant-prediction wiring check
+returning exactly `0.5`. Above chance on 58 studies, which is real signal --
+but the fold spread is `0.557` to `0.692`, no interval was computed, and
+**there is no report baseline to compare against**: Phase 3A's kernel errored
+during input preparation and never reached cross-validation, so the
+comparison that motivated reusing its fold protocol has no counterpart yet.
+
+**Two predictions confirmed rather than assumed.** Round 88 predicted
+"roughly 2.7 to 2.8 of 58" studies would carry `laterality_reliable = 0`;
+measured **exactly 3**. And the presence flags have variance **exactly
+`0.0`**, with the laterality flag at `0.0499` -- `p(1-p)` for `3/58` to four
+decimals. The near-degenerate-flag claim from rounds 70 and 88 is now
+measured, not argued.
+
+**One assumption overturned, and it is the important one.** The
+encoder-only lower bound projected `0.337` hours for the hidden set;
+the measured complete path projects **`1.144` hours** -- **3.4x** more, and
+`7.9x` headroom against the 9-hour budget rather than the `26.7x` that bound
+implied. This is exactly what release gate 5 was written to catch, and it
+vindicates refusing to extrapolate from the encoder probe. The margin is
+still ample, but it is a different order of comfort, and the projection
+linearly extrapolates from **three** visible test studies.
+
+**Release-gate status.** Gate 3's condition is met: **studies with no usable
+plane = 0**. Planes absent, retries, header-read failures, and
+fewer-than-five-decoded planes are all `0`, with a mean of `1.93` validated
+candidates per plane -- so retry had alternatives and never needed them. The
+retry, minimum-of-three, and missing-plane fallbacks therefore remain
+implemented, tested, and **never exercised on real data**, the same standing
+caveat as every prior round.
+
+**A Kaggle trap worth recording (`f0e2d5b`-adjacent, committed separately).**
+Kaggle derives a kernel's slug from its **title**, not the requested id, and
+migrates silently. `"RSNA Knee — Frozen Image Baseline"` became
+`rsna-knee-frozen-image-baseline`, so a status query against the metadata id
+failed with a permissions error that reads like a private-notebook problem
+rather than a slug mismatch. Round 39 hit the same thing. Metadata and test
+now pin the server-assigned slug.
+
+**Not yet done / authorization boundary:** gate 5 arguably needs a
+**representative** timing sample rather than three visible test studies, and
+the wheel manifest and safety margin (§14) remain open. **No submission was
+made and none is authorized** -- gate 7 requires the user's explicit sign-off
+on an exact kernel version, which has not been given and is not requested
+here.
