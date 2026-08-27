@@ -112,6 +112,47 @@ def test_codec_licence_note_records_the_gpl_component() -> None:
         assert expected_sha256 in note
 
 
+def test_gpl_licence_text_travels_with_the_binary() -> None:
+    """GPLv3 requires conveying a copy of the licence with the work.
+
+    Extracted verbatim from the wheel's own dist-info rather than fetched,
+    so it is provably the terms that shipped with this exact build.
+    """
+    text = Path("vendor/pylibjpeg-libjpeg-LICENSE.txt").read_text()
+
+    assert "GNU GENERAL PUBLIC LICENSE" in text
+    assert "Version 3, 29 June 2007" in text
+    assert "pylibjpeg-libjpeg" in text
+    # The wrapped library carries its own attribution and must not be lost.
+    assert "libjpeg" in text
+    assert len(text) > 30_000
+
+
+def test_gpl_compliance_note_carries_a_written_offer_and_source_location() -> None:
+    """This repository is public, so redistribution obligations are live.
+
+    An earlier draft reasoned from private use and was wrong; these
+    assertions exist so that reasoning cannot quietly return.
+    """
+    note = Path("vendor/pylibjpeg-LICENSE.txt").read_text()
+
+    assert "written offer" in note.lower()
+    assert "three years" in note.lower()
+    assert "github.com/scaramallion/pylibjpeg-libjpeg" in note
+    assert "mere aggregation" in note.lower()
+    assert "this repository is public" in note.lower()
+
+
+def test_root_licence_scopes_itself_to_first_party_code() -> None:
+    """The MIT file must not read as covering the vendored artifacts."""
+    licence = Path("LICENSE").read_text()
+
+    assert "MIT License" in licence
+    assert "Third-party components" in licence
+    assert "GNU GPL v3.0" in licence
+    assert "CC BY-NC 4.0" in licence
+
+
 def test_code_dataset_publisher_stages_vendor_directory(tmp_path: Path) -> None:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -145,5 +186,6 @@ def test_code_dataset_publisher_stages_vendor_directory(tmp_path: Path) -> None:
     assert (captured_stage / "vendor" / PROCESSOR_NAME).is_file()
     assert (captured_stage / "vendor" / "dinov2-small-LICENSE.txt").is_file()
     assert (captured_stage / "vendor" / "pylibjpeg-LICENSE.txt").is_file()
+    assert (captured_stage / "vendor" / "pylibjpeg-libjpeg-LICENSE.txt").is_file()
     for wheel_name in CODEC_WHEELS:
         assert (captured_stage / "vendor" / wheel_name).is_file()

@@ -19,3 +19,22 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+--------------------------------------------------------------------------
+
+Third-party components
+======================
+
+The MIT terms above cover this repository's own source code, notebooks, and
+documentation. They do not cover the redistributed third-party artifacts in
+`vendor/`, each of which remains under its own licence:
+
+  iterative_stratification-0.1.9-py3-none-any.whl   BSD 3-Clause
+  pylibjpeg-2.1.0-py3-none-any.whl                  MIT
+  pylibjpeg_openjpeg-2.5.0-...whl                   MIT
+  pylibjpeg_libjpeg-2.4.0-...whl                    GNU GPL v3.0
+  dinov2-small-preprocessor_config.json             CC BY-NC 4.0
+
+Note in particular that `pylibjpeg-libjpeg` is licensed **GNU GPL v3.0** and
+the DINOv2 processor configuration is **CC BY-NC 4.0** (non-commercial).
+Full terms, attribution, and the GPLv3 written offer are in `vendor/`.

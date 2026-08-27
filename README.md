@@ -117,9 +117,11 @@ round-by-round review history in `docs/collaboration/`.
 - [`scripts/`](scripts/) — `push_kaggle_kernel.sh`,
   `publish_code_dataset.sh`, `submit_kaggle.sh`.
 - [`vendor/`](vendor/) — offline wheels and model metadata shipped to Kaggle
-  kernels, each pinned by SHA-256. **Note:** `pylibjpeg-libjpeg` is licensed
-  GPL v3.0 while this repository is MIT; see
-  [`vendor/pylibjpeg-LICENSE.txt`](vendor/pylibjpeg-LICENSE.txt).
+  kernels, each pinned by SHA-256. These are third-party artifacts under their
+  own licences, **not** the repository's MIT terms: `pylibjpeg-libjpeg` is
+  GPL v3.0 and the DINOv2 processor configuration is CC BY-NC 4.0. Attribution,
+  the full GPLv3 text, and the written source offer are in
+  [`vendor/`](vendor/); scope is summarised in [`LICENSE`](LICENSE).
 
 ## Setup
 

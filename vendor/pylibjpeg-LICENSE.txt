@@ -21,8 +21,8 @@ other interpreter version will not load there.
     Licence: GPL v3.0
     Decodes JPEG Lossless transfer syntaxes.
 
-GPL notice
-----------
+GPL notice and written offer
+----------------------------
 `pylibjpeg-libjpeg` is licensed **GPL v3.0**, read from the wheel's own
 metadata rather than assumed. This repository is otherwise MIT. The wheel is
 vendored on a deliberate, recorded decision, made with the licence split in
@@ -30,10 +30,39 @@ view: `openjpeg` (MIT) covers JPEG 2000, while `libjpeg` (GPL) is what covers
 JPEG Lossless, so dropping it would leave one of the two compressed families
 undecodable.
 
-GPL obligations attach to *distribution*. The source dataset and kernels using
-these wheels are private. If this solution is ever published — for instance if
-competition rules require a winner to do so — the GPL linkage becomes material
-and should be revisited at that point.
+GPL obligations attach to *distribution*, and this repository is public, so
+they apply here and now — an earlier draft of this note wrongly reasoned from
+private use alone.
+
+What that requires, and how it is satisfied:
+
+  * A copy of the licence travels with the binary.
+    See `pylibjpeg-libjpeg-LICENSE.txt` in this directory, extracted verbatim
+    from the wheel's own `dist-info/LICENSE`. It carries the full GNU General
+    Public License v3 text together with the upstream attribution for both
+    `pylibjpeg-libjpeg` and the `libjpeg` library it wraps.
+
+  * Corresponding source is available.
+    The wheel is an unmodified upstream build, not a derivative. Its source is
+    published at https://github.com/scaramallion/pylibjpeg-libjpeg and on PyPI
+    as the `pylibjpeg-libjpeg` 2.4.0 source distribution.
+
+  * Written offer (GPLv3 section 6b).
+    For three years from the date this binary was distributed here, the
+    maintainer of this repository will provide, on request and for no more
+    than the cost of physically performing distribution, a complete
+    machine-readable copy of the corresponding source for
+    `pylibjpeg-libjpeg` 2.4.0.
+
+Scope: the GPL applies to that wheel and its corresponding source. It does not
+extend to this repository's own code, which is MIT (see `../LICENSE`). The
+wheel is an unmodified separate work shipped alongside — mere aggregation
+under GPLv3 section 5 — and is loaded at runtime through pydicom's plugin
+mechanism rather than linked into anything here.
+
+One case that would need revisiting: if competition rules ever require a
+winning solution to be published under specific terms, those terms should be
+checked against GPL v3 compatibility at that point.
 
 Why these are vendored at all
 -----------------------------
