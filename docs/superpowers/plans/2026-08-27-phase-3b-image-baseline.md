@@ -180,35 +180,39 @@ equivalence running **locally** at `atol=1e-5` (measured max difference
 **Files:** create `src/knee_mri/laterality.py`, `tests/test_laterality.py`.
 
 **Steps:**
-- [ ] Failing tests, axis selection: `dominant_abs_x > 0.90` strictly —
+- [x] Failing tests, axis selection: `dominant_abs_x > 0.90` strictly —
       exactly `0.90` rejected, `0.9001` accepted; exact ties, degenerate,
       zero, and non-finite orientations all non-canonicalizable.
-- [ ] Failing tests, signed rule: reverse exactly when
+- [x] Failing tests, signed rule: reverse exactly when
       `medial_x_sign * selected_axis_x > 0`, covering **all 12** combinations
       of {columns, rows, slices} x {L, R} x {stored +X, -X}. Assert medial
       ends at decreasing index in every case, and that paired L/R
       acquisitions produce identical canonical volumes.
-- [ ] Failing test: the canonical target is `medial-toward-decreasing-index`
+- [x] Failing test: the canonical target is `medial-toward-decreasing-index`
       and is **not** expressible as "make everything look like a left knee" —
       unreversed is a left knee for axial/coronal but a **right** knee for
       sagittal.
-- [ ] Failing tests, consensus: conservative resolver over **all** study
+- [x] Failing tests, consensus: conservative resolver over **all** study
       series (not only selected ones); any cross-tag or tag/geometry conflict
       anywhere makes the study unreliable; a **non-selected** series can veto.
-- [ ] Failing test, atomic application: if any contributing plane cannot be
+- [x] Failing test, atomic application: if any contributing plane cannot be
       canonicalized, **no** plane is transformed and `laterality_reliable = 0`.
-- [ ] **Failing test, single application (round 79's hazard):**
+- [x] **Failing test, single application (round 79's hazard):**
       canonicalization is **not idempotent** — flipping the array leaves the
       DICOM tags unchanged, so a second pass reverses again and silently
       restores the original orientation, undetectably. Implement an explicit
       applied-flag carried with the volume (preferred: it makes double
       application raise rather than corrupt) and test that a second call
       raises instead of flipping.
-- [ ] Implement, reusing `patient_lr_axis_metrics` and
+- [x] Implement, reusing `patient_lr_axis_metrics` and
       `aggregate_group_laterality`.
 
-**Verification:** all laterality tests pass; the double-application test
-fails loudly against a naive implementation.
+**Verification:** DONE -- 33 laterality tests pass. The double-application
+guard raises `AlreadyCanonicalizedError` rather than silently reverting.
+Note: the first run exposed a bug in the *test* fixture (inverted sign labels
+for the `slices` orientations), not the implementation -- the 12-combination
+test derives its expectation from the code under test rather than trusting
+the labels, which is why it passed while the hand-written one failed.
 
 ---
 
