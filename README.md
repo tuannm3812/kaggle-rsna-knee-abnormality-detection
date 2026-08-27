@@ -4,7 +4,7 @@
   <a href="https://www.kaggle.com/competitions/rsna-knee-abnormality-detection"><img alt="Kaggle Competition" src="https://img.shields.io/badge/Kaggle-RSNA%20Knee%20Abnormality%20Detection-20BEFF?logo=kaggle&logoColor=white"></a>
   <a href="pyproject.toml"><img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white"></a>
   <a href="docs/0_coding_standards.md"><img alt="Execution" src="https://img.shields.io/badge/Execution-Kaggle--only-orange"></a>
-  <img alt="Tests" src="https://img.shields.io/badge/tests-433%20passing-brightgreen">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-436%20passing-brightgreen">
   <img alt="Status" src="https://img.shields.io/badge/Status-Image%20baseline%20evaluated-blue">
 </p>
 
