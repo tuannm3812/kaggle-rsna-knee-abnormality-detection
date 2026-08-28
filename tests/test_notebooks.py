@@ -641,6 +641,8 @@ def test_image_baseline_notebook_displays_only_aggregate_objects() -> None:
         "variant_summary",
         "density_summary",
         "dense_per_label",
+        "pooling_summary",
+        "pooling_per_label",
         "timing_by_stratum",
         "timing_summary",
         "submission_summary",
