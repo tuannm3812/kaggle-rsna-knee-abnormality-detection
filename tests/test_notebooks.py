@@ -16,6 +16,7 @@ NOTEBOOK_PATHS = (
     "notebooks/04_image_baseline_preflight.ipynb",
     "notebooks/05_image_baseline.ipynb",
     "notebooks/06_maxpool_submission.ipynb",
+    "notebooks/07_weak_label_training.ipynb",
 )
 
 
@@ -791,3 +792,25 @@ def test_maxpool_submission_notebook_pins_the_configuration_it_measured() -> Non
     assert "EXPECTED_MACRO_AUC = 0.6507039913" in code
     assert code.count("to_csv(") == 1
     assert '"/kaggle/working/submission.csv"' in code
+
+
+def test_weak_label_notebook_never_fits_on_the_evaluation_studies() -> None:
+    """The whole design rests on the weak training set being disjoint from
+    the human-labelled evaluation set, and on the notebook checking that
+    rather than trusting the upstream split.
+    """
+    code = _code_source(_load_json("notebooks/07_weak_label_training.ipynb"))
+
+    assert "weak training set overlaps the evaluation set" in code
+    assert "fit_weak_label_heads(weak_features, weak_labels, labeled_features)" in code
+    assert "EXPECTED_BASELINE_MACRO_AUC = 0.6345688959" in code
+
+
+def test_weak_label_notebook_writes_no_submission() -> None:
+    """This is an evaluation, not an entry. A submission written here could
+    be sent without the comparison ever having been read.
+    """
+    code = _code_source(_load_json("notebooks/07_weak_label_training.ipynb"))
+
+    assert "to_csv(" not in code
+    assert "submission.csv" not in code

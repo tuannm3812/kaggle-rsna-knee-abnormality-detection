@@ -1,0 +1,22 @@
+{
+  "id": "tuannm3812/rsna-knee-weak-label-training",
+  "title": "RSNA Knee — Weak Label Training",
+  "code_file": "07_weak_label_training.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "machine_shape": "NvidiaTeslaT4",
+  "enable_tpu": false,
+  "enable_internet": false,
+  "dataset_sources": [
+    "tuannm3812/rsna-knee-mri-src"
+  ],
+  "competition_sources": [
+    "rsna-knee-abnormality-detection"
+  ],
+  "kernel_sources": [],
+  "model_sources": [
+    "metaresearch/dinov2/PyTorch/small/1"
+  ]
+}
