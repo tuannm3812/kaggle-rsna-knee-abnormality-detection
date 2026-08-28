@@ -7746,3 +7746,32 @@ Together those say the aggregation step is where focal findings are lost, that s
 **This closes the score work.** Round 104 stated this was the last planned comparison and nothing here argues for another. Further variants would be spending runs on a question this dataset has now demonstrably answered as "not answerable".
 
 **Not yet done / authorization boundary:** no submission has been made and none is authorized. Gate 7 remains the user's alone.
+
+### Round 106 — Pre-registration: do report-derived weak labels beat 58 human ones? (2026-08-29)
+
+Written and committed **before** the run. Follows the user's approval to revisit the Phase 2 fork.
+
+**Why this is worth reopening.** Phase 2 returned No-go on weak labels because 0/12 cleared a Wilson lower-bound precision gate at `0.55`. But the point estimates were good — Medial Meniscus `0.750`, Fracture `1.000` — and they failed the *gate* because per-label support among the 58 human-labelled studies is only `n ~ 10-20`. **The same 58-study bottleneck that blocks every model comparison was also being used to judge the thing that would relieve it.**
+
+More importantly, Phase 2 asked *"are these labels precise enough to trust?"*. It never asked *"does training on them improve the score?"*. Those are different questions, and the second has a clean test the first does not: **train on report-only studies, evaluate on the 58 human labels.** Noisy training labels cannot corrupt a human-labelled evaluation set.
+
+**A prior discovery does not block this, and may have tainted reports by association.** Phase 3A found `test.csv` carries no `Report` column, which killed report-based *inference*. Reports remain a **training-time** asset: the model stays image-only at prediction time, so the missing test column is irrelevant here.
+
+**W1:** per-label heads trained on report-only studies, evaluated on the 58.
+
+- **Training set:** studies from the 4349 report-only rows, disjoint from the 58 by construction.
+- **Labels:** `extract_weak_labels` resolves each label to 1, 0, or **abstain**. Abstentions are *excluded per label* rather than coerced to 0, so each label trains on the studies where the report actually spoke to it. Coercing no-mention to 0 would fabricate negatives at scale and is exactly the failure this extractor was built to avoid.
+- **All 12 labels are used, with no selection.** Choosing which labels to train on by their measured precision would select using the evaluation set, and that is leakage.
+- **Features:** the reported baseline's configuration — 5 slices, mean pooling. This experiment tests the *data* lever; changing the pooling operator at the same time would confound it.
+
+**Evaluation is cleaner than anything measured so far.** The weak-trained model has never seen any of the 58, so its predictions are fully out-of-sample, not merely out-of-fold. Compared against the baseline's OOF predictions by paired bootstrap over the same 58 studies. One comparison, own family, plain **95%**.
+
+**Decision rule.** Weak-label training is judged to help only if the paired interval excludes zero in its favour. A higher point estimate is not sufficient. If it resolves, the direction to pursue is a combined weak-plus-human model, which is **not** part of this comparison and would need its own registration.
+
+**This is the first experiment with a realistic chance of resolving.** Every prior comparison rearranged features over a fixed 58 studies and moved the score by less than the interval could see. This changes the training set size by roughly **fifty-fold**, and an effect of that lever could plausibly exceed the `+/-0.024` these intervals achieve. **Predicted: positive and possibly resolved** — the first time I have predicted resolution.
+
+**Budget, and a deliberate cap.** Extraction is the cost and it scales with study count: the measured rate is about `2.4 s/study`, so 4349 studies would take roughly 2.9 h before anything else runs. The training set is therefore capped at a **deterministic seeded sample of 3000** report-only studies — about 2 h, comfortably inside the 9 h budget, and still **fifty-two times** the human-labelled set. **The cap is budget-driven, not statistical**, and the recorded elapsed time will say whether the full 4349 is affordable next time.
+
+**Ways this fails, stated now.** Weak positives are findings a radiologist chose to *mention without qualification*, which is not the same event as the finding being present; the label prior may differ sharply from the human labels'. Macro AUC is ranking-based and so tolerant of prior shift, which is why it is the right metric here, but a systematic difference in *what* the two label sets mean would still hurt. If W1 comes back clearly negative, the honest reading is that the weak labels encode a different target rather than a noisier version of the same one.
+
+**Not yet done / authorization boundary:** two submissions have been made under explicit authorization; no further submission is authorized.
