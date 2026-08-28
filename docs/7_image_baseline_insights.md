@@ -1313,3 +1313,79 @@ Five pre-registered comparisons, five unresolved. V0 stands at 0.6346. The
 useful result is not "nothing works" but something sharper: rearranging or
 enlarging what gets averaged does not help, and the two experiments that
 stressed averaging hardest both came back negative.
+
+## 2026-08-28 — Image baseline v10: the bag-of-slices model earns its keep
+
+**Kernel:** version 10, Tesla T4, `COMPLETE`. Two operators registered in
+advance as one family, both compared against the mean **at the same sampling
+density**, so the within-plane pooling operator is the only difference.
+Bonferroni at α/2, hence 97.5% intervals.
+
+| Variant | Macro AUC | Paired delta vs E1 | 97.5% interval | Resolved |
+|---|---:|---:|---|---|
+| E1 mean (reference) | 0.6321 | — | — | — |
+| **E2 max over slices** | **0.6507** | **+0.0186** | [−0.0082, +0.0492] | **No** |
+| E3 mean of top 3 | 0.6431 | +0.0110 | [−0.0117, +0.0340] | **No** |
+
+Both selective operators beat the mean. Neither resolves.
+
+### The per-label signs are the whole result
+
+E2 against E1, sorted:
+
+| Gains | | Losses | |
+|---|---:|---|---:|
+| Lateral OA | +0.091 | Medial Meniscus | −0.059 |
+| Synovitis | +0.076 | Effusion | −0.041 |
+| PF OA | +0.066 | ACL | −0.039 |
+| Contusion | +0.057 | Baker's | −0.020 |
+| Lateral Meniscus | +0.051 | | |
+| MCL | +0.020 | | |
+| Fracture | +0.018 | | |
+
+**Effusion is the second-largest loser — and effusion is the most diffuse
+finding in the panel, at 35 of 58 positives, and the label the baseline scored
+highest.** That is precisely what a bag model predicts: where a finding is
+genuinely a property of most slices, the mean is the right estimator and
+picking the extreme slice throws information away. Where a finding is focal,
+the mean dilutes it. The operator improves the focal labels and degrades the
+diffuse one.
+
+Three of the four labels that sat near chance under the baseline — PF OA, MCL,
+fracture — move up, and the largest single gain is lateral OA at +0.091.
+
+### Why this is evidence and not pattern-hunting
+
+Twelve labels at this noise level will always show some pattern. What lifts
+this above post-hoc storytelling is that **the direction was registered before
+the run**: the prediction on record said any gain would concentrate in the
+focal labels rather than spread across the macro. It did. The breakdown was
+also declared diagnostic rather than a decision input, so it cannot be promoted
+into one now.
+
+### The noise worry was the wrong worry
+
+Both operators were registered specifically to separate "selectivity does not
+help" from "max is too noisy to tell" — a maximum over 384 dimensions being
+upward-biased and outlier-dominated. The discrimination came out clean: **max
+is not too noisy; it is the better of the two**, ahead of the damped top-3.
+That is worth recording because the prediction went the other way.
+
+### E2 is not promoted, deliberately
+
+E2 at 0.6507 is the second-highest score measured and sits +0.0161 above the
+reported baseline. It stays unpromoted, because the pre-registration said
+displacing the baseline is a separate question needing its own comparison, and
+that a winner here is not thereby promoted. Reaching for the promotion now — on
+an unresolved delta measured against a *different* reference — is the forking
+path the discipline exists to close.
+
+**V0 remains the reported baseline at 0.6346.**
+
+### Scoreboard
+
+Seven pre-registered comparisons, seven unresolved. The recurring lesson is
+unchanged: 58 studies cannot resolve differences of this magnitude. What is new
+is that there is now a **mechanism with directional evidence behind it** rather
+than a run of nulls — the aggregation, not the amount of data or the
+representation, is where the focal findings were being lost.

@@ -7579,3 +7579,46 @@ Bonferroni across the family of two, so **97.5%** paired intervals.
 **A real way this fails that is worth stating now.** DINOv2 CLS features are not calibrated so that "larger" means "more pathological". Selecting the strongest response per dimension may select the slice with the most *texture* or the most *contrast*, not the most *disease*. If so, both E2 and E3 fail and the correct conclusion is that selective pooling needs a representation trained for it, not that bags are the wrong model.
 
 **Not yet done / authorization boundary:** no submission has been made and none is authorized.
+
+### Round 101 — Claude: selective pooling helps; the macro still will not resolve it (2026-08-28)
+
+**Both selective pools beat the mean at the same density. Neither resolves.** Kernel v10, Bonferroni-adjusted 97.5% paired intervals, family of two:
+
+| Variant | Macro AUC | Delta vs E1 | 97.5% interval | Resolved |
+|---|---:|---:|---|---|
+| E1 mean (reference) | 0.6321077573 | — | — | — |
+| **E2 max over slices** | **0.6507039913** | **+0.0186** | [-0.0082, +0.0492] | no |
+| E3 mean of top 3 | 0.6430612307 | +0.0110 | [-0.0117, +0.0340] | no |
+
+**Prediction scoring.** Round 100 predicted "E3 positive, E2 near zero or negative, both unresolved, any gain concentrated in the focal labels". Three parts right, one wrong:
+
+- Both positive and both unresolved: **correct**.
+- E3 positive: **correct**.
+- E2 near zero or negative: **wrong** — max was the *larger* gain, not the noisy failure the prediction expected.
+- Gain concentrated in focal labels: **correct**, and this is the substantive part.
+
+The reason both were registered was to separate "selectivity does not help" from "max is too noisy to tell". That discrimination came out cleanly: **max is not too noisy — it is the better of the two.** My noise concern was the wrong worry.
+
+**The per-label pattern is what the multiple-instance framing predicts, sign for sign.** E2 against E1:
+
+| Gains | | Losses | |
+|---|---:|---|---:|
+| Lateral OA | +0.091 | Medial Meniscus | -0.059 |
+| Synovitis | +0.076 | Effusion | -0.041 |
+| PF OA | +0.066 | ACL | -0.039 |
+| Contusion | +0.057 | Baker's | -0.020 |
+| Lateral Meniscus | +0.051 | | |
+| MCL | +0.020 | | |
+| Fracture | +0.018 | | |
+
+**Effusion — the most diffuse finding in the panel, 35 of 58 positives, and the label the baseline scored highest — is the second-largest loser.** That is the mechanism's own prediction: where a finding really is a property of most slices, the mean is the correct estimator and selecting the extreme slice discards information. Where it is focal, the reverse. The operator behaves like a bag model on the labels a bag model should suit, and like a worse estimator on the one label it should not.
+
+**This must not be over-read, and was registered so it could not be.** The per-label breakdown was declared diagnostic, not a decision input, before the run. Twelve labels at this noise level will always show *some* pattern; what raises this above pattern-hunting is that the direction was stated in advance. It is evidence for the mechanism, not a resolved result.
+
+**E2 is not promoted, and the reason is the registered rule.** E2 at `0.6507` is the second-highest score measured (behind V2's `0.6635`) and sits `+0.0161` above the reported baseline. Round 100 stated in advance that displacing V0 is a separate question requiring its own registered comparison, and that a variant winning here is not thereby promoted. **V0 remains the reported baseline at `0.6346`.** Reaching for the promotion now, on the strength of an unresolved delta against a *different* reference, is exactly the forking path the pre-registration exists to close.
+
+**Seven pre-registered comparisons, seven unresolved.** The consistent lesson is unchanged and now very well supported: 58 studies cannot resolve differences of this size. What *has* changed is that there is now a mechanism with directional evidence behind it, rather than a series of nulls.
+
+**What follows, stated as options rather than actions.** A displacement comparison (E2 versus V0) would answer the practical question directly, and its two legs are already measured — density null, pooling positive-unresolved. A `mean || max` concatenation would let the head choose per label, which is what the per-label split argues for, at the cost of doubling feature width on 58 studies — the same width risk V1 already failed to justify. Neither is started; neither is authorized.
+
+**Not yet done / authorization boundary:** no submission has been made and none is authorized.

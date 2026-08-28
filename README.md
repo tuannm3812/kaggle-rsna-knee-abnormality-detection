@@ -49,10 +49,17 @@ Per-plane heads score highest at `0.6635` and still miss resolution by `0.0115`.
 
 The informative pattern is *which* ones failed. Patch-token pooling (−0.027)
 and tripled slice density (−0.003) are both "average more material" moves, and
-the density test had roughly twice the power of any other comparison — it could
-have detected a smaller effect than anything else tried and found nothing. The
-evidence points at the mean itself discarding focal findings, not at a shortage
-of material being averaged.
+the density test had roughly twice the power of any other comparison. That
+pointed at the averaging itself, not at a shortage of material.
+
+Testing that directly: treating a study as a **bag of slices** and replacing the
+mean with a max over slices scores `0.6507`, `+0.019` over the mean at identical
+density — still unresolved, but the per-label signs are the ones a bag model
+predicts. The focal findings improve (lateral OA `+0.091`, synovitis `+0.076`,
+PF OA `+0.066`) while effusion, the one genuinely diffuse finding, gets *worse*
+(`−0.041`). Where a finding really is a property of most slices, the mean is the
+right estimator; where it is focal, the mean dilutes it. That direction was
+registered before the run.
 
 Runtime is not a constraint: the complete path projects to **3.5 hours
 against a 9-hour budget** including a 3x safety margin, measured across 83
