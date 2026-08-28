@@ -1,11 +1,12 @@
 {
   "id": "tuannm3812/rsna-knee-frozen-image-baseline",
-  "title": "RSNA Knee \u2014 Frozen Image Baseline",
+  "title": "RSNA Knee — Frozen Image Baseline",
   "code_file": "05_image_baseline.ipynb",
   "language": "python",
   "kernel_type": "notebook",
   "is_private": true,
   "enable_gpu": true,
+  "machine_shape": "NvidiaTeslaT4",
   "enable_tpu": false,
   "enable_internet": false,
   "dataset_sources": [

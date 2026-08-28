@@ -600,6 +600,13 @@ def test_preflight_kernel_metadata_is_private_gpu_offline_with_dinov2() -> None:
     assert metadata["code_file"] == "04_image_baseline_preflight.ipynb"
     assert metadata["is_private"] is True
     assert metadata["enable_gpu"] is True
+    # Kaggle allocates the accelerator nondeterministically when only
+    # enable_gpu is set. Version 7 landed on a Tesla P100 (sm_60), which the
+    # installed PyTorch does not support (sm_70 and above), and the run died
+    # after the dataset mount. Earlier runs had silently been getting T4s.
+    # Pinned so the hardware is part of the reproducibility contract rather
+    # than a coin flip.
+    assert metadata["machine_shape"] == "NvidiaTeslaT4"
     assert metadata["enable_tpu"] is False
     assert metadata["enable_internet"] is False
     assert metadata["dataset_sources"] == ["tuannm3812/rsna-knee-mri-src"]
@@ -717,6 +724,13 @@ def test_image_baseline_kernel_metadata_is_private_gpu_offline_with_dinov2() -> 
     assert metadata["code_file"] == "05_image_baseline.ipynb"
     assert metadata["is_private"] is True
     assert metadata["enable_gpu"] is True
+    # Kaggle allocates the accelerator nondeterministically when only
+    # enable_gpu is set. Version 7 landed on a Tesla P100 (sm_60), which the
+    # installed PyTorch does not support (sm_70 and above), and the run died
+    # after the dataset mount. Earlier runs had silently been getting T4s.
+    # Pinned so the hardware is part of the reproducibility contract rather
+    # than a coin flip.
+    assert metadata["machine_shape"] == "NvidiaTeslaT4"
     assert metadata["enable_tpu"] is False
     assert metadata["enable_internet"] is False
     assert metadata["dataset_sources"] == ["tuannm3812/rsna-knee-mri-src"]
