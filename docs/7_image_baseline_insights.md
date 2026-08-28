@@ -1104,3 +1104,60 @@ fine cartilage or patellofemoral detail. That is the expected weakness of
 mean-pooling five central-band slices at 336 pixels, and it points at where a
 future design would have to change — plane-specific features or higher
 resolution — rather than at more regularization tuning.
+
+## 2026-08-28 — Image baseline v5: the deferred aggregation variants, resolved as unresolved
+
+**Kernel:** version 5, T4, `COMPLETE`, zero error markers. Both variants
+registered in advance, built from the same per-plane embeddings as the
+incumbent, evaluated on the same studies under the same folds.
+
+| Variant | Macro AUC | Paired delta vs V0 | 95% interval | Resolved |
+|---|---:|---:|---|---|
+| **V0** shared mean (incumbent) | 0.6346 | — | — | — |
+| V1 plane concatenation | 0.6301 | −0.0044 | [−0.0352, +0.0276] | **No** |
+| V2 per-plane heads | **0.6635** | **+0.0290** | [−0.0061, +0.0648] | **No** |
+
+**By the rule registered before the run, V0 stands.** Neither interval
+excludes zero, so neither variant has displaced the incumbent.
+
+### V2 is the interesting result, and it must not be over-read
+
+V2 scores `+0.029` higher, and its interval misses excluding zero by
+`0.0061`. That is genuinely suggestive — most of the interval is positive —
+and it is **not** a win. The decision rule was fixed in advance precisely so
+that a near-miss could not be relabelled a success after the fact; lowering
+the confidence level now, or calling this "nearly significant", would be the
+exact bias the pre-registration existed to prevent.
+
+Nor is `0.6635` an unbiased estimate of V2's performance. It was read off the
+same out-of-fold predictions used to compare it, so it carries selection
+optimism. **The project's reported score remains V0's `0.6346`.**
+
+The honest statement is: *per-plane heads are a promising lead that 58 studies
+cannot confirm.* If more labelled data ever appears, this is the first thing
+to re-test.
+
+### Two things that revise earlier reasoning
+
+**Round 46's capacity worry was half right.** It rejected both variants for
+tripling either the feature width or the head count on 58 studies. V1 does
+triple the width (1156 features) and did **not** blow up — it landed within
+noise of the incumbent, slightly below. So the concatenation was not
+catastrophic, it was simply useless: preserving plane identity in the feature
+vector buys nothing here. V2, the variant that tripled the head count, is the
+one that looks most promising. The concern was reasonable and the direction it
+predicted was wrong.
+
+**A prediction of mine was also wrong, in the same direction.** Ahead of the
+run I expected both variants to lose. V1 did. V2 did not lose on point
+estimate — it gained. What I got right was that neither would resolve at this
+sample size.
+
+### The paired comparison earned its place
+
+Marginal intervals are `0.127` wide; the paired deltas are `0.063` and `0.071`
+— **1.8x to 2.0x tighter**. Less than the ~3x simulated at high correlation,
+which makes sense: V2 is a structurally different model and correlates less
+with V0 than two near-identical variants would. Even so, comparing marginal
+intervals would have made both comparisons hopeless, where the paired test at
+least brought V2 within a hair of resolution.

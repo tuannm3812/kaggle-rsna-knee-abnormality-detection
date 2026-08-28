@@ -7364,3 +7364,49 @@ bias through the back door.
 
 **Not yet done / authorization boundary:** the run is next. No submission has
 been made and none is authorized.
+
+### Round 95 — Claude: aggregation variants measured; the incumbent stands (2026-08-28)
+
+**Kernel version 5, `COMPLETE`, zero error markers.** Round 46's two deferred
+alternatives are now closed with measurement rather than argument.
+
+| Variant | Macro AUC | Paired delta | 95% interval | Resolved |
+|---|---:|---:|---|---|
+| **V0** shared mean | 0.6346 | — | — | — |
+| V1 plane concatenation | 0.6301 | −0.0044 | [−0.0352, +0.0276] | No |
+| V2 per-plane heads | **0.6635** | **+0.0290** | [−0.0061, +0.0648] | No |
+
+**By the rule registered in round 94, V0 stands.** Neither interval excludes
+zero.
+
+**The V2 result is where discipline actually costs something.** It scores
+`+0.029` higher and its interval misses excluding zero by `0.0061` — most of
+the interval is positive. It would be easy, and wrong, to call that a win,
+lower the confidence level, or quietly adopt it. The rule was fixed in advance
+so a near-miss could not be relabelled afterwards. And `0.6635` is not an
+unbiased estimate of V2 in any case: it was read off the same out-of-fold
+predictions used to select on. **The reported score remains V0's `0.6346`.**
+
+The defensible conclusion is narrow: *per-plane heads are a promising lead
+that 58 studies cannot confirm.* It is the first thing to re-test if more
+labelled data appears — and the variance decomposition already established
+that more labelled data, not a better protocol, is the binding constraint.
+
+**Two pieces of prior reasoning were wrong, both mine or the project's, and
+both in the same direction.** Round 46 rejected these variants for tripling
+the feature width or the head count on 58 studies. V1 does triple the width
+and did **not** blow up — it landed within noise, slightly below, so
+concatenation is useless here rather than harmful. And ahead of the run I
+predicted both variants would lose; V2 did not lose on point estimate. What
+held was the narrower claim that neither would resolve.
+
+**The paired test earned its place.** Marginal intervals are `0.127` wide; the
+paired deltas are `0.063` and `0.071`, so `1.8x` to `2.0x` tighter. That is
+less than the ~3x simulated at high correlation, which is expected since V2 is
+structurally different from V0 and correlates less with it. Comparing marginal
+intervals would have made both comparisons hopeless; the paired test brought
+V2 within a hair of resolution.
+
+**Not yet done / authorization boundary:** round 60's third deferral,
+patch-token pooling, is untouched and would need a different forward pass.
+No submission has been made and none is authorized.
