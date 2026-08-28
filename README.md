@@ -61,6 +61,12 @@ PF OA `+0.066`) while effusion, the one genuinely diffuse finding, gets *worse*
 right estimator; where it is focal, the mean dilutes it. That direction was
 registered before the run.
 
+Handing the head *both* statistics does not combine them: it lands a median 55%
+of the way between the two, giving back what max won (`r = −0.866` between a
+label's max-gain and its loss under the concatenation, 11 of 12 labels moving
+against). **A small linear head offered a choice does not choose — it averages.**
+A per-label operator has to be imposed by design, not offered and hoped for.
+
 Runtime is not a constraint: the complete path projects to **3.5 hours
 against a 9-hour budget** including a 3x safety margin, measured across 83
 studies in five slice-count strata. Three independent kernel runs produced a

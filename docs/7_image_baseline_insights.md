@@ -1389,3 +1389,74 @@ unchanged: 58 studies cannot resolve differences of this magnitude. What is new
 is that there is now a **mechanism with directional evidence behind it** rather
 than a run of nulls — the aggregation, not the amount of data or the
 representation, is where the focal findings were being lost.
+
+## 2026-08-28 — Image baseline v11: a linear head on 58 studies blends, it does not choose
+
+**Kernel:** version 11, Tesla T4, `COMPLETE`. E4 concatenates the slice mean
+and slice max per plane at the same 15-slice density, registered as two
+comparisons in one family (Bonferroni α/2, 97.5%).
+
+| Comparison | E4 | Reference | Delta | 97.5% interval | Resolved |
+|---|---:|---:|---:|---|---|
+| E4 vs E1 (mean) | 0.6349 | 0.6321 | +0.0028 | [−0.0135, +0.0214] | **No** |
+| **E4 vs E2 (max)** | 0.6349 | **0.6507** | **−0.0158** | [−0.0353, **+0.0016**] | **No** |
+
+The second interval misses excluding zero by 0.0016 — the closest this project
+has come to resolving anything, and it points *against* the wider variant.
+
+### The premise is falsified, and precisely
+
+The idea was that giving the head both statistics would let it weight them per
+label — max for focal findings, mean for diffuse ones. It does not.
+
+- Pearson **r = −0.866** between how much max gained on a label and how much E4
+  gave back on it.
+- **11 of 12 labels** move opposite to max's gain.
+- E4 sits a median **55%** of the way from mean to max, label by label.
+
+| | E1 mean | E2 max | E4 both | max gain | E4 gives back |
+|---|---:|---:|---:|---:|---:|
+| Lateral OA | 0.654 | 0.745 | 0.692 | +0.091 | −0.052 |
+| Synovitis | 0.539 | 0.615 | 0.583 | +0.076 | −0.032 |
+| PF OA | 0.595 | 0.660 | 0.622 | +0.066 | −0.039 |
+| Effusion | 0.805 | 0.764 | 0.783 | −0.041 | **+0.019** |
+| Medial Meniscus | 0.575 | 0.516 | 0.525 | −0.059 | **+0.010** |
+
+**E4 is an interpolation, not a selection.** Every label max won is dragged
+back toward the mean; the three max lost are recovered. An L2-penalised linear
+head on 58 studies cannot learn to read one half of the block for some labels
+and the other half for others — it spreads weight across both and lands in
+between.
+
+This is worth stating as a general constraint on this dataset: **giving a small
+linear head a choice does not make it choose.** Offering two views costs the
+width and returns their average. If a per-label operator is wanted, it has to
+be imposed by design, not offered and hoped for.
+
+Two explanations survive and this data cannot separate them: the doubled width
+costing more under L2 than the second view returns, or the mean features
+actively reintroducing the dilution max removed. The per-label pattern fits
+both, since max's gains were the largest coefficients and so the most exposed
+to shrinkage.
+
+### The harness retrofit is verified
+
+V1 reproduced 0.6301396031 exactly through the shared cross-validation path,
+so deleting its hand-rolled fold loop — where the round-97 defect lived —
+changed nothing but the safety. That defect class is now closed by a test that
+fails on the mistake itself: a widened frame at the default scaler width is
+rejected, and at the correct width scores identically to the narrow frame when
+the added block carries no information.
+
+### Scoreboard
+
+**Eight pre-registered comparisons, eight unresolved.** (An earlier entry said
+seven at a point where the count was six; corrected here.)
+
+The best configuration measured is **E2, max pooling at fifteen slices, at
+0.6507** — and this round rules out the obvious route to improving on it.
+Whether E2 displaces the reported baseline is a separate registered question,
+still open, because every measurement of E2 so far has been against the mean at
+its own density rather than against the incumbent.
+
+**V0 remains the reported baseline at 0.6346.**

@@ -7617,7 +7617,7 @@ The reason both were registered was to separate "selectivity does not help" from
 
 **E2 is not promoted, and the reason is the registered rule.** E2 at `0.6507` is the second-highest score measured (behind V2's `0.6635`) and sits `+0.0161` above the reported baseline. Round 100 stated in advance that displacing V0 is a separate question requiring its own registered comparison, and that a variant winning here is not thereby promoted. **V0 remains the reported baseline at `0.6346`.** Reaching for the promotion now, on the strength of an unresolved delta against a *different* reference, is exactly the forking path the pre-registration exists to close.
 
-**Seven pre-registered comparisons, seven unresolved.** The consistent lesson is unchanged and now very well supported: 58 studies cannot resolve differences of this size. What *has* changed is that there is now a mechanism with directional evidence behind it, rather than a series of nulls.
+**Seven pre-registered comparisons, seven unresolved.** [Corrected in round 103: the count at this point was six -- V1, V2, V3, E1, E2, E3.] The consistent lesson is unchanged and now very well supported: 58 studies cannot resolve differences of this size. What *has* changed is that there is now a mechanism with directional evidence behind it, rather than a series of nulls.
 
 **What follows, stated as options rather than actions.** A displacement comparison (E2 versus V0) would answer the practical question directly, and its two legs are already measured — density null, pooling positive-unresolved. A `mean || max` concatenation would let the head choose per label, which is what the per-label split argues for, at the cost of doubling feature width on 58 studies — the same width risk V1 already failed to justify. Neither is started; neither is authorized.
 
@@ -7651,5 +7651,36 @@ Written and committed **before** the run. The user chose this over the E2-versus
 **Four guards make an E4 null trustworthy.** Feature width against the registered definition; the decoded-slice list identical to the reference; the leading half numerically equal to E1's mean-pooled block; and the two halves not equal to each other. The third and fourth are what would catch a concatenation that is secretly two copies of the same statistic.
 
 **Prediction.** `E4 vs E1` positive, `E4 vs E2` near zero, both unresolved. My directional record across four registered predictions is two right, two wrong, and the one clear success was round 100's per-label concentration. This prediction is a straightforward consequence of the width trade rather than a mechanism claim, so it is weaker evidence about my model either way.
+
+**Not yet done / authorization boundary:** no submission has been made and none is authorized.
+
+### Round 103 — Claude: the head does not choose per label, it averages (2026-08-28)
+
+**E4 is worse than max alone, and nearly resolvably so.** Kernel v11, Bonferroni-adjusted 97.5%, family of two:
+
+| Comparison | E4 | Reference | Delta | 97.5% interval | Resolved |
+|---|---:|---:|---:|---|---|
+| E4 vs E1 (mean) | 0.6349424811 | 0.6321077573 | +0.0028 | [-0.0135, +0.0214] | no |
+| **E4 vs E2 (max)** | 0.6349424811 | **0.6507039913** | **-0.0158** | [-0.0353, **+0.0016**] | no |
+
+The second interval misses excluding zero by `0.0016` — the closest any comparison in this project has come to resolving, and it points *against* the variant.
+
+**The premise of this experiment is falsified in a specific way.** The idea was that giving the head both statistics would let it weight them per label: max for focal findings, mean for diffuse ones. It does not do that. Comparing each label's max-gain against its E4-shift:
+
+- Pearson `r = -0.866` between "how much max gained on this label" and "how much E4 gave back".
+- **11 of 12 labels move in the direction opposite to max's gain.**
+- E4 sits at a median **55%** of the way from mean to max, per label.
+
+**E4 behaves as a blend of the two views, not as a selector between them.** Every label where max won is dragged back toward the mean; the three where max lost — ACL, effusion, medial meniscus — recover. That is an interpolation, not a choice. On 58 studies an L2-penalised linear head cannot learn to use one half of the block for some labels and the other half for others; it spreads weight across both and lands in between.
+
+**Prediction scoring.** Round 102 predicted "E4 vs E1 positive, E4 vs E2 near zero, both unresolved". Positive: correct. Both unresolved: correct. **Near zero: wrong** — `-0.0158` is the largest negative in the pooling family and nearly resolved against. The width cost was materially worse than predicted. Directional record across five registered predictions is now three partially right, two clearly wrong on the substantive call.
+
+**Two explanations remain and this data cannot separate them.** Either the doubled width costs more under L2 on 58 studies than the extra view returns, or the mean features actively reintroduce the dilution that max removed. The per-label pattern fits both: max's gains were the largest coefficients and so the most exposed to shrinkage. Stating both rather than picking the more interesting one.
+
+**The harness retrofit is verified.** V1 reproduced `0.6301396031` exactly through the shared `cross_validate_image_model` path, so deleting its hand-rolled fold loop — the loop the round-97 defect lived in — changed nothing but the safety. The round-97 defect class is now closed by a test that fails on the mistake itself rather than on its symptoms.
+
+**Correction to round 101's scoreboard.** That entry said "seven pre-registered comparisons"; the correct count at that point was **six** (V1, V2, V3, E1, E2, E3). With E4's two the total is now **eight, all unresolved.**
+
+**Where this leaves the work.** **E2, max pooling at fifteen slices, is the best configuration measured at `0.6507`**, and this round rules out the obvious way of improving on it. The remaining open question is the one deferred in round 101: whether E2 displaces V0 as the reported baseline, which needs its own registered comparison because every measurement of E2 so far has been against E1, not against the incumbent. **V0 remains the reported baseline at `0.6346`.**
 
 **Not yet done / authorization boundary:** no submission has been made and none is authorized.
