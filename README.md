@@ -4,7 +4,7 @@
   <a href="https://www.kaggle.com/competitions/rsna-knee-abnormality-detection"><img alt="Kaggle Competition" src="https://img.shields.io/badge/Kaggle-RSNA%20Knee%20Abnormality%20Detection-20BEFF?logo=kaggle&logoColor=white"></a>
   <a href="pyproject.toml"><img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white"></a>
   <a href="docs/0_coding_standards.md"><img alt="Execution" src="https://img.shields.io/badge/Execution-Kaggle--only-orange"></a>
-  <img alt="Tests" src="https://img.shields.io/badge/tests-436%20passing-brightgreen">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-443%20passing-brightgreen">
   <img alt="Status" src="https://img.shields.io/badge/Status-Image%20baseline%20evaluated-blue">
 </p>
 
@@ -41,6 +41,14 @@ effusion and cruciate-ligament signal but evidently not fine cartilage or
 patellofemoral detail. Decomposing the variance also shows **study sampling
 contributes 4x more uncertainty than fold assignment**, so a better split
 cannot tighten this — only more labeled studies would.
+
+Four aggregation schemes have now been compared against the incumbent
+under paired bootstrap with a Bonferroni correction across the family:
+plane concatenation, per-plane heads, and patch-token pooling. **None
+resolved** — every adjusted interval crosses zero, so the shared mean stands.
+Per-plane heads score highest at `0.6635` and still miss resolution by
+`0.0115`, which is the same message as the variance decomposition: 58 studies
+cannot settle differences of this size however the features are arranged.
 
 Runtime is not a constraint: the complete path projects to **3.5 hours
 against a 9-hour budget** including a 3x safety margin, measured across 83
