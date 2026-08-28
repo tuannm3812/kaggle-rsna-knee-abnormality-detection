@@ -1161,3 +1161,84 @@ which makes sense: V2 is a structurally different model and correlates less
 with V0 than two near-identical variants would. Even so, comparing marginal
 intervals would have made both comparisons hopeless, where the paired test at
 least brought V2 within a hair of resolution.
+
+## 2026-08-28 — Image baseline v8: patch pooling, and a bug that changed two settled numbers
+
+**Kernel:** version 8, Tesla T4 (capability 7.5), `COMPLETE`. Three variants
+now share one comparison family, so every interval is Bonferroni-adjusted to
+98.33% — including the two reported at v5, so no earlier conclusion is quietly
+improved by the correction.
+
+| Variant | Macro AUC | Paired delta vs V0 | 98.33% interval | Resolved |
+|---|---:|---:|---|---|
+| **V0** shared mean (incumbent) | 0.6346 | — | — | — |
+| V1 plane concatenation | 0.6301 | −0.0044 | [−0.0419, +0.0338] | **No** |
+| V2 per-plane heads | **0.6635** | **+0.0290** | [−0.0115, +0.0716] | **No** |
+| V3 patch-token pooling | 0.6074 | −0.0271 | [−0.0704, +0.0103] | **No** |
+
+**V0 stands.** No interval excludes zero in a variant's favour.
+
+### The patch-pooling hypothesis was wrong, in the direction it was stated
+
+The prediction on record was that patch pooling *should* move: the per-label
+result shows the baseline carrying effusion (0.811) and ACL (0.786) but sitting
+near chance for MCL (0.519), PF OA (0.551) and fracture (0.456) — small,
+localized structures a single global CLS summary would wash out. Mean-pooled
+patch tokens retain more spatial evidence, so they should have helped.
+
+They scored **−0.0271**, the largest negative delta of the three.
+
+The interval does not resolve it, so the defensible claim is "no evidence patch
+pooling helps, and what evidence exists points the other way" — not "patch
+pooling is worse". But the mechanism argued for it was wrong, and it should not
+be reused without new support. A plausible reading is that averaging 576 patch
+tokens is itself a global summary, and a noisier one than CLS, which was at
+least trained to be a summary. Localization would need pooling that is
+*selective*, not merely spatial.
+
+### A bug of mine silently changed two numbers that were already settled
+
+Widening the encoder to emit CLS and patch-mean from one forward pass — done so
+V0 and V3 could not differ by accident of extraction — redefined the two
+variants it was supposed to leave alone. V1 concatenated 768-wide embeddings
+(2304 features, not the registered 1152) with its scaler still sized for 1152,
+leaving over half the block unstandardized. V2 fitted heads on 768-wide
+matrices while scaling only the first 384.
+
+Nothing crashed. V1 read 0.6261 instead of 0.6301, V2 0.6556 instead of 0.6635
+— both plausible, both wrong, and both withdrawn.
+
+**What caught it was not a guard.** The V0 reproduction guard passed the whole
+time, because V0 was correctly sliced. The bug surfaced only because V1 and V2
+*moved* when nothing about them should have, and that signal existed only
+because they had been measured once before. Three variants measured together
+for the first time would have shipped wrong numbers with nothing to contradict
+them. Both now assert their feature width against the registered definition.
+
+The fix is verified rather than asserted: in v8, V1 and V2 returned to exactly
+their v5 values (0.6301396031, 0.6635347472) while V3 reproduced its earlier
+value bit-identically.
+
+### The accelerator had never been pinned
+
+Version 7 died with `Allocated GPU compute capability unsupported by installed
+PyTorch`: Kaggle allocated a Tesla P100 (sm_60) against a PyTorch built for
+sm_70 and above. Setting only `enable_gpu` lets Kaggle choose either card, so
+every prior run — including the three that established `0.6345688959` as a
+reproducibility constant — had been winning a coin flip rather than requesting
+its hardware. Both GPU kernels now pin `machine_shape: NvidiaTeslaT4`, asserted
+in tests, with the runtime guard kept as the check on the pin itself.
+
+A reproducibility claim that rests on an unpinned accelerator is weaker than it
+looks; this one happened to fail loudly, but it could as easily have returned a
+number with no explanation attached.
+
+### What the aggregation question has now cost, and why to stop
+
+Three variants, three unresolved comparisons. V2 remains the only point
+estimate favouring a change, missing resolution by 0.0115 at the adjusted
+level. This matches the variance decomposition already on record: study
+sampling contributes about four times the uncertainty of fold assignment, so 58
+studies cannot settle differences of this magnitude however the aggregation is
+arranged. Further aggregation variants should be expected to return unresolved
+and are not worth the runs without a stronger reason than a point estimate.

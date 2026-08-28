@@ -7460,3 +7460,38 @@ make.
 
 **Not yet done / authorization boundary:** no submission has been made and
 none is authorized.
+
+### Round 97 — Claude: patch pooling measured; a self-inflicted bug found and verified fixed (2026-08-28)
+
+**All three comparisons are unresolved, as pre-registered.** Kernel v8, Bonferroni-adjusted 98.33% paired intervals:
+
+| Variant | Macro AUC | Delta vs V0 | Adjusted interval | Resolved |
+|---|---:|---:|---|---|
+| V0 shared mean (incumbent) | 0.6345688959 | — | — | — |
+| V1 plane concatenation | 0.6301396031 | -0.0044 | [-0.0419, +0.0338] | no |
+| V2 per-plane heads | 0.6635347472 | +0.0290 | [-0.0115, +0.0716] | no |
+| V3 patch-token pooling | 0.6074488303 | -0.0271 | [-0.0704, +0.0103] | no |
+
+**V0 remains the reported baseline.** No variant's interval excludes zero in its favour, so the round-94 decision rule leaves the incumbent standing. Round 96 predicted exactly this in advance and the prediction held.
+
+**My V3 hypothesis was wrong, and in the stated direction.** Round 96 argued patch pooling was "the variant that should move" because the per-label result showed the baseline carries effusion and cruciate findings but sits near chance for the small, localized structures that a single global CLS summary would wash out. Patch pooling came back **-0.0271**, the largest negative delta of the three. The interval does not resolve it, so the honest reading is "no evidence patch pooling helps, and what evidence there is points the wrong way" — not "patch pooling is worse". But the directional prediction was wrong and the reasoning behind it should not be recycled without new support.
+
+**A bug I introduced silently redefined V1 and V2.** Widening the encoder to emit CLS and patch-mean from one forward pass changed two variants that were supposed to be untouched:
+
+- V1 concatenated the full 768-wide per-plane embeddings — 2304 features rather than the registered 1152 — and its scaler width was left at 1152, so more than half the block went unstandardized.
+- V2 fitted per-plane heads on 768-wide matrices while `PartialStandardScaler(continuous_dimensions=EMBEDDING_DIM)` scaled only the first 384.
+
+Neither crashed. Both produced plausible numbers: V1 drifted 0.6301 to 0.6261 and V2 0.6635 to 0.6556. **The v6 figures for V1 and V2 were invalid and are withdrawn.**
+
+**What caught it, and what did not.** The V0 reproduction guard passed throughout, because V0 was correctly sliced — guarding one variant and not its siblings is what let this through. What actually caught it was noticing that V1 and V2 *moved at all* when nothing about them should have. That signal only existed because the same two variants had been measured in a previous run; a first-time measurement of all three together would have shipped the wrong numbers with nothing to contradict them.
+
+**The fix is verified rather than asserted.** V1 and V2 now slice the CLS half explicitly and each asserts its feature width against the registered definition. In v8 both returned to *exactly* their v5 values (0.6301396031 and 0.6635347472) while V3 reproduced its v6 value bit-identically — so the correction restored the pre-registered variants without disturbing the new one.
+
+**Two other defects fixed this round.**
+
+- The comparison table labelled its bounds "Delta 95%" while carrying the Bonferroni-adjusted alpha/3 values, understating its own interval width. Columns are now derived from `FAMILY_SIZE`.
+- **The accelerator was never pinned.** Kernel v7 failed outright with "Allocated GPU compute capability unsupported by installed PyTorch": Kaggle had allocated a Tesla P100 (sm_60) against a PyTorch supporting sm_70 and above. Setting only `enable_gpu` lets Kaggle choose either, so every earlier run — including the three that established the `0.6345688959` constant — had been winning a coin flip rather than requesting its hardware. Both GPU kernels now pin `machine_shape: NvidiaTeslaT4`, asserted in tests. v8 confirms Tesla T4, capability 7.5. The runtime guard is kept: a pin can still be overridden by a metadata edit, and the guard is what catches that.
+
+**Where this leaves the aggregation question.** Three variants have now been measured against V0 and none resolved. V2 remains the only one whose point estimate favours a change, at +0.0290 with the interval crossing zero by 0.0115. This is consistent with the variance decomposition already on record: study sampling contributes roughly four times the uncertainty of fold assignment, so 58 studies cannot settle differences of this size regardless of how the aggregation is arranged. Further variants on this dataset should be expected to return unresolved as well, and are not worth spending runs on without a reason stronger than a point estimate.
+
+**Not yet done / authorization boundary:** no submission has been made and none is authorized. Gate 7 remains the user's alone.
