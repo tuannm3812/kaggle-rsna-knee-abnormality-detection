@@ -80,6 +80,39 @@ def max_pool(slice_embeddings: np.ndarray) -> np.ndarray:
     return slice_embeddings.max(axis=0)
 
 
+def mean_max_pool(width: int) -> SlicePool:
+    """Concatenate the slice mean and the slice maximum of the first `width`
+    dimensions, giving a `2 * width` vector.
+
+    The per-label evidence says the two operators suit different findings: the
+    mean is the right estimator for a finding present on most slices and the
+    maximum for one present on few. Concatenating them lets the head weight
+    each per label instead of committing the whole panel to one assumption.
+
+    The cost is a doubled feature width on a small labelled set, which is a
+    real risk rather than a free option -- the width itself may cost more than
+    the extra representation buys.
+
+    Args:
+        width: How many leading dimensions to pool. Slices may carry more
+            (a second representation alongside), and those are dropped.
+
+    Returns:
+        A pool taking `(n_slices, >= width)` to `(2 * width,)`.
+
+    Raises:
+        ValueError: If `width` is not positive.
+    """
+    if width <= 0:
+        raise ValueError("width must be positive")
+
+    def pool(slice_embeddings: np.ndarray) -> np.ndarray:
+        leading = slice_embeddings[:, :width]
+        return np.concatenate([leading.mean(axis=0), leading.max(axis=0)])
+
+    return pool
+
+
 def top_k_pool(k: int) -> SlicePool:
     """Average each dimension's `k` strongest slices.
 

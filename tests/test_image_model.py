@@ -400,3 +400,49 @@ def test_paired_delta_on_identical_predictions_is_exactly_zero():
 
     assert delta.delta == 0.0
     assert delta.excludes_zero is False
+
+
+# -- the harness supports a wider representation without a hand-rolled loop --
+
+
+def test_the_default_continuous_width_is_unchanged():
+    features, y, folds = _features(), _targets(), _folds()
+
+    default = cross_validate_image_model(features, y, folds)
+    explicit = cross_validate_image_model(
+        features, y, folds, continuous_dimensions=CONTINUOUS_DIMENSIONS
+    )
+
+    assert default.pooled_macro_auc == explicit.pooled_macro_auc
+
+
+def test_a_wider_frame_is_rejected_at_the_default_width():
+    """The round-97 failure mode: widening the features while leaving the
+    scaler width alone standardizes only part of the block and silently
+    redefines the variant. It must fail loudly instead.
+    """
+    features, y, folds = _features(), _targets(), _folds()
+    wider = pd.concat([features, features.iloc[:, :10]], axis=1)
+    wider.columns = range(wider.shape[1])
+
+    with pytest.raises(ValueError, match="dimensional"):
+        cross_validate_image_model(wider, y, folds)
+
+
+def test_a_wider_frame_scales_its_whole_embedding_block():
+    features, y, folds = _features(), _targets(), _folds()
+    embedding = features.iloc[:, :CONTINUOUS_DIMENSIONS]
+    flags = features.iloc[:, CONTINUOUS_DIMENSIONS:]
+    wider = pd.concat([embedding, embedding * 1000.0, flags], axis=1)
+    wider.columns = range(wider.shape[1])
+
+    result = cross_validate_image_model(
+        wider, y, folds, continuous_dimensions=2 * CONTINUOUS_DIMENSIONS
+    )
+
+    # A duplicated-then-rescaled block carries no new information, so scaling
+    # the whole block must leave the score where the narrow frame put it. If
+    # only the first half were scaled, the unscaled half would dominate the
+    # L2 penalty and move it.
+    narrow = cross_validate_image_model(features, y, folds)
+    assert result.pooled_macro_auc == pytest.approx(narrow.pooled_macro_auc, abs=1e-9)

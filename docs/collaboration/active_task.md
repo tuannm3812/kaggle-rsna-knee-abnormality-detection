@@ -7622,3 +7622,34 @@ The reason both were registered was to separate "selectivity does not help" from
 **What follows, stated as options rather than actions.** A displacement comparison (E2 versus V0) would answer the practical question directly, and its two legs are already measured — density null, pooling positive-unresolved. A `mean || max` concatenation would let the head choose per label, which is what the per-label split argues for, at the cost of doubling feature width on 58 studies — the same width risk V1 already failed to justify. Neither is started; neither is authorized.
 
 **Not yet done / authorization boundary:** no submission has been made and none is authorized.
+
+### Round 102 — Pre-registration: mean-and-max concatenation (2026-08-28)
+
+Written and committed **before** the run. The user chose this over the E2-versus-V0 displacement comparison after both were offered with the width risk stated.
+
+**The claim under test.** Round 101 showed the two operators suit different findings: max gained on the focal labels and lost on effusion, the one genuinely diffuse finding. Concatenating the slice mean and the slice max gives the head both and lets it weight them per label, instead of committing all twelve labels to a single assumption.
+
+**E4:** per plane, `[mean over slices | max over slices]` of the CLS half, 768-wide before flags, at the same 15-slice density as E1 and E2.
+
+**Two comparisons, one family, Bonferroni at alpha/2 (97.5%).**
+
+| Comparison | Question |
+|---|---|
+| E4 vs E1 (mean) | does it beat the uniform operator? |
+| E4 vs E2 (max) | does keeping the mean buy anything over max alone? |
+
+**The second comparison is the one that matters, and registering both is why it is interpretable.** E4 *contains* the maximum, so beating the mean would say almost nothing — a superset beating a subset of itself is close to guaranteed. The question worth asking is whether retaining the mean alongside earns the doubled width. Reporting only the flattering comparison is exactly what pre-registering the family prevents.
+
+**Width is the known risk and it is being taken deliberately.** Twice the features on 58 studies means twice the coefficients under the same L2 penalty and the same folds. A wider block has already failed to justify itself once here — V1's plane concatenation tripled the width and scored `-0.0044`. **A result near zero is the expected outcome of that trade, not a surprise.** It was stated before the run so it cannot be presented afterwards as a discovery.
+
+**The round-97 defect class is closed rather than avoided by care.** That bug was a hand-rolled fold loop carrying its own scaler width, which silently left half the block unstandardized when the encoder widened. Three changes this round:
+
+- `cross_validate_image_model` and `fit_image_model` now take `continuous_dimensions`, deriving the expected feature width from it, so a wider representation goes through the same leakage-safe, coverage-validated harness as everything else instead of a bespoke loop.
+- **V1 has been moved onto that harness**, deleting the loop the defect lived in. It must still reproduce `0.6301396031` exactly.
+- A test pins the failure mode directly: a widened frame at the default scaler width is rejected, and a widened frame at the correct width scores identically to the narrow one when the added block carries no new information.
+
+**Four guards make an E4 null trustworthy.** Feature width against the registered definition; the decoded-slice list identical to the reference; the leading half numerically equal to E1's mean-pooled block; and the two halves not equal to each other. The third and fourth are what would catch a concatenation that is secretly two copies of the same statistic.
+
+**Prediction.** `E4 vs E1` positive, `E4 vs E2` near zero, both unresolved. My directional record across four registered predictions is two right, two wrong, and the one clear success was round 100's per-label concentration. This prediction is a straightforward consequence of the width trade rather than a mechanism claim, so it is weaker evidence about my model either way.
+
+**Not yet done / authorization boundary:** no submission has been made and none is authorized.

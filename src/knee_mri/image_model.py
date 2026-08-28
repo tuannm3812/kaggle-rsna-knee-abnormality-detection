@@ -60,6 +60,8 @@ FoldIndices = tuple[np.ndarray, np.ndarray]
 # Frozen by section 9.
 IMAGE_CLASSIFIER_C = 0.1
 CONTINUOUS_DIMENSIONS = EMBEDDING_DIM
+# The trailing presence and reliability flags, which are never scaled.
+FLAG_DIMENSIONS = STUDY_VECTOR_DIM - EMBEDDING_DIM
 
 
 @dataclass(frozen=True)
@@ -177,13 +179,18 @@ def _fit_classifier(
         classifier.fit(matrix, targets)
 
 
-def _validate_inputs(features: pd.DataFrame, y: pd.DataFrame) -> None:
+def _validate_inputs(
+    features: pd.DataFrame,
+    y: pd.DataFrame,
+    continuous_dimensions: int = CONTINUOUS_DIMENSIONS,
+) -> None:
     if list(y.columns) != LABEL_COLUMNS:
         raise ValueError("y columns must match LABEL_COLUMNS in canonical order")
     if len(features) != len(y):
         raise ValueError("features and y must have the same number of rows")
-    if features.shape[1] != STUDY_VECTOR_DIM:
-        raise ValueError(f"features must be {STUDY_VECTOR_DIM}-dimensional")
+    expected_width = continuous_dimensions + FLAG_DIMENSIONS
+    if features.shape[1] != expected_width:
+        raise ValueError(f"features must be {expected_width}-dimensional")
     if features.empty or not np.isfinite(features.to_numpy()).all():
         raise ValueError("features must be non-empty and finite")
 
@@ -192,6 +199,7 @@ def cross_validate_image_model(
     features: pd.DataFrame,
     y: pd.DataFrame,
     folds: Sequence[FoldIndices],
+    continuous_dimensions: int = CONTINUOUS_DIMENSIONS,
 ) -> ImageCrossValidationResult:
     """Fit fold-local scalers and classifiers, returning OOF diagnostics.
 
@@ -199,6 +207,13 @@ def cross_validate_image_model(
         features: One `STUDY_VECTOR_DIM`-wide row per labelled study.
         y: Binary targets in canonical label-column order, same row order.
         folds: Preselected train/validation positional index pairs.
+        continuous_dimensions: How many leading columns are the embedding and
+            must be scaled; the rest are the unscaled flags. Defaults to the
+            frozen `CONTINUOUS_DIMENSIONS`. A caller evaluating a wider
+            representation passes its width here rather than hand-rolling a
+            fold loop -- leaving this at the default while widening the
+            features would standardize only part of the block and silently
+            change what the variant means.
 
     Returns:
         Pooled OOF macro AUC as the primary metric, with per-label and
@@ -208,7 +223,7 @@ def cross_validate_image_model(
         ValueError: If inputs are malformed or fold coverage is not exactly
             one validation appearance per row.
     """
-    _validate_inputs(features, y)
+    _validate_inputs(features, y, continuous_dimensions)
     _validate_oof_coverage(tuple(folds), len(y))
 
     matrix = features.to_numpy(dtype=np.float64)
@@ -218,7 +233,9 @@ def cross_validate_image_model(
 
     for training_indices, validation_indices in folds:
         # Both the scaler and the classifier are fitted on training rows only.
-        scaler = PartialStandardScaler().fit(matrix[training_indices])
+        scaler = PartialStandardScaler(
+            continuous_dimensions=continuous_dimensions
+        ).fit(matrix[training_indices])
         classifier = build_image_classifier()
         _fit_classifier(
             classifier, scaler.transform(matrix[training_indices]), y.iloc[training_indices]
@@ -245,16 +262,24 @@ def cross_validate_image_model(
 
 
 def fit_image_model(
-    features: pd.DataFrame, y: pd.DataFrame
+    features: pd.DataFrame,
+    y: pd.DataFrame,
+    continuous_dimensions: int = CONTINUOUS_DIMENSIONS,
 ) -> tuple[PartialStandardScaler, OneVsRestClassifier]:
     """Refit scaler and classifier on every labelled study, for inference.
 
     Runs after evaluation, never before: the scaler fitted here has seen every
     row and must not be used to produce any score that is reported.
+
+    Takes `continuous_dimensions` for the same reason cross-validation does,
+    so a representation cannot be evaluated at one width and refitted at
+    another.
     """
-    _validate_inputs(features, y)
+    _validate_inputs(features, y, continuous_dimensions)
     matrix = features.to_numpy(dtype=np.float64)
-    scaler = PartialStandardScaler().fit(matrix)
+    scaler = PartialStandardScaler(
+        continuous_dimensions=continuous_dimensions
+    ).fit(matrix)
     classifier = build_image_classifier()
     _fit_classifier(classifier, scaler.transform(matrix), y)
     return scaler, classifier

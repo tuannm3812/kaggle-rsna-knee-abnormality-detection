@@ -643,6 +643,8 @@ def test_image_baseline_notebook_displays_only_aggregate_objects() -> None:
         "dense_per_label",
         "pooling_summary",
         "pooling_per_label",
+        "concat_summary",
+        "concat_per_label",
         "timing_by_stratum",
         "timing_summary",
         "submission_summary",

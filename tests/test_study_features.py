@@ -12,6 +12,7 @@ from knee_mri.study_features import (
     PlaneInput,
     build_study_features,
     max_pool,
+    mean_max_pool,
     mean_pool,
     top_k_pool,
 )
@@ -377,3 +378,53 @@ def test_top_k_pool_with_k_of_one_is_max_pool():
 def test_top_k_pool_rejects_a_non_positive_k():
     with pytest.raises(ValueError, match="positive"):
         top_k_pool(0)
+
+
+def test_mean_max_pool_concatenates_both_statistics():
+    class RampEncoder:
+        def __call__(self, batch):
+            values = torch.arange(batch.shape[0], dtype=torch.float32).unsqueeze(1)
+            return values.expand(batch.shape[0], EMBEDDING_DIM).clone()
+
+    features = build_study_features(
+        {"Sagittal": _plane(slice_count=5)},
+        _reliable(),
+        RampEncoder(),
+        embedding_dim=2 * EMBEDDING_DIM,
+        slice_pool=mean_max_pool(EMBEDDING_DIM),
+    )
+
+    pooled = features.plane_embeddings["Sagittal"]
+    assert pooled.shape == (2 * EMBEDDING_DIM,)
+    # Slices 0..4: mean 2, max 4.
+    assert pooled[:EMBEDDING_DIM] == pytest.approx(np.full(EMBEDDING_DIM, 2.0))
+    assert pooled[EMBEDDING_DIM:] == pytest.approx(np.full(EMBEDDING_DIM, 4.0))
+
+
+def test_mean_max_pool_drops_dimensions_beyond_the_requested_width():
+    """The encoder emits two representations side by side; the concatenation
+    must pool only the first, or it would silently mix them.
+    """
+    wide = 2 * EMBEDDING_DIM
+    half = EMBEDDING_DIM // 2
+
+    class SplitEncoder:
+        def __call__(self, batch):
+            leading = torch.ones(batch.shape[0], half)
+            trailing = torch.full((batch.shape[0], wide - half), 99.0)
+            return torch.cat([leading, trailing], dim=1)
+
+    features = build_study_features(
+        {"Sagittal": _plane()},
+        _reliable(),
+        SplitEncoder(),
+        embedding_dim=2 * half,
+        slice_pool=mean_max_pool(half),
+    )
+
+    assert features.plane_embeddings["Sagittal"] == pytest.approx(np.ones(2 * half))
+
+
+def test_mean_max_pool_rejects_a_non_positive_width():
+    with pytest.raises(ValueError, match="positive"):
+        mean_max_pool(0)
