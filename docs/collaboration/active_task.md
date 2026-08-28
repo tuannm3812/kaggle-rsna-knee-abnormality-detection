@@ -7550,3 +7550,32 @@ The per-label movements are consistent with noise and should not be mined: PF OA
 **What would follow from this, if pursued:** selective rather than uniform pooling — letting the head see which slices matter instead of committing to a mean before the head is reached. That is a materially larger change than anything tried so far and would need its own design, not another parameter sweep. Not started; not authorized.
 
 **Not yet done / authorization boundary:** no submission has been made and none is authorized.
+
+### Round 100 — Pre-registration: selective pooling, and the multiple-instance framing (2026-08-28)
+
+Written and committed **before** the run. Follows the user's approval to pursue the direction round 99 pointed at.
+
+**The framing that motivates this.** A study is a **bag of slices**, and a focal finding appears in only a few of them. Mean pooling encodes the assumption that the label is a property of the *average* slice; multiple-instance learning encodes the assumption that it is a property of the *most indicative* slice. For effusion — diffuse, visible on most slices — those assumptions nearly agree, and effusion scores `0.811`. For MCL, PF OA and fracture they disagree completely, and those score `0.519`, `0.551`, `0.456`. Rounds 97 and 99 both failed by adding more material to the mean; this round changes the operator instead.
+
+**The family: two comparisons, both at fixed density, both against E1.**
+
+| ID | Within-plane pool | Reference |
+|---|---|---|
+| E2 | max over slices | E1 (mean, 15 slices) |
+| E3 | mean of the 3 strongest slices | E1 (mean, 15 slices) |
+
+Bonferroni across the family of two, so **97.5%** paired intervals.
+
+**Why both, rather than max alone.** Max of 384 dimensions over 15 slices is an upward-biased statistic dominated by whichever slice happens to be extreme, on an encoder never trained to make that meaningful. A null from max alone could mean "selectivity does not help here" *or* "max is too noisy to tell", and those are not distinguishable from one result. Top-3 is selective but damped. **If E3 helps and E2 does not, the answer is noise; if neither helps, selectivity itself is wrong for this pipeline.** That discrimination is the reason to spend the correction.
+
+**Why both are measured against E1 rather than V0.** The question this round asks is a mechanism question — does a selective operator beat a uniform one on the same slices? Comparing against E1 holds density fixed so the operator is the only difference. Round 99 already established that density alone is null (`-0.0025`, `[-0.0199, +0.0151]`), so nothing is hidden by this choice. **Displacing V0 is a separate question and would need its own registered comparison; a variant winning here is not thereby promoted.**
+
+**Parameter-free by design.** Learned attention is the obvious alternative and is deliberately excluded. It adds capacity to a labelled set that has failed to resolve differences of `0.017` in five consecutive comparisons; any gain it showed could not be separated from overfitting. Max and top-k introduce no parameters at all.
+
+**One operator changes, enforced by test.** The across-plane aggregation stays a mean under every pool, so within-plane pooling is the only difference. `mean_pool` remains the default, so V0 must still reproduce `0.6345688959`. A pool returning the wrong width is rejected rather than broadcast. A test asserts max and mean actually differ on identical slices, guarding against a pool that is silently ignored — the failure mode that would manufacture a spurious null.
+
+**Prediction, stated with my record attached.** I have now been wrong on direction twice consecutively (rounds 96 and 98), both times from arguing that the pipeline was missing information. **This prediction rests on a different claim** — that the information arrives and the mean discards it — which rounds 97 and 99 jointly support. I predict **E3 positive, E2 near zero or negative, both unresolved**, with any gain concentrated in the focal labels rather than spread across the macro. Given the track record, weight this accordingly; the experiment is designed so that a null is still informative.
+
+**A real way this fails that is worth stating now.** DINOv2 CLS features are not calibrated so that "larger" means "more pathological". Selecting the strongest response per dimension may select the slice with the most *texture* or the most *contrast*, not the most *disease*. If so, both E2 and E3 fail and the correct conclusion is that selective pooling needs a representation trained for it, not that bags are the wrong model.
+
+**Not yet done / authorization boundary:** no submission has been made and none is authorized.

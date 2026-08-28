@@ -6,8 +6,8 @@ Implements sections 2 and 8 of the Phase 3B specification
 Per study, in this order: canonicalize laterality across all contributing
 planes atomically, letterbox each slice to its physical aspect ratio,
 replicate to three channels, standardize with the attached processor's own
-statistics, encode with the frozen DINOv2 encoder, mean within each plane,
-then mean across the planes that are actually present.
+statistics, encode with the frozen DINOv2 encoder, pool within each plane
+(mean by default), then mean across the planes that are actually present.
 
 Canonicalization runs **before** framing so the padding convention stays
 consistent: section 5 places an odd padding pixel on the bottom or right, and
@@ -54,6 +54,64 @@ STUDY_VECTOR_DIM = EMBEDDING_DIM + len(PLANES) + 1
 # substituting remembered constants, so the caller must pass the attached
 # processor's own values (see `intensity.load_processor_statistics`).
 Encoder = Callable[[torch.Tensor], torch.Tensor]
+
+# How one plane's slice embeddings collapse to a single plane embedding.
+# Takes an `(n_slices, width)` array and returns `(width,)`.
+SlicePool = Callable[[np.ndarray], np.ndarray]
+
+
+def mean_pool(slice_embeddings: np.ndarray) -> np.ndarray:
+    """Average the slices. The frozen default from section 8."""
+    return slice_embeddings.mean(axis=0)
+
+
+def max_pool(slice_embeddings: np.ndarray) -> np.ndarray:
+    """Take each dimension's strongest response across the slices.
+
+    A study is a bag of slices and a focal finding appears in only a few of
+    them, so the label is a property of the most indicative slice rather than
+    of the average one. Mean pooling encodes the opposite assumption, which
+    is why it dilutes exactly the findings that occupy few slices.
+
+    Parameter-free by design: on a labelled set this small, a learned
+    attention pool would add capacity to a comparison that already cannot
+    resolve differences of `0.017`.
+    """
+    return slice_embeddings.max(axis=0)
+
+
+def top_k_pool(k: int) -> SlicePool:
+    """Average each dimension's `k` strongest slices.
+
+    Selective like `max_pool` but far less exposed to a single outlying
+    slice: the maximum of 384 dimensions over a handful of slices is an
+    upward-biased statistic, and on a frozen encoder never trained for this
+    it can amplify noise rather than isolate evidence. Averaging the top `k`
+    keeps the selectivity while damping that.
+
+    Falls back to averaging whatever is available when a plane yielded fewer
+    than `k` slices, so it degrades continuously rather than failing on the
+    short series that `MINIMUM_DECODED_SLICES` explicitly permits.
+
+    Args:
+        k: How many strongest slices to average per dimension.
+
+    Returns:
+        A pool taking `(n_slices, width)` to `(width,)`.
+
+    Raises:
+        ValueError: If `k` is not positive.
+    """
+    if k <= 0:
+        raise ValueError("k must be positive")
+
+    def pool(slice_embeddings: np.ndarray) -> np.ndarray:
+        available = min(k, slice_embeddings.shape[0])
+        # Partition is enough: the top block's order does not matter to a mean.
+        partitioned = np.partition(slice_embeddings, -available, axis=0)
+        return partitioned[-available:].mean(axis=0)
+
+    return pool
 
 
 @dataclass(frozen=True)
@@ -137,6 +195,7 @@ def build_study_features(
     mean: Sequence[float] = (0.0, 0.0, 0.0),
     std: Sequence[float] = (1.0, 1.0, 1.0),
     embedding_dim: int = EMBEDDING_DIM,
+    slice_pool: SlicePool = mean_pool,
 ) -> StudyFeatures:
     """Assemble one study's 388-dimensional feature vector.
 
@@ -154,6 +213,10 @@ def build_study_features(
             and mean-pooled patch tokens side by side -- so both
             representations come from a single forward pass and cannot differ
             by accident of extraction.
+        slice_pool: How one plane's slice embeddings collapse to that plane's
+            embedding. Defaults to the frozen `mean_pool`. The across-plane
+            aggregation is deliberately NOT affected, so a caller evaluating
+            a pooling experiment changes the within-plane operator only.
 
     Returns:
         The study vector and the provenance flags describing it.
@@ -186,9 +249,13 @@ def build_study_features(
         )
         with torch.no_grad():
             encoded = encoder(batch)
-        plane_mean = np.asarray(encoded, dtype=np.float64).mean(axis=0)
-        plane_embeddings[plane] = plane_mean
-        embeddings.append(plane_mean)
+        pooled = slice_pool(np.asarray(encoded, dtype=np.float64))
+        if pooled.shape != (embedding_dim,):
+            raise ValueError(
+                f"slice_pool must return a {embedding_dim}-dimensional vector"
+            )
+        plane_embeddings[plane] = pooled
+        embeddings.append(pooled)
 
     if embeddings:
         study_embedding = np.mean(embeddings, axis=0)

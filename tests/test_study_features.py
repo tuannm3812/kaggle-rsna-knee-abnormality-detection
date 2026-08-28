@@ -11,6 +11,9 @@ from knee_mri.study_features import (
     STUDY_VECTOR_DIM,
     PlaneInput,
     build_study_features,
+    max_pool,
+    mean_pool,
+    top_k_pool,
 )
 
 ORIENTATION = (1.0, 0.0, 0.0, 0.0, 0.0, -1.0)  # patient-X on columns, positive
@@ -260,3 +263,117 @@ def test_the_default_width_is_unchanged():
     features = build_study_features(_all_planes(), _reliable(), StubEncoder())
 
     assert features.vector.shape == (STUDY_VECTOR_DIM,)
+
+
+# -- the within-plane pooling operator is parameterized --
+
+
+def test_the_default_pool_is_still_the_mean():
+    """The pooling experiment must not disturb the reported baseline."""
+    encoder = StubEncoder()
+    planes = _all_planes()
+
+    default = build_study_features(planes, _reliable(), encoder)
+    explicit = build_study_features(planes, _reliable(), StubEncoder(), slice_pool=mean_pool)
+
+    assert default.vector == pytest.approx(explicit.vector)
+
+
+def test_max_pool_takes_the_strongest_slice_per_dimension():
+    class RampEncoder:
+        """Slice i returns the constant vector i, so the max is unambiguous."""
+
+        def __call__(self, batch):
+            values = torch.arange(batch.shape[0], dtype=torch.float32).unsqueeze(1)
+            return values.expand(batch.shape[0], EMBEDDING_DIM).clone()
+
+    features = build_study_features(
+        {"Sagittal": _plane(slice_count=5)}, _reliable(), RampEncoder(), slice_pool=max_pool
+    )
+
+    assert features.plane_embeddings["Sagittal"] == pytest.approx(np.full(EMBEDDING_DIM, 4.0))
+
+
+def test_max_pool_differs_from_mean_pool_on_the_same_slices():
+    """Guards against a pool that is silently ignored -- the failure mode
+    that would make a pooling comparison return a spurious null.
+    """
+    planes = {"Sagittal": _plane()}
+
+    meaned = build_study_features(planes, _reliable(), StubEncoder(), slice_pool=mean_pool)
+    maxed = build_study_features(planes, _reliable(), StubEncoder(), slice_pool=max_pool)
+
+    assert not np.allclose(meaned.vector[:EMBEDDING_DIM], maxed.vector[:EMBEDDING_DIM])
+
+
+def test_pooling_changes_only_the_within_plane_step():
+    """The across-plane aggregation stays a mean under any slice pool, so a
+    pooling experiment changes one operator rather than two.
+    """
+    planes = _all_planes()
+
+    features = build_study_features(planes, _reliable(), StubEncoder(), slice_pool=max_pool)
+
+    assert features.vector[:EMBEDDING_DIM] == pytest.approx(
+        np.mean(list(features.plane_embeddings.values()), axis=0)
+    )
+
+
+def test_a_pool_returning_the_wrong_width_is_rejected():
+    with pytest.raises(ValueError, match="dimensional"):
+        build_study_features(
+            {"Sagittal": _plane()},
+            _reliable(),
+            StubEncoder(),
+            slice_pool=lambda embeddings: embeddings.mean(axis=0)[:10],
+        )
+
+
+def test_top_k_pool_averages_the_k_strongest_slices():
+    class RampEncoder:
+        def __call__(self, batch):
+            values = torch.arange(batch.shape[0], dtype=torch.float32).unsqueeze(1)
+            return values.expand(batch.shape[0], EMBEDDING_DIM).clone()
+
+    features = build_study_features(
+        {"Sagittal": _plane(slice_count=5)},
+        _reliable(),
+        RampEncoder(),
+        slice_pool=top_k_pool(3),
+    )
+
+    # Slices 0..4; the three strongest are 2, 3, 4, averaging to 3.
+    assert features.plane_embeddings["Sagittal"] == pytest.approx(np.full(EMBEDDING_DIM, 3.0))
+
+
+def test_top_k_pool_degrades_to_the_mean_when_fewer_slices_survive():
+    """MINIMUM_DECODED_SLICES permits a plane with three slices, so k=5 must
+    not fail there -- it averages what exists.
+    """
+    class RampEncoder:
+        def __call__(self, batch):
+            values = torch.arange(batch.shape[0], dtype=torch.float32).unsqueeze(1)
+            return values.expand(batch.shape[0], EMBEDDING_DIM).clone()
+
+    features = build_study_features(
+        {"Sagittal": _plane(slice_count=3)},
+        _reliable(),
+        RampEncoder(),
+        slice_pool=top_k_pool(5),
+    )
+
+    assert features.plane_embeddings["Sagittal"] == pytest.approx(np.full(EMBEDDING_DIM, 1.0))
+
+
+def test_top_k_pool_with_k_of_one_is_max_pool():
+    planes = {"Sagittal": _plane()}
+
+    top_one = build_study_features(planes, _reliable(), StubEncoder(), slice_pool=top_k_pool(1))
+    maxed = build_study_features(planes, _reliable(), StubEncoder(), slice_pool=max_pool)
+
+    assert top_one.vector == pytest.approx(maxed.vector)
+
+
+def test_top_k_pool_rejects_a_non_positive_k():
+    with pytest.raises(ValueError, match="positive"):
+        top_k_pool(0)
