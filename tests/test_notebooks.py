@@ -15,6 +15,7 @@ NOTEBOOK_PATHS = (
     "notebooks/03_baseline_modeling.ipynb",
     "notebooks/04_image_baseline_preflight.ipynb",
     "notebooks/05_image_baseline.ipynb",
+    "notebooks/06_maxpool_submission.ipynb",
 )
 
 
@@ -743,3 +744,47 @@ def test_image_baseline_kernel_metadata_is_private_gpu_offline_with_dinov2() -> 
     assert metadata["dataset_sources"] == ["tuannm3812/rsna-knee-mri-src"]
     assert metadata["competition_sources"] == ["rsna-knee-abnormality-detection"]
     assert metadata["model_sources"] == ["metaresearch/dinov2/PyTorch/small/1"]
+
+
+def test_maxpool_submission_kernel_metadata_matches_the_baseline_kernel() -> None:
+    """Same privacy, offline and accelerator contract as the evaluation
+    kernel. The accelerator pin matters most: an unpinned GPU can land on a
+    card the installed PyTorch cannot use, which killed a run once already.
+    """
+    metadata = _load_json("notebooks/kernels/maxpool-submission/kernel-metadata.json")
+
+    assert metadata["id"] == "tuannm3812/rsna-knee-maxpool-submission"
+    assert len(metadata["title"]) <= 50
+    assert metadata["code_file"] == "06_maxpool_submission.ipynb"
+    assert metadata["is_private"] is True
+    assert metadata["enable_gpu"] is True
+    assert metadata["machine_shape"] == "NvidiaTeslaT4"
+    assert metadata["enable_internet"] is False
+    assert metadata["dataset_sources"] == ["tuannm3812/rsna-knee-mri-src"]
+    assert metadata["competition_sources"] == ["rsna-knee-abnormality-detection"]
+    assert metadata["model_sources"] == ["metaresearch/dinov2/PyTorch/small/1"]
+
+
+def test_maxpool_submission_notebook_carries_no_experimental_scaffolding() -> None:
+    """The point of a separate submission notebook is that a competition
+    rerun spends its time on inference, not on comparisons already answered.
+    """
+    code = _code_source(_load_json("notebooks/06_maxpool_submission.ipynb"))
+
+    assert "paired_bootstrap_delta" not in code
+    assert "bootstrap_macro_auc" not in code
+    assert "repeated_fold_macro_auc" not in code
+    assert code.count("cross_validate_image_model(") == 1
+
+
+def test_maxpool_submission_notebook_pins_the_configuration_it_measured() -> None:
+    """A submission that quietly drifts from the configuration whose score is
+    being claimed is the failure this guard exists to prevent.
+    """
+    code = _code_source(_load_json("notebooks/06_maxpool_submission.ipynb"))
+
+    assert "SUBMISSION_SAMPLE_SIZE = 15" in code
+    assert "SUBMISSION_POOL = max_pool" in code
+    assert "EXPECTED_MACRO_AUC = 0.6507039913" in code
+    assert code.count("to_csv(") == 1
+    assert '"/kaggle/working/submission.csv"' in code
