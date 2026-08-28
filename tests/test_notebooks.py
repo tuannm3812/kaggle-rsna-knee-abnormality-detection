@@ -645,6 +645,7 @@ def test_image_baseline_notebook_displays_only_aggregate_objects() -> None:
         "pooling_per_label",
         "concat_summary",
         "concat_per_label",
+        "displacement_summary",
         "timing_by_stratum",
         "timing_summary",
         "submission_summary",

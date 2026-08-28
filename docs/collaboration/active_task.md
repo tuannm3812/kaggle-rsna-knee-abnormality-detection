@@ -7684,3 +7684,27 @@ The second interval misses excluding zero by `0.0016` — the closest any compar
 **Where this leaves the work.** **E2, max pooling at fifteen slices, is the best configuration measured at `0.6507`**, and this round rules out the obvious way of improving on it. The remaining open question is the one deferred in round 101: whether E2 displaces V0 as the reported baseline, which needs its own registered comparison because every measurement of E2 so far has been against E1, not against the incumbent. **V0 remains the reported baseline at `0.6346`.**
 
 **Not yet done / authorization boundary:** no submission has been made and none is authorized.
+
+### Round 104 — Pre-registration: does max pooling displace the reported baseline? (2026-08-28)
+
+Written and committed **before** the run. Closes the question deferred in round 101.
+
+**E5:** max pooling at fifteen slices (identical to E2) against **V0**, the reported baseline. No new extraction — both sets of out-of-fold probabilities already exist, so the same studies and the same folds are used throughout.
+
+**This is the ninth comparison, and the candidate was chosen because it won the earlier ones.** Both facts change what a nominal interval means, and neither is left implicit:
+
+- **Multiplicity.** Per-round families were corrected within themselves, but nothing has controlled error across the project. Nine comparisons at a nominal 95% give a family-wise error near 37%, not 5%.
+- **Winner's curse.** Max pooling is being promoted *because* it scored highest. Testing the winner of a search at a nominal level overstates it, and `0.6507` is an optimistically biased estimate of what a variant selected this way would score on new data.
+
+**Two levels are reported and the registered rule uses the strict one.** Nominal 95% for one comparison, and **99.44%** (Bonferroni at `alpha/9`) as the registered level. **V0 is displaced only if the strict interval excludes zero in the candidate's favour.** Displacing the figure this project reports should survive the strict reading, not require the generous one. If the result excludes zero nominally but not strictly, **that gap is the finding**, and the conclusion is "suggestive, not sufficient" — not a promotion.
+
+**Two caveats survive even a strict resolution, and would travel with any number reported from here.**
+
+1. E5 changes density *and* operator against V0, so a positive result belongs to the pair. The density leg was separately measured and null (`-0.0025`, `[-0.0199, +0.0151]`), which is what makes the pair interpretable, but it does not make the result attributable to the operator alone.
+2. The candidate's own macro AUC overstates its expected performance on new data, for the selection reason above. An unbiased estimate would need a held-out selection procedure that 58 studies cannot support. **No interval dissolves this**; it is a property of how the candidate was chosen, not of how it was measured.
+
+**Prediction.** Delta approximately `+0.016`, the density leg (`-0.0025`) plus the operator leg (`+0.0186`). Unresolved at both levels, and comfortably unresolved at the strict one. The interval should be **wider** than the `+/-0.029` seen for E2 against E1, because E2 and V0 differ in both density and operator and so their predictions are less correlated — a paired bootstrap gains its tightness from correlation. My directional record across five registered predictions is three partly right and two wrong on the substantive call.
+
+**This is the last comparison planned.** Whatever it returns, the aggregation question has been asked in every form 58 studies can support, and further variants are not worth the runs.
+
+**Not yet done / authorization boundary:** no submission has been made and none is authorized. A displacement of the reported baseline is a change to documentation only and is not a submission.
