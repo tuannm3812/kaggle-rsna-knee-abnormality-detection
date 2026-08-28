@@ -20,9 +20,23 @@ def per_label_auc(y_true: pd.DataFrame, y_pred: pd.DataFrame) -> dict[str, float
         A dict mapping each label column to its ROC-AUC score.
 
     Raises:
-        ValueError: If a label column has only one class present in
-            `y_true` (ROC-AUC is undefined in that case).
+        ValueError: If either frame is missing a label column, or if a label
+            column has only one class present in `y_true` (ROC-AUC is
+            undefined in that case).
     """
+    # Both metrics score the whole 12-label panel, so a single-label frame is
+    # a caller error rather than a one-label score. Naming the missing columns
+    # beats the bare KeyError that indexing would otherwise raise, which reads
+    # as a missing row and sends the reader to the wrong place.
+    for name, frame in (("y_true", y_true), ("y_pred", y_pred)):
+        missing = [label for label in LABEL_COLUMNS if label not in frame.columns]
+        if missing:
+            raise ValueError(
+                f"{name} is missing label columns {missing}; both metrics score "
+                "the full panel, so pass every label and read one entry from "
+                "the returned mapping."
+            )
+
     if not y_true.index.equals(y_pred.index):
         # roc_auc_score drops the index and pairs rows positionally, so a
         # mismatch here would be scored against the wrong rows silently

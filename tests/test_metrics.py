@@ -113,3 +113,18 @@ def test_per_label_auc_rejects_misaligned_indices():
 
     with pytest.raises(ValueError, match="index"):
         per_label_auc(y_true, y_pred)
+
+
+def test_a_single_label_frame_is_rejected_with_a_message_that_names_the_cause():
+    """Both metrics score the full panel. Indexing a one-column frame raises
+    a bare KeyError naming some unrelated label, which reads as a missing row
+    and sends the reader to the wrong place.
+    """
+    truth = pd.DataFrame({label: [0, 1] for label in LABEL_COLUMNS})
+    predictions = pd.DataFrame({label: [0.2, 0.8] for label in LABEL_COLUMNS})
+
+    with pytest.raises(ValueError, match="missing label columns"):
+        macro_auc(truth[[LABEL_COLUMNS[0]]], predictions[[LABEL_COLUMNS[0]]])
+
+    with pytest.raises(ValueError, match="missing label columns"):
+        per_label_auc(truth, predictions[[LABEL_COLUMNS[0]]])

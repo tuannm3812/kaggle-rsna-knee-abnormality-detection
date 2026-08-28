@@ -814,3 +814,31 @@ def test_weak_label_notebook_writes_no_submission() -> None:
 
     assert "to_csv(" not in code
     assert "submission.csv" not in code
+
+
+def test_weak_label_notebook_persists_its_result_before_diagnostics() -> None:
+    """A failure in a reporting cell destroyed a two-hour extraction once.
+    The comparison must reach disk as soon as it exists, before any later
+    cell can fail.
+    """
+    notebook = _load_json("notebooks/07_weak_label_training.ipynb")
+    sources = [
+        "".join(cell.get("source", []))
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    ]
+    comparison = next(i for i, s in enumerate(sources) if "paired_bootstrap_delta(" in s)
+    per_label = next(i for i, s in enumerate(sources) if "weak_per_label = pd.DataFrame(" in s)
+
+    assert "json.dump(run_summary" in sources[comparison]
+    assert comparison < per_label
+
+
+def test_weak_label_notebook_scores_per_label_with_the_panel_metric() -> None:
+    """Slicing a single label out and calling macro_auc raises a bare
+    KeyError naming an unrelated label; per_label_auc returns the mapping.
+    """
+    code = _code_source(_load_json("notebooks/07_weak_label_training.ipynb"))
+
+    assert "macro_auc(y[[" not in code
+    assert "per_label_auc(y, weak_probabilities)" in code
