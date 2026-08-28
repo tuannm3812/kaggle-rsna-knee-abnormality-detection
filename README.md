@@ -67,6 +67,13 @@ label's max-gain and its loss under the concatenation, 11 of 12 labels moving
 against). **A small linear head offered a choice does not choose — it averages.**
 A per-label operator has to be imposed by design, not offered and hoped for.
 
+Max pooling was then tested against the baseline directly and **did not displace
+it** — `+0.016`, `[−0.007, +0.041]` nominal, `[−0.017, +0.053]` corrected for
+nine comparisons. Resolving a difference that size would take roughly **129
+labelled studies at a nominal level, or 276 corrected**, against 58 available.
+That number, not any individual result, is the honest summary of what this
+labelled set can decide.
+
 Runtime is not a constraint: the complete path projects to **3.5 hours
 against a 9-hour budget** including a 3x safety margin, measured across 83
 studies in five slice-count strata. Three independent kernel runs produced a

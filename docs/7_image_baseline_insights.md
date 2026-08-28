@@ -1460,3 +1460,62 @@ still open, because every measurement of E2 so far has been against the mean at
 its own density rather than against the incumbent.
 
 **V0 remains the reported baseline at 0.6346.**
+
+## 2026-08-28 — Image baseline v12: the baseline stands, and how many studies it would take
+
+**Kernel:** version 12, Tesla T4, `COMPLETE`. Max pooling at fifteen slices
+against the reported baseline, reusing existing out-of-fold probabilities so
+the studies and folds are unchanged.
+
+| Level | Delta | Interval | Excludes zero | Displaces |
+|---|---:|---|---|---|
+| Nominal 95% (one comparison) | +0.0161 | [−0.0071, +0.0410] | No | No |
+| **Registered 99.44% (family of 9)** | +0.0161 | [−0.0172, +0.0532] | No | **No** |
+
+**V0 stands at 0.6346.** Max pooling scores +0.016 higher and the evidence does
+not support changing the reported figure.
+
+It fails at *both* levels, which is a cleaner outcome than the registered rule
+anticipated: the nominal interval already contains zero, so there is no
+nominal-yes/strict-no gap to argue over.
+
+### How many studies this question actually needed
+
+Interval half-width scales roughly as 1/√n:
+
+| To resolve +0.016 at | Studies needed |
+|---|---:|
+| Nominal 95% | **~129** |
+| Project-wide corrected level | **~276** |
+
+Against 58 available. The aggregation question was never answerable on this
+labelled set — nine comparisons established that empirically rather than by
+assertion, and this is the number that should have been computed first.
+
+### The nulls are not interchangeable
+
+Nine pre-registered comparisons, nine unresolved. But three of them isolate a
+mechanism, and read together they say something specific:
+
+1. **Enlarging what is averaged does not help.** Patch tokens −0.027; tripled
+   slice density −0.003, the latter measured with roughly twice the power of
+   any other comparison.
+2. **Replacing the average with a selection does help, directionally.** Max
+   +0.019 over the mean at identical density, with per-label signs a
+   bag-of-slices model predicts — focal findings up, effusion (the one diffuse
+   finding) down.
+3. **Offering the head both does not let it choose.** r = −0.866 between a
+   label's max-gain and its loss under concatenation; it lands a median 55%
+   between the two operators.
+
+The aggregation step is where focal findings are lost; selection is the right
+correction; and a small linear head cannot be *given* a choice, only designed
+around. None of it resolved at 58 studies, all of it directional evidence for a
+design that had more.
+
+### Closing position
+
+**Reported baseline: pooled OOF macro AUC 0.6346, bootstrap 95% [0.5704,
+0.6973], over 58 human-labelled studies.** No variant displaced it. The score
+work is closed — further variants would spend runs on a question this dataset
+has demonstrably answered as "not answerable".

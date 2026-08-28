@@ -7708,3 +7708,41 @@ Written and committed **before** the run. Closes the question deferred in round 
 **This is the last comparison planned.** Whatever it returns, the aggregation question has been asked in every form 58 studies can support, and further variants are not worth the runs.
 
 **Not yet done / authorization boundary:** no submission has been made and none is authorized. A displacement of the reported baseline is a change to documentation only and is not a submission.
+
+### Round 105 — Claude: the baseline is not displaced; the aggregation question is closed (2026-08-28)
+
+**V0 stands. Max pooling scores higher and the evidence does not support changing the reported figure.** Kernel v12:
+
+| Level | Delta | Interval | Excludes zero | Displaces |
+|---|---:|---|---|---|
+| Nominal 95% (one comparison) | +0.0161 | [-0.0071, +0.0410] | no | no |
+| **Registered 99.44% (family of 9)** | +0.0161 | [-0.0172, +0.0532] | no | **no** |
+
+**It fails at both levels, which makes the outcome cleaner than the rule anticipated.** Round 104 registered what to do if the result excluded zero nominally but not strictly — treat the gap as the finding. That case did not arise: the nominal interval already contains zero, with a lower bound of `-0.0071`. There is no gap to interpret and no temptation to argue over which level was fair.
+
+**Prediction scoring — the best of the six so far.** Round 104 predicted "delta approximately `+0.016`, unresolved at both levels, comfortably so at the strict one".
+
+- Delta: predicted `+0.016`, measured **`+0.0161`**. Correct, and the additive reasoning behind it — the null density leg plus the positive operator leg — held.
+- Unresolved at both levels: **correct**.
+- **The sub-prediction that the interval would be *wider* than E2-versus-E1's was wrong.** At `+/-0.024` nominal it is narrower than that comparison's `+/-0.029`, and roughly the same once the differing levels are accounted for. The argument was that E2 and V0 differ in both density and operator, so their predictions would be less correlated and the paired bootstrap would lose tightness. That did not happen, which suggests the density leg contributes almost nothing to the *correlation* between the two models' errors, just as it contributed almost nothing to the score.
+
+**What would be needed to resolve `+0.016`.** Interval half-width scales roughly as `1/sqrt(n)`:
+
+- **~129 labelled studies** to resolve at a nominal 95% level.
+- **~276 labelled studies** to resolve at the project-wide corrected level.
+
+Against 58 available. This converts "underpowered" into a number: the aggregation question was never answerable here, and the nine comparisons establish that empirically rather than by assertion.
+
+**Nine pre-registered comparisons, nine unresolved.** No variant has displaced the incumbent, and **V0 remains the reported baseline at `0.6346`**, interval `[0.5704, 0.6973]`.
+
+**What was actually learned, which is not nothing.** The nulls are not interchangeable. Three of them isolate a mechanism:
+
+- Enlarging what is averaged does not help — patch tokens `-0.027`, tripled density `-0.003`, the latter measured with roughly twice the power of any other comparison.
+- Replacing the average with a selection does help, directionally — max `+0.019` over the mean at identical density, with the per-label signs a bag-of-slices model predicts and effusion, the one diffuse finding, moving the other way.
+- Offering both to the head does not let it choose — `r = -0.866` between a label's max-gain and its loss under concatenation, landing a median 55% between the two.
+
+Together those say the aggregation step is where focal findings are lost, that selection is the right correction, and that a small linear head cannot be *given* the choice, only designed around. None of it is resolved at 58 studies, and all of it is directional evidence for a design that had more.
+
+**This closes the score work.** Round 104 stated this was the last planned comparison and nothing here argues for another. Further variants would be spending runs on a question this dataset has now demonstrably answered as "not answerable".
+
+**Not yet done / authorization boundary:** no submission has been made and none is authorized. Gate 7 remains the user's alone.
