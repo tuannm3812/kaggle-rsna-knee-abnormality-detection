@@ -136,6 +136,7 @@ def build_study_features(
     encoder: Encoder,
     mean: Sequence[float] = (0.0, 0.0, 0.0),
     std: Sequence[float] = (1.0, 1.0, 1.0),
+    embedding_dim: int = EMBEDDING_DIM,
 ) -> StudyFeatures:
     """Assemble one study's 388-dimensional feature vector.
 
@@ -147,6 +148,12 @@ def build_study_features(
             `(N, EMBEDDING_DIM)`.
         mean: Channel means from the attached processor's config.
         std: Channel standard deviations from the same config.
+        embedding_dim: Width the encoder returns. Defaults to the frozen
+            `EMBEDDING_DIM`. A caller evaluating a pre-registered variant may
+            pass a wider encoder -- for instance one returning the CLS token
+            and mean-pooled patch tokens side by side -- so both
+            representations come from a single forward pass and cannot differ
+            by accident of extraction.
 
     Returns:
         The study vector and the provenance flags describing it.
@@ -189,7 +196,7 @@ def build_study_features(
         # No plane contributed. Report it rather than inventing an embedding;
         # section 4 handles a labelled training study and an unseen test
         # study differently, so that decision does not belong here.
-        study_embedding = np.zeros(EMBEDDING_DIM, dtype=np.float64)
+        study_embedding = np.zeros(embedding_dim, dtype=np.float64)
 
     presence_flags = [1.0 if plane in planes else 0.0 for plane in PLANES]
     vector = np.concatenate(
@@ -199,8 +206,9 @@ def build_study_features(
             np.asarray([1.0 if canonical.laterality_reliable else 0.0], dtype=np.float64),
         ]
     )
-    if vector.shape != (STUDY_VECTOR_DIM,):
-        raise ValueError(f"study vector must be {STUDY_VECTOR_DIM}-dimensional")
+    expected_width = embedding_dim + len(PLANES) + 1
+    if vector.shape != (expected_width,):
+        raise ValueError(f"study vector must be {expected_width}-dimensional")
 
     return StudyFeatures(
         vector=vector,

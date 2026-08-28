@@ -7410,3 +7410,53 @@ V2 within a hair of resolution.
 **Not yet done / authorization boundary:** round 60's third deferral,
 patch-token pooling, is untouched and would need a different forward pass.
 No submission has been made and none is authorized.
+
+### Round 96 — Pre-registration: patch-token pooling, and correcting for multiplicity (2026-08-28)
+
+**User decision:** "approve to next step" — proceeding to round 60's third and
+last deferred variant.
+
+**V3: mean-pooled patch tokens instead of the CLS token.** The per-label
+result is the reason this is worth a run rather than a formality: the baseline
+carries effusion and cruciate findings but sits at chance for meniscus,
+patellofemoral and MCL — small, localized structures. CLS is a single global
+summary of the image; the patch mean retains more of the spatial evidence
+those findings depend on. If the diagnosis is right, this is the variant that
+should move.
+
+**Both representations come from one forward pass.** The encoder now returns
+CLS and patch-mean side by side and the reported baseline is sliced back out
+of the wide vector, so V0 and V3 differ *only* in the representation and in
+nothing upstream. A guard asserts the baseline still reproduces
+`0.6345688959` bit-identically; three prior runs established that constant, so
+a mismatch means the restructuring changed the contract rather than merely
+widening it.
+
+**Multiplicity is now a real problem, and this round fixes it rather than
+ignoring it.** V3 is the **third** comparison against V0, and it was added
+*after* seeing V2 come within `0.0061` of resolving — precisely the
+forking-paths situation where an unadjusted interval flatters. At an
+unadjusted 95% level per comparison, family-wise error across three is
+**14.3%**, not 5%.
+
+All three deltas are therefore reported at a **Bonferroni-adjusted** level,
+`alpha/3`, i.e. 98.33% intervals. This deliberately widens the two comparisons
+already reported as well, so no earlier conclusion is quietly improved by the
+correction — and since V2 was already unresolved at the looser level, nothing
+previously decided changes.
+
+**Decision rule, unchanged in substance and now stricter in level:** V0
+remains the reported baseline unless a variant's adjusted paired interval
+excludes zero in its favour. A higher point estimate does not displace it, and
+a winning variant's own macro AUC would still not be an unbiased estimate of
+that variant.
+
+**Expected outcome, stated in advance so it cannot be reframed afterwards:**
+resolution is unlikely. The variance decomposition already established that
+sample size, not protocol, is the binding constraint, and V2 failed to resolve
+a `+0.029` difference at a looser level than this one uses. The value here is
+directional evidence for a future design, not a decision this dataset can
+make.
+
+**Not yet done / authorization boundary:** no submission has been made and
+none is authorized.

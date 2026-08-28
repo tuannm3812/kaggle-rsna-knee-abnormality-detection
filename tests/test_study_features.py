@@ -233,3 +233,30 @@ def test_absent_planes_have_no_embedding_entry():
     features = build_study_features(planes, _reliable(), StubEncoder())
 
     assert set(features.plane_embeddings) == {"Sagittal", "Coronal"}
+
+
+def test_a_wider_encoder_is_supported_for_pre_registered_variants():
+    """Patch-token pooling needs a second representation of the same slices.
+
+    Computing it in the same forward pass as the CLS token -- rather than a
+    second extraction -- is what guarantees the two variants differ only in
+    the representation and not in anything upstream of it.
+    """
+    wide = 2 * EMBEDDING_DIM
+
+    class WideEncoder:
+        def __call__(self, batch):
+            return torch.arange(wide, dtype=torch.float32).expand(batch.shape[0], wide)
+
+    features = build_study_features(
+        {"Sagittal": _plane()}, _reliable(), WideEncoder(), embedding_dim=wide
+    )
+
+    assert features.vector.shape == (wide + len(PLANES) + 1,)
+    assert features.plane_embeddings["Sagittal"].shape == (wide,)
+
+
+def test_the_default_width_is_unchanged():
+    features = build_study_features(_all_planes(), _reliable(), StubEncoder())
+
+    assert features.vector.shape == (STUDY_VECTOR_DIM,)
