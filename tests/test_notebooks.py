@@ -639,6 +639,8 @@ def test_image_baseline_notebook_displays_only_aggregate_objects() -> None:
         "flag_variance",
         "uncertainty_summary",
         "variant_summary",
+        "density_summary",
+        "dense_per_label",
         "timing_by_stratum",
         "timing_summary",
         "submission_summary",
