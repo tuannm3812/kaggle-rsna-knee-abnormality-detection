@@ -7523,3 +7523,30 @@ Written and committed **before** the run. User approved pursuing the score after
 **Round 97's failed prediction is on record and this one is stated the same way** so it can be scored the same way.
 
 **Not yet done / authorization boundary:** no submission has been made and none is authorized. Approval recorded for this experiment is not approval to submit.
+
+### Round 99 — Claude: slice density measured; a second wrong prediction, and a converging result (2026-08-28)
+
+**E1 is unresolved, and the point estimate is negative.** Kernel v9, plain paired 95% (one comparison, own family):
+
+| Variant | Slices/plane | Decoded/plane | Macro AUC | Delta vs V0 | 95% interval | Resolved |
+|---|---:|---:|---:|---:|---|---|
+| V0 five slices | 5 | 5.00 | 0.6345688959 | — | — | — |
+| E1 fifteen slices | 15 | 14.40 | 0.6321077573 | -0.0025 | [-0.0199, +0.0151] | no |
+
+The density change genuinely happened — decoded slices per plane went 5.00 to 14.40, the shortfall being series where `central_band_indices` collapses duplicate rounded positions. All three membership guards passed, so this is two densities on one dataset, not two datasets.
+
+**My prediction was wrong on direction for the second round running.** Round 98 predicted "a positive point estimate, unresolved". Resolution was called correctly; direction was not, exactly as in round 97. Two consecutive wrong directional calls from the same underlying model of what the pipeline is missing is itself the finding — the model is wrong, not unlucky.
+
+**This null is stronger than the aggregation nulls, not weaker.** The interval is `+/-0.017`, roughly half the width of every aggregation comparison (`+/-0.035` or wider). Denser sampling produces features highly correlated with the baseline's, so the paired bootstrap has more power here. This experiment could have detected a smaller effect than any previous one and still found nothing.
+
+**Two independent experiments now point the same way.** V3 pooled patch tokens instead of CLS and lost `0.0271`. E1 pooled three times as many slices into the same mean and lost `0.0025`. Both are "average more things" moves; both failed. The consistent reading across them is that **averaging is the bottleneck, not the quantity of material being averaged.** Adding evidence to a mean that already washes out focal findings does not recover them — it dilutes them further. This is now a claim supported by two pre-registered failures rather than a hypothesis.
+
+The per-label movements are consistent with noise and should not be mined: PF OA `+0.044` is the largest gain, contusion `-0.040`, Baker's `-0.034` and synovitis `-0.031` the largest losses. Registered as diagnostic, not as a decision input, and treated that way.
+
+**The runtime measurement in this run is invalid and is withdrawn.** It reported E1 costing `0.51x` the baseline — three times the slices in half the time. The cause is page cache: E1's pass reads files the baseline's pass has just read, so it was timed warm against a cold baseline. The baseline's own extraction has varied 118.9s to 178.5s across runs for identical work, which should have been enough to distrust any single-run ratio. The notebook no longer computes a ratio; it records both times explicitly marked non-comparable, so the confound is visible instead of being rediscovered. Adoption cost requires a dedicated cold run at the new density.
+
+**Where the score work stands.** Five pre-registered comparisons, five unresolved. V0 remains the reported baseline at `0.6346`. What has been learned is not "nothing works" but something more specific: rearranging or enlarging what gets averaged does not help, and the two experiments that tested averaging harder both came back negative. A further variant in that direction is not worth a run.
+
+**What would follow from this, if pursued:** selective rather than uniform pooling — letting the head see which slices matter instead of committing to a mean before the head is reached. That is a materially larger change than anything tried so far and would need its own design, not another parameter sweep. Not started; not authorized.
+
+**Not yet done / authorization boundary:** no submission has been made and none is authorized.

@@ -1242,3 +1242,74 @@ sampling contributes about four times the uncertainty of fold assignment, so 58
 studies cannot settle differences of this magnitude however the aggregation is
 arranged. Further aggregation variants should be expected to return unresolved
 and are not worth the runs without a stronger reason than a point estimate.
+
+## 2026-08-28 — Image baseline v9: tripling slice density changes nothing
+
+**Kernel:** version 9, Tesla T4, `COMPLETE`. One comparison, registered in
+advance in its own family, so a plain paired 95% interval.
+
+| Variant | Slices/plane | Decoded/plane | Macro AUC | Paired delta | 95% interval | Resolved |
+|---|---:|---:|---:|---:|---|---|
+| **V0** five slices | 5 | 5.00 | 0.6346 | — | — | — |
+| E1 fifteen slices | 15 | 14.40 | 0.6321 | −0.0025 | [−0.0199, +0.0151] | **No** |
+
+Decoded slices per plane rose 5.00 → 14.40, so the density change is real; the
+shortfall from 15 is series where the central band collapses duplicate rounded
+positions. Study membership, absent planes and feature-matrix shape were all
+asserted identical to the baseline, so this compares two densities on one
+dataset rather than two datasets.
+
+### This is the most powerful null measured so far
+
+The interval is ±0.017 — about half the width of every aggregation comparison
+(±0.035 or wider). Denser sampling yields features strongly correlated with the
+baseline's, so the paired bootstrap has more power here than in any earlier
+comparison. **It could have detected a smaller effect than anything previously
+tested, and still found nothing.**
+
+### Two pre-registered failures now agree: averaging is the bottleneck
+
+- **V3** replaced the CLS token with mean-pooled patch tokens: −0.0271.
+- **E1** fed three times as many slices into the same mean: −0.0025.
+
+Both are "average more material" moves. Both failed, and the more powerful of
+the two failed most cleanly. The reading supported by both is that the mean is
+what destroys focal findings, and adding evidence to a mean that already
+washes them out dilutes rather than recovers them.
+
+Stated as a prediction for anyone continuing this: further uniform-pooling
+variants — more slices, more planes, wider bands, different token pools — should
+be expected to return unresolved. The change that would follow from this
+evidence is **selective** pooling, letting the head see which slices matter
+instead of committing to a mean before the head is reached. That is a design
+change, not a parameter sweep.
+
+### Two consecutive wrong directional predictions
+
+Round 96 predicted patch pooling would help; it was the largest negative delta.
+Round 98 predicted denser sampling would give a positive point estimate; it was
+negative. Both predicted "unresolved" correctly and both got the sign wrong.
+
+Two consecutive misses from the same underlying model — that the pipeline is
+missing *information* — is a signal about the model rather than about luck. The
+information is reaching the encoder; the aggregation is discarding it.
+
+### A runtime number from this run is withdrawn
+
+The run reported E1 costing **0.51×** the baseline: three times the slices in
+half the time. That is page cache. E1's extraction reads files the baseline's
+extraction has just read, so a warm pass was timed against a cold one. The
+baseline's own extraction has ranged 118.9s to 178.5s across runs for identical
+work, which alone should have been enough to distrust a single-run ratio.
+
+The notebook no longer computes a ratio. It records both times explicitly
+flagged non-comparable, so the confound is visible rather than waiting to be
+rediscovered. **Any adoption estimate at a new density needs a dedicated cold
+run.**
+
+### Scoreboard
+
+Five pre-registered comparisons, five unresolved. V0 stands at 0.6346. The
+useful result is not "nothing works" but something sharper: rearranging or
+enlarging what gets averaged does not help, and the two experiments that
+stressed averaging hardest both came back negative.

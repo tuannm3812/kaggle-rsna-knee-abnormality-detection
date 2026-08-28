@@ -42,13 +42,17 @@ patellofemoral detail. Decomposing the variance also shows **study sampling
 contributes 4x more uncertainty than fold assignment**, so a better split
 cannot tighten this — only more labeled studies would.
 
-Four aggregation schemes have now been compared against the incumbent
-under paired bootstrap with a Bonferroni correction across the family:
-plane concatenation, per-plane heads, and patch-token pooling. **None
-resolved** — every adjusted interval crosses zero, so the shared mean stands.
-Per-plane heads score highest at `0.6635` and still miss resolution by
-`0.0115`, which is the same message as the variance decomposition: 58 studies
-cannot settle differences of this size however the features are arranged.
+Five alternatives have now been pre-registered and compared against the
+incumbent under paired bootstrap — plane concatenation, per-plane heads,
+patch-token pooling, and tripling slice-sampling density. **None resolved.**
+Per-plane heads score highest at `0.6635` and still miss resolution by `0.0115`.
+
+The informative pattern is *which* ones failed. Patch-token pooling (−0.027)
+and tripled slice density (−0.003) are both "average more material" moves, and
+the density test had roughly twice the power of any other comparison — it could
+have detected a smaller effect than anything else tried and found nothing. The
+evidence points at the mean itself discarding focal findings, not at a shortage
+of material being averaged.
 
 Runtime is not a constraint: the complete path projects to **3.5 hours
 against a 9-hour budget** including a 3x safety margin, measured across 83
