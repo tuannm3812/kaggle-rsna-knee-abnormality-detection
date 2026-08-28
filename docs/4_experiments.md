@@ -242,3 +242,49 @@ canonicalization gate. Below-threshold/tied cases remain unchanged with
 `laterality_reliable=0`. This is a descriptive sample and the fallback remains
 required for unseen acquisitions. No reflection, model training, or submission
 was performed.
+
+> **Superseded:** the `> 0.80` recommendation above was not adopted. Review of
+> the same measurements settled on **`> 0.90`**, on the grounds that the
+> dominance *gap* establishes the axis choice is unambiguous while the
+> dominance *magnitude* governs whether a reversal is a safe left/right
+> reflection — and `0.80985`, the observed minimum, is 35.9 degrees off
+> patient-X. `0.90` bounds accepted obliquity below 25.8 degrees at a cost of
+> 13 of 822 audited series.
+
+---
+
+## 2026-08-27/28 — Image baseline, kernel versions 1-4
+
+First executions of the Phase 3B pipeline itself rather than audits of its
+inputs. All private, T4, offline; all `COMPLETE` with zero error markers. Full
+detail in [`7_image_baseline_insights.md`](7_image_baseline_insights.md).
+
+| Version | Purpose | Headline |
+|---|---|---|
+| 1 | First end-to-end run | Pooled OOF macro AUC **0.6346**; zero planes absent, zero retries, zero header failures |
+| 2 | Representative timing | 83 studies across five slice-count strata; the 3-study estimate had been **49% pessimistic** |
+| 3 | Vendored codecs | All three `cp312` wheels installed offline and imported; stratum profile monotonic, 2.00 to 5.46 s/study |
+| 4 | Uncertainty | Bootstrap 95% **[0.5704, 0.6973]**; fold-assignment std `0.0157` against sampling half-width `0.0634` |
+
+**Results that changed a decision, rather than confirming one:**
+
+- The complete path costs **3.4x** the encoder-only lower bound measured
+  earlier. Extrapolating from the encoder probe would have overstated headroom
+  by roughly that factor. Runtime still is not a constraint — 3.5 hours against
+  a 9-hour budget with a 3x margin.
+- **Study sampling contributes 4x more uncertainty than fold assignment.** More
+  folds, repeats, or a better split cannot tighten the estimate; only more
+  labeled studies would.
+- Per-label scores are strongly uneven — Effusion `0.811` and ACL `0.786`
+  against MCL `0.519` and Fracture `0.456` — so the macro conceals that the
+  baseline is informative for some findings and at chance for others.
+
+**Predictions confirmed by measurement, having been stated in advance:** three
+of 58 studies carry `laterality_reliable = 0` (predicted 2.7-2.8), and the
+three plane-presence flags have variance exactly `0.0`.
+
+**Determinism:** versions 1, 2 and 3 produced a bit-identical pooled macro AUC
+while per-study wall clock varied by up to `1.52x`. The computation is
+reproducible; only the clock is noisy.
+
+**No submission was made in any run.**
