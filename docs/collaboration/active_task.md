@@ -7304,3 +7304,63 @@ minimum-of-three, and missing-plane fallbacks remain implemented, tested, and
 **never exercised on real data**. And the whole design rests on an encoder
 whose pinned artifact is licensed `cc-by-nc-4.0`, accepted in round 86 under
 the competition's "freely and publicly available" rule.
+
+### Round 94 — Pre-registration: the deferred aggregation experiments (2026-08-28)
+
+**User decision:** offered a choice between pursuing a better score and
+stopping with an honest baseline, the user chose to pursue the score.
+
+**This is not reopening a frozen contract on a whim.** Round 46 deferred
+plane-embedding concatenation and independent per-plane heads as "predefined,
+separately reviewed experiments ... not silent fallback choices during
+implementation", and round 60 deferred patch-token pooling the same way. This
+round executes the first two of those deferrals.
+
+**Registered in advance, before any result is seen:**
+
+| Variant | Feature construction | Width |
+|---|---|---|
+| **V0** (incumbent) | mean of present-plane embeddings + 4 flags | 388 |
+| **V1** | concatenate the three plane embeddings, zeros for absent + 4 flags | 1156 |
+| **V2** | one head per plane, probabilities averaged over present planes | 384 each |
+
+All three consume the **same** per-plane embeddings from a **single**
+extraction pass — `StudyFeatures` now exposes them, so no variant costs an
+extra decode or forward pass, and no variant can differ by accident of
+extraction.
+
+**Why the incumbent is favoured a priori and what would displace it.** Round
+46 chose the shared mean because 58 labelled studies cannot support tripling
+the feature width or the classifier count. V1 nearly triples width; V2
+triples the number of fitted heads. Both are expected to lose. They are worth
+running because the per-label result gives a specific reason they might not:
+the baseline is informative for effusion and cruciate findings and at chance
+for meniscus, patellofemoral and MCL — a pattern consistent with plane-specific
+and spatial detail being averaged away, which is exactly what these two
+variants preserve.
+
+**The comparison method matters more than the variants.** Comparing marginal
+bootstrap intervals would be hopeless here: each is `+/-0.063` wide, and any
+real difference is far smaller. But the variants score the **same** studies
+under the **same** folds, so per-study difficulty is shared and cancels in the
+difference. `paired_bootstrap_delta` resamples studies once and takes the
+difference of the two macro AUCs on that same resample. Simulation at
+realistic correlation puts the paired interval roughly **3x** tighter than the
+marginal ones — which is the difference between a comparison that can resolve
+anything and one that merely looks rigorous.
+
+**Decision rule, fixed now.** V0 remains the reported baseline unless a
+variant's paired delta interval **excludes zero in its favour**. A variant
+that merely scores higher does not displace it: at this sample size an
+unresolved delta is the expected outcome, and selecting on point estimates is
+exactly the optimistic bias this project has guarded against throughout.
+
+**A limit stated in advance.** If a variant does win, its own macro AUC is
+**not** an unbiased estimate of that variant's performance, because it was
+chosen by looking at these same out-of-fold predictions. The honest reported
+number would remain V0's, with the variant's advantage described as a measured
+difference rather than a new score. Anything else would reintroduce selection
+bias through the back door.
+
+**Not yet done / authorization boundary:** the run is next. No submission has
+been made and none is authorized.

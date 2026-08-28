@@ -206,3 +206,30 @@ def test_canonicalization_changes_the_encoder_input_when_it_reverses():
     build_study_features(planes, unreliable, unreliable_encoder)
 
     assert not torch.allclose(reliable_encoder.batches[0], unreliable_encoder.batches[0])
+
+
+def test_per_plane_embeddings_are_exposed_for_the_deferred_variants():
+    """Plane concatenation and per-plane heads were deferred as predefined
+    experiments. Evaluating them must not require a second decode or a second
+    forward pass, so the per-plane means are returned alongside the mean of
+    means -- and the study embedding must be exactly that mean.
+    """
+    planes = _all_planes()
+
+    features = build_study_features(planes, _reliable(), StubEncoder())
+
+    assert set(features.plane_embeddings) == set(PLANES)
+    for embedding in features.plane_embeddings.values():
+        assert embedding.shape == (EMBEDDING_DIM,)
+    assert features.vector[:EMBEDDING_DIM] == pytest.approx(
+        np.mean(list(features.plane_embeddings.values()), axis=0)
+    )
+
+
+def test_absent_planes_have_no_embedding_entry():
+    planes = _all_planes()
+    del planes["Axial"]
+
+    features = build_study_features(planes, _reliable(), StubEncoder())
+
+    assert set(features.plane_embeddings) == {"Sagittal", "Coronal"}

@@ -83,12 +83,19 @@ class StudyFeatures:
         has_any_plane: `False` when every plane was absent -- the caller
             decides what to do, since section 4 treats a labelled training
             study and an unseen test study differently.
+        plane_embeddings: Each present plane's own mean embedding, before
+            the across-plane mean. Exposed so the pre-registered aggregation
+            alternatives -- plane concatenation and per-plane heads, both
+            deferred as later experiments rather than silent fallbacks --
+            can be evaluated from the same extraction pass, without a second
+            decode or a second forward through the encoder.
     """
 
     vector: np.ndarray
     planes_present: dict[str, bool]
     laterality_reliable: bool
     has_any_plane: bool
+    plane_embeddings: dict[str, np.ndarray]
 
 
 def _require_frozen(encoder: Encoder) -> None:
@@ -164,6 +171,7 @@ def build_study_features(
     canonical = canonicalize_study(stacked, study)
 
     embeddings = []
+    plane_embeddings: dict[str, np.ndarray] = {}
     for plane in present:
         volume = canonical.planes[plane]
         batch = _plane_batch(
@@ -171,7 +179,9 @@ def build_study_features(
         )
         with torch.no_grad():
             encoded = encoder(batch)
-        embeddings.append(np.asarray(encoded, dtype=np.float64).mean(axis=0))
+        plane_mean = np.asarray(encoded, dtype=np.float64).mean(axis=0)
+        plane_embeddings[plane] = plane_mean
+        embeddings.append(plane_mean)
 
     if embeddings:
         study_embedding = np.mean(embeddings, axis=0)
@@ -197,4 +207,5 @@ def build_study_features(
         planes_present={plane: plane in planes for plane in PLANES},
         laterality_reliable=canonical.laterality_reliable,
         has_any_plane=bool(present),
+        plane_embeddings=plane_embeddings,
     )

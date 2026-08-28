@@ -379,3 +379,94 @@ def repeated_fold_macro_auc(
         _, folds = select_multilabel_folds(y, seed=seed)
         scores.append(cross_validate_image_model(features, y, folds).pooled_macro_auc)
     return tuple(scores)
+
+
+@dataclass(frozen=True)
+class PairedDelta:
+    """Bootstrap interval for the difference between two variants' macro AUC.
+
+    Attributes:
+        delta: `macro_auc(a) - macro_auc(b)` on the observed data.
+        lower: Lower percentile bound on that difference.
+        upper: Upper percentile bound.
+        iterations: Resamples drawn.
+        excludes_zero: Whether the interval excludes 0, i.e. whether the
+            direction of the difference is resolved at this sample size.
+    """
+
+    delta: float
+    lower: float
+    upper: float
+    iterations: int
+    excludes_zero: bool
+
+
+def paired_bootstrap_delta(
+    y: pd.DataFrame,
+    probabilities_a: pd.DataFrame,
+    probabilities_b: pd.DataFrame,
+    *,
+    iterations: int = 2_000,
+    seed: int = 42,
+    percentiles: tuple[float, float] = (2.5, 97.5),
+) -> PairedDelta:
+    """Bootstrap the *difference* between two variants on the same studies.
+
+    Comparing two variants by whether their marginal intervals overlap
+    silently assumes they were evaluated independently. They were not: both
+    score the same 58 studies, so per-study difficulty is shared and cancels
+    in the difference. Keeping the pairing -- scoring both variants on each
+    resampled set of studies and taking the difference there -- is markedly
+    tighter, which at this sample size is what makes a comparison possible
+    at all rather than merely presentable.
+
+    This measures only whether one variant beats the other. It says nothing
+    about whether either is good, and choosing a variant by this statistic
+    and then reporting that variant's own macro AUC as an unbiased result
+    would reintroduce selection bias.
+
+    Args:
+        y: Binary targets in canonical label-column order.
+        probabilities_a: One variant's out-of-fold probabilities.
+        probabilities_b: The other's, same studies and folds.
+        iterations: Resamples to draw.
+        seed: Generator seed.
+        percentiles: Lower and upper percentile bounds.
+
+    Returns:
+        The observed difference and its interval.
+    """
+    if not (y.index.equals(probabilities_a.index) and y.index.equals(probabilities_b.index)):
+        raise ValueError("y and both probability frames must share the same index")
+
+    truth = y.to_numpy()
+    left = probabilities_a.to_numpy()
+    right = probabilities_b.to_numpy()
+    generator = np.random.default_rng(seed)
+    row_count = len(y)
+
+    differences: list[float] = []
+    for _ in range(iterations):
+        rows = generator.integers(0, row_count, size=row_count)
+        left_scores, right_scores = [], []
+        for position in range(truth.shape[1]):
+            resampled_truth = truth[rows, position]
+            if len(np.unique(resampled_truth)) < 2:
+                continue
+            left_scores.append(roc_auc_score(resampled_truth, left[rows, position]))
+            right_scores.append(roc_auc_score(resampled_truth, right[rows, position]))
+        if not left_scores:
+            continue
+        differences.append(float(np.mean(left_scores) - np.mean(right_scores)))
+
+    if not differences:
+        raise ValueError("no bootstrap resample yielded an estimable label")
+
+    lower, upper = np.percentile(differences, percentiles)
+    return PairedDelta(
+        delta=macro_auc(y, probabilities_a) - macro_auc(y, probabilities_b),
+        lower=float(lower),
+        upper=float(upper),
+        iterations=iterations,
+        excludes_zero=bool(lower > 0.0 or upper < 0.0),
+    )

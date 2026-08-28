@@ -334,3 +334,69 @@ def test_repeated_fold_scores_are_reproducible():
     assert repeated_fold_macro_auc(features, y, seeds=(42,)) == repeated_fold_macro_auc(
         features, y, seeds=(42,)
     )
+
+
+def test_paired_delta_is_tighter_than_comparing_marginal_intervals():
+    """Two variants scored on the same studies share per-study difficulty.
+
+    Comparing their marginal intervals discards that pairing and is far too
+    blunt to resolve a real difference at this sample size; bootstrapping the
+    difference on the same resampled studies keeps it.
+    """
+    from knee_mri.image_model import bootstrap_macro_auc, paired_bootstrap_delta
+
+    y = _targets()
+    rng = np.random.default_rng(9)
+    base = rng.random((ROW_COUNT, len(LABEL_COLUMNS)))
+    a = pd.DataFrame(base, index=y.index, columns=LABEL_COLUMNS)
+    # b differs only slightly, as competing variants of one pipeline would.
+    b = pd.DataFrame(
+        np.clip(base + rng.normal(0, 0.02, base.shape), 0, 1),
+        index=y.index,
+        columns=LABEL_COLUMNS,
+    )
+
+    delta = paired_bootstrap_delta(y, a, b, iterations=400, seed=1)
+    marginal_a = bootstrap_macro_auc(y, a, iterations=400, seed=1)
+
+    paired_width = delta.upper - delta.lower
+    marginal_width = marginal_a.upper - marginal_a.lower
+
+    assert paired_width < marginal_width
+
+
+def test_paired_delta_reports_direction_and_significance():
+    from knee_mri.image_model import paired_bootstrap_delta
+
+    y = _targets()
+    rng = np.random.default_rng(10)
+    weak = pd.DataFrame(
+        rng.random((ROW_COUNT, len(LABEL_COLUMNS))), index=y.index, columns=LABEL_COLUMNS
+    )
+    # Strong predictions: the truth itself, slightly noised.
+    strong = pd.DataFrame(
+        np.clip(y.to_numpy() * 0.8 + rng.normal(0, 0.05, weak.shape), 0, 1),
+        index=y.index,
+        columns=LABEL_COLUMNS,
+    )
+
+    delta = paired_bootstrap_delta(y, strong, weak, iterations=400, seed=2)
+
+    assert delta.delta > 0
+    assert delta.lower > 0
+    assert delta.excludes_zero is True
+
+
+def test_paired_delta_on_identical_predictions_is_exactly_zero():
+    from knee_mri.image_model import paired_bootstrap_delta
+
+    y = _targets()
+    rng = np.random.default_rng(11)
+    probabilities = pd.DataFrame(
+        rng.random((ROW_COUNT, len(LABEL_COLUMNS))), index=y.index, columns=LABEL_COLUMNS
+    )
+
+    delta = paired_bootstrap_delta(y, probabilities, probabilities, iterations=100, seed=3)
+
+    assert delta.delta == 0.0
+    assert delta.excludes_zero is False
