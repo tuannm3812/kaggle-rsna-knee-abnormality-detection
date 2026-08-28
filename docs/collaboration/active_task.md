@@ -7495,3 +7495,31 @@ Neither crashed. Both produced plausible numbers: V1 drifted 0.6301 to 0.6261 an
 **Where this leaves the aggregation question.** Three variants have now been measured against V0 and none resolved. V2 remains the only one whose point estimate favours a change, at +0.0290 with the interval crossing zero by 0.0115. This is consistent with the variance decomposition already on record: study sampling contributes roughly four times the uncertainty of fold assignment, so 58 studies cannot settle differences of this size regardless of how the aggregation is arranged. Further variants on this dataset should be expected to return unresolved as well, and are not worth spending runs on without a reason stronger than a point estimate.
 
 **Not yet done / authorization boundary:** no submission has been made and none is authorized. Gate 7 remains the user's alone.
+
+### Round 98 — Pre-registration: slice sampling density (2026-08-28)
+
+Written and committed **before** the run. User approved pursuing the score after round 97; this is the experiment chosen and its decision rule, fixed in advance.
+
+**The claim under test.** The baseline samples five central-band slices from a median volume of 166 — roughly 3% of the acquired data. Within the `(0.2, 0.8)` band that is one sample every ~25 slices. Structures like a meniscal tear or a cruciate disruption occupy a handful of contiguous slices, so at that spacing the sampler can miss the finding entirely rather than merely blur it. Round 97's per-label result is consistent with this: effusion (0.811), a diffuse finding hard to miss at any spacing, against MCL (0.519), PF OA (0.551) and fracture (0.456), all focal.
+
+**E1: fifteen slices instead of five.** Sample size 15 over the same `(0.2, 0.8)` band, spacing ~7 slices.
+
+**One variable changes, and the code enforces it.**
+
+- The **band is unchanged**, so density increases without reaching further toward the periphery. A test asserts the dense and sparse samples share their first and last index, so a measured difference cannot be attributed to extent.
+- `MINIMUM_DECODED_SLICES` stays at **3** and is deliberately not scaled. Scaling it would let the denser variant drop planes the baseline kept, changing *which studies contribute* rather than only how densely each is sampled. A test pins this.
+- `SLICE_SAMPLE_SIZE` remains 5. Density is a parameter with the frozen value as its default, so V0 is untouched and must still reproduce `0.6345688959`.
+
+**Why this and not a different encoder.** A larger or medically-pretrained encoder is the bigger swing, but it changes the representation, the licence position, and the vendored artifacts at once. Sampling density is a single dimension of an existing contract, needs no new third-party material, and is the one place where more data per study partially compensates for having only 58 studies.
+
+**Multiplicity.** This opens a **new family** — sampling density, not aggregation — and it contains exactly one comparison, so no within-family correction applies and the interval is a plain paired 95%. Stating the family boundary in advance is what stops this from being a fourth bite at the aggregation family under a different name. Should a second density point be added later, both get corrected and this interval is restated.
+
+**Decision rule, fixed now.** V0 at five slices remains the reported baseline unless E1's paired bootstrap interval excludes zero in its favour. A higher point estimate does not displace it. If E1 does resolve, its own macro AUC is still not an unbiased estimate of E1's performance, and the reported figure would need a fresh run.
+
+**Runtime is an adoption question, not an experimental one.** The comparison needs only the 58 labelled studies — about two minutes of extraction at five slices. Tripling density triples the decode and encode portion of the *full* path, whose current projection is 2.59 h against a 9 h budget including a 3x margin. Adoption is therefore plausible but must be re-measured, not assumed; the notebook's existing projection is the check, and a projection exceeding the budget blocks adoption regardless of the score.
+
+**Expected outcome, stated in advance.** Resolution is more likely here than for any aggregation variant, because this changes the information reaching the encoder rather than rearranging what it already saw. It is still not likely: the variance decomposition puts study sampling at roughly four times fold-assignment variance, and a 58-study paired interval has been about ±0.035 wide in every comparison so far. A real improvement smaller than that stays invisible. **Predicted: a positive point estimate, unresolved.** If E1 comes back negative, that is evidence the mean over slices is washing out signal rather than accumulating it — which would argue against pooling more slices and toward selective pooling.
+
+**Round 97's failed prediction is on record and this one is stated the same way** so it can be scored the same way.
+
+**Not yet done / authorization boundary:** no submission has been made and none is authorized. Approval recorded for this experiment is not approval to submit.

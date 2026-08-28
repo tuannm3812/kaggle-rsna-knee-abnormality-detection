@@ -241,3 +241,70 @@ def test_reported_counters_carry_no_identifiers(tmp_path: Path):
     assert ".dcm" not in rendered
     assert str(tmp_path) not in rendered
     assert set(outcome.counters()) == {"attempted", "decoded", "candidates_tried", "absent"}
+
+
+# -- sampling density is parameterized without moving the frozen default --
+
+
+def test_the_default_sample_size_is_still_the_frozen_five(tmp_path):
+    """The density experiment must not disturb the reported baseline."""
+    paths = _series(tmp_path, "default", 40)
+
+    assert sample_plane(paths).attempted == SLICE_SAMPLE_SIZE
+
+
+def test_a_larger_sample_size_attempts_and_decodes_more_slices(tmp_path):
+    paths = _series(tmp_path, "dense", 40)
+
+    dense = sample_plane(paths, sample_size=15)
+
+    assert dense.attempted == 15
+    assert dense.decoded == 15
+
+
+def test_a_denser_sample_stays_inside_the_same_central_band(tmp_path):
+    """Density is the single variable under test.
+
+    If a larger sample also reached further toward the periphery, a measured
+    difference could not be attributed to density rather than extent.
+    """
+    from knee_mri.series_audit import central_band_indices
+
+    slice_count = 200
+    sparse = central_band_indices(slice_count, SLICE_SAMPLE_SIZE)
+    dense = central_band_indices(slice_count, 15)
+
+    assert min(dense) == min(sparse)
+    assert max(dense) == max(sparse)
+    assert len(dense) > len(sparse)
+
+
+def test_the_minimum_decoded_rule_does_not_scale_with_sample_size(tmp_path):
+    """Plane-absence behaviour must stay identical across the comparison.
+
+    Scaling the minimum with the sample size would let the denser variant
+    drop planes the baseline kept, changing which studies contribute rather
+    than only how densely each is sampled.
+    """
+    from knee_mri.series_audit import central_band_indices
+
+    good = _series(tmp_path, "good", 30)
+    mixed = _series(tmp_path, "corrupt", 30, corrupt=True)
+    # Exactly the minimum decodable, among otherwise-unreadable slices.
+    for index in central_band_indices(30, 15)[:MINIMUM_DECODED_SLICES]:
+        mixed[index] = good[index]
+
+    sample = sample_plane(mixed, sample_size=15)
+
+    assert sample.attempted > MINIMUM_DECODED_SLICES
+    assert sample.decoded == MINIMUM_DECODED_SLICES
+    assert sample.usable is True
+
+
+def test_select_plane_sample_forwards_the_sample_size(tmp_path):
+    paths = _series(tmp_path, "forwarded", 40)
+
+    outcome = select_plane_sample([paths], sample_size=15)
+
+    assert outcome.sample is not None
+    assert outcome.sample.attempted == 15

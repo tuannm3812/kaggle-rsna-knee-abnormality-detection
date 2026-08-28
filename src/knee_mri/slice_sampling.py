@@ -50,8 +50,8 @@ class SampledPlane:
 
     Attributes:
         images: The successfully decoded and normalized slices, in
-            anatomical order. Between `MINIMUM_DECODED_SLICES` and
-            `SLICE_SAMPLE_SIZE` of them when `usable`.
+            anatomical order. When `usable`, at least
+            `MINIMUM_DECODED_SLICES` and at most the requested sample size.
         attempted: How many slices were sampled and tried.
         decoded: How many of those yielded a usable normalized image.
         usable: Whether `decoded` met the minimum.
@@ -110,13 +110,20 @@ def _decode_and_normalize(path: Path) -> np.ndarray | None:
         return None
 
 
-def sample_plane(ordered_paths: Sequence[Path]) -> SampledPlane:
+def sample_plane(
+    ordered_paths: Sequence[Path], sample_size: int = SLICE_SAMPLE_SIZE
+) -> SampledPlane:
     """Sample and decode the central band of one validated series.
 
     Args:
         ordered_paths: The series' slice paths in validated anatomical order
             (from `validate_and_order_series`). Filename order must never be
             passed here as though it were anatomical.
+        sample_size: How many central-band slices to attempt. Defaults to the
+            frozen `SLICE_SAMPLE_SIZE`; a caller evaluating a pre-registered
+            sampling-density experiment may pass a larger value. The band
+            itself is unchanged, so a larger value samples the same extent
+            more densely rather than reaching further toward the periphery.
 
     Returns:
         The decoded slices and their counts. `usable` is `False` when fewer
@@ -126,7 +133,7 @@ def sample_plane(ordered_paths: Sequence[Path]) -> SampledPlane:
     if not ordered_paths:
         return SampledPlane(images=(), attempted=0, decoded=0, usable=False)
 
-    indices = central_band_indices(len(ordered_paths), SLICE_SAMPLE_SIZE)
+    indices = central_band_indices(len(ordered_paths), sample_size)
     images = [
         image
         for image in (_decode_and_normalize(ordered_paths[index]) for index in indices)
@@ -142,12 +149,16 @@ def sample_plane(ordered_paths: Sequence[Path]) -> SampledPlane:
 
 def select_plane_sample(
     ranked_candidates: Sequence[Sequence[Path]],
+    sample_size: int = SLICE_SAMPLE_SIZE,
 ) -> PlaneSampleOutcome:
     """Try ranked same-plane candidates until one yields a usable sample.
 
     Args:
         ranked_candidates: Each candidate's slice paths in validated
             anatomical order, best-ranked first.
+        sample_size: Forwarded to `sample_plane`. The minimum-decoded rule is
+            deliberately NOT scaled with it, so plane-absence behaviour stays
+            identical and a density experiment changes one variable only.
 
     Returns:
         The winning sample and how many candidates were tried, or
@@ -157,7 +168,7 @@ def select_plane_sample(
     tried = 0
     for candidate in ranked_candidates:
         tried += 1
-        sample = sample_plane(candidate)
+        sample = sample_plane(candidate, sample_size=sample_size)
         if sample.usable:
             return PlaneSampleOutcome(sample=sample, candidates_tried=tried, absent=False)
     return PlaneSampleOutcome(sample=None, candidates_tried=tried, absent=True)
