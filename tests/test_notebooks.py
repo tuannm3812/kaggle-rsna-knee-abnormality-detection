@@ -753,7 +753,10 @@ def test_maxpool_submission_kernel_metadata_matches_the_baseline_kernel() -> Non
     """
     metadata = _load_json("notebooks/kernels/maxpool-submission/kernel-metadata.json")
 
-    assert metadata["id"] == "tuannm3812/rsna-knee-maxpool-submission"
+    # Kaggle derives the slug from the TITLE, not the requested id, and
+    # migrates it silently -- a status query against the requested id then
+    # fails with a misleading permissions error. Pinned to the server slug.
+    assert metadata["id"] == "tuannm3812/rsna-knee-max-pooling-submission"
     assert len(metadata["title"]) <= 50
     assert metadata["code_file"] == "06_maxpool_submission.ipynb"
     assert metadata["is_private"] is True
