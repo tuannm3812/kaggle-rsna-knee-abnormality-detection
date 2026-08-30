@@ -201,6 +201,38 @@ def test_string_valued_weak_labels_are_rejected_rather_than_coerced():
         fit_weak_label_heads(_features(120), weak, _features(5))
 
 
+def test_complex_weak_labels_are_rejected_rather_than_truncated():
+    """`is_numeric_dtype` admits complex, and casting it to float drops the
+    imaginary part behind a mere `ComplexWarning` -- so `1+1j` validated as a
+    clean 1 while the fitting loop found `1+1j == 1` false, counted zero
+    positives, and abstained all twelve labels into a macro of exactly 0.5.
+    Round 111 reproduced it; this pins the rejection.
+    """
+    weak = _weak(120, 60, 30).astype(complex)
+
+    with pytest.raises(ValueError, match="must be real"):
+        fit_weak_label_heads(_features(120), weak, _features(5))
+
+
+def test_the_fitted_labels_are_the_validated_labels():
+    """Two silent-wrongness bugs came from validation coercing a frame while
+    the fitting loop read the original. The validator returns one normalized
+    representation and the loop must consume *that*, so an integer frame --
+    valid, but a different dtype from what the loop once assumed -- must
+    produce exactly the float frame's counts and predictions.
+    """
+    weak = _weak(120, 60, 30)
+    integers = weak.fillna(0.0).astype(int)
+
+    fit = fit_weak_label_heads(_features(120), integers, _features(5))
+    reference = fit_weak_label_heads(_features(120), integers.astype(float), _features(5))
+
+    assert fit.support == reference.support
+    assert fit.positives == reference.positives
+    assert fit.abstained == reference.abstained
+    assert fit.probabilities.to_numpy() == pytest.approx(reference.probabilities.to_numpy())
+
+
 def test_boolean_weak_labels_remain_acceptable():
     """A bool column is numeric, compares correctly against 1, and casts to
     int cleanly. The guard above must not reject it.

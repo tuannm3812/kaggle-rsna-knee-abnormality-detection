@@ -360,13 +360,20 @@ consistent with label-dependent noise and with sampling variation. Round 108
 claimed uniform noise would move every label the same way; that does not hold
 for a finite, heterogeneous twelve-label panel, and the claim is withdrawn.
 
-**No follow-up is proposed, deliberately.** Selecting the four labels that
-gained — or dropping the three that abstained — would select on the
-evaluation set, the same leakage round 106 refused when it declined to
-choose labels by measured precision. That refusal binds equally after seeing
-the numbers, and the decomposition above explains the result without
-authorizing anything of the sort. **The conclusion stands as measured: W1
-does not displace the baseline, and is not shown to help or hurt.**
+**No follow-up is proposed, deliberately — and the two obvious follow-ups
+are invalid for different reasons.** Keeping the four labels that gained
+would select on the evaluation set: their gains are only visible *because*
+they were scored against the 58 human labels, which is exactly the leakage
+round 106 refused when it declined to choose labels by measured precision.
+Dropping the three abstaining labels is **not** evaluation-set leakage — an
+abstention is decided entirely from weak-training support, before any human
+label is scored — but it is still invalid here, because it would change the
+pre-registered twelve-label macro after seeing the result. The competition
+metric is the twelve-label macro; a hybrid that falls back to the baseline
+for labels the reports cannot supply is a reasonable idea and would be a
+**new registered experiment**, not a re-reading of this one. **The conclusion
+stands as measured: W1 does not displace the baseline, and is not shown to
+help or hurt.**
 
 **Cost, now measured:** `6958.6 s` for 3000 studies, `2.32 s/study`, within
 4% of the budgeted `2.4`. The full 4349 report-only studies would cost about

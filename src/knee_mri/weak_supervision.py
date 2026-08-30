@@ -113,7 +113,7 @@ def _validate_inputs(
     evaluation_features: pd.DataFrame,
     continuous_dimensions: int,
     labels: Sequence[str],
-) -> None:
+) -> pd.DataFrame:
     """Reject the pairings a caller can silently get wrong.
 
     Equal row counts do not establish that row *i* of the features is the
@@ -122,6 +122,14 @@ def _validate_inputs(
     indexes makes that misalignment loud. The notebook builds both frames
     positionally with a `RangeIndex`, so no misalignment was ever observed --
     this is the guard that keeps it that way.
+
+    Returns:
+        The weak labels as `float64`. **The caller must fit from this frame,
+        not from its argument.** Round 109 and round 111 each found a type
+        that passed validation and then behaved differently where it was
+        consumed, because validation coerced and the fitting loop did not.
+        Returning one normalized representation removes the second reader, so
+        that class of divergence cannot recur by adding a dtype.
     """
     if len(train_features) != len(weak_labels):
         raise ValueError("train_features and weak_labels must have the same row count")
@@ -155,17 +163,29 @@ def _validate_inputs(
     # `"1" == 1` as False downstream, count zero positives, and abstain every
     # label into a macro of exactly 0.5 -- a clean-looking null result
     # produced by a type error. Reproduced before this guard was added.
+    # Complex is checked first because it *is* numeric by pandas' reckoning,
+    # and casting it to float discards the imaginary part with only a
+    # `ComplexWarning` -- so `1+1j` validated as a clean 1 while the fitting
+    # loop, reading the original column, found `1+1j == 1` false. Round 111
+    # reproduced twelve abstentions and a macro of exactly 0.5 that way.
+    complex_columns = [
+        label for label in labels if pd.api.types.is_complex_dtype(weak_labels[label])
+    ]
+    if complex_columns:
+        raise ValueError(
+            f"weak_labels columns must be real; got complex dtype in {complex_columns}"
+        )
     non_numeric = [
-        label
-        for label in labels
-        if not pd.api.types.is_numeric_dtype(weak_labels[label])
+        label for label in labels if not pd.api.types.is_numeric_dtype(weak_labels[label])
     ]
     if non_numeric:
         raise ValueError(f"weak_labels columns must be numeric; got object dtype in {non_numeric}")
 
-    values = weak_labels.to_numpy(dtype=np.float64)
+    normalized = weak_labels.astype(np.float64)
+    values = normalized.to_numpy()
     if not np.isin(values[~np.isnan(values)], (0.0, 1.0)).all():
         raise ValueError("weak_labels values must be 1, 0, or NaN for abstain")
+    return normalized
 
 
 def fit_weak_label_heads(
@@ -193,13 +213,15 @@ def fit_weak_label_heads(
 
     Raises:
         ValueError: If the frames disagree on shape, index, or columns, if a
-            feature matrix is empty or non-finite, if a weak label is
-            anything but 1, 0 or NaN, or if `continuous_dimensions` is not
-            positive.
+            label column is complex or non-numeric, if a feature matrix is
+            empty or non-finite, if a weak label is anything but 1, 0 or
+            NaN, or if `continuous_dimensions` is not positive.
         ConvergenceWarning: If any head fails to converge, promoted to an
             error because an unconverged head is not the frozen contract.
     """
-    _validate_inputs(
+    # Rebound deliberately: everything below reads the validated float64
+    # frame, so no consumer can see a representation validation did not.
+    weak_labels = _validate_inputs(
         train_features, weak_labels, evaluation_features, continuous_dimensions, labels
     )
 

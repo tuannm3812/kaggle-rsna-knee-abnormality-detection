@@ -193,10 +193,13 @@ Beyond this 3A/3B/3C sequence: strategy B (representation-first, using
 the 4349 unlabeled studies for self-supervised/contrastive learning) is
 recorded as a longer-term improvement path, and Phase 3B now exists, so its
 stated precondition is met. Strategy C (reopening weak supervision with a
-multilingual/probabilistic approach) remains deferred and not ruled out —
-**and is now the only untested form of the weak-label idea**, since the
-single-extractor form was tested directly as W1 and did not displace the
-baseline.
+multilingual/probabilistic approach) remains deferred and not ruled out, and
+is now the **remaining documented candidate** in this file rather than the
+only untested form of the idea. W1 tested one configuration — weak-only
+training, a single regex extractor, 3000 studies at the baseline's feature
+settings. Combined human-plus-weak training, confidence weighting, other
+extractors and other weak-supervision designs are all untested; none is
+proposed here, and W1's no-follow-up decision is unchanged.
 
 ## Phase 4 — Model Improvement & Ensemble — target ~2026-10-08
 

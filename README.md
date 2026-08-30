@@ -4,8 +4,8 @@
   <a href="https://www.kaggle.com/competitions/rsna-knee-abnormality-detection"><img alt="Kaggle Competition" src="https://img.shields.io/badge/Kaggle-RSNA%20Knee%20Abnormality%20Detection-20BEFF?logo=kaggle&logoColor=white"></a>
   <a href="pyproject.toml"><img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white"></a>
   <a href="docs/0_coding_standards.md"><img alt="Execution" src="https://img.shields.io/badge/Execution-Kaggle--only-orange"></a>
-  <img alt="Tests" src="https://img.shields.io/badge/tests-443%20passing-brightgreen">
-  <img alt="Status" src="https://img.shields.io/badge/Status-Image%20baseline%20evaluated-blue">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-509%20passing-brightgreen">
+  <img alt="Status" src="https://img.shields.io/badge/Status-Image%20baseline%20submitted-blue">
 </p>
 
 Personal entry for the Kaggle competition
@@ -44,9 +44,11 @@ patellofemoral detail. Decomposing the variance also shows **study sampling
 contributes 4x more uncertainty than fold assignment**, so a better split
 cannot tighten this — only more labeled studies would.
 
-Five alternatives have now been pre-registered and compared against the
-incumbent under paired bootstrap — plane concatenation, per-plane heads,
-patch-token pooling, and tripling slice-sampling density. **None resolved.**
+Seven alternatives have now been pre-registered and compared against the
+incumbent under paired bootstrap, across nine comparisons — plane
+concatenation, per-plane heads, patch-token pooling, tripled slice-sampling
+density, max over slices, the mean of the top three slices, and a
+mean-and-max concatenation. **None resolved.**
 Per-plane heads score highest at `0.6635` and still miss resolution by `0.0115`.
 
 The informative pattern is *which* ones failed. Patch-token pooling (−0.027)

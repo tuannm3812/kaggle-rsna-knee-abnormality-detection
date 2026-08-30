@@ -8188,3 +8188,79 @@ the work is **not yet closed**. Make one small code/test correction and the
 three precise documentation edits above, then return for final confirmation.
 No experiment, Kaggle publication/rerun, model promotion, or submission is
 authorized or needed.
+
+### Round 112 — Claude: complex dtype closed at the class level; three wordings corrected (2026-08-31)
+
+All four findings accepted and applied. **Finding 1 reproduced exactly as
+round 111 described it** — before the fix, a complex frame returned support
+`60`, positives `0`, twelve abstentions and a macro of exactly `0.5`, with
+`ComplexWarning` raised during validation's cast. `is_numeric_dtype` does
+admit complex.
+
+**Finding 1 — fixed twice over, because the guard alone would not have
+closed the class.** Complex columns are now rejected explicitly, ahead of the
+numeric check that admits them. But that is the second dtype in two rounds to
+pass validation and behave differently at the point of use, and a third would
+have followed, so round 111's preferred structural fix is taken as well:
+`_validate_inputs` now **returns** the labels as `float64`, and
+`fit_weak_label_heads` rebinds `weak_labels` to that frame before the loop.
+Support counting and fitting read the validated representation, so validation
+and consumption have no second reader to diverge. Two tests: the complex
+rejection, and an invariant test that an integer frame produces exactly the
+float frame's support, positives, abstentions and predictions. Integer, float
+and the deliberately accepted boolean case all remain supported. **W1 is
+unaffected** — `weak_label_frame` emits `float64`, and this changes no
+measurement.
+
+**Finding 2 — accepted; my two exclusions were not the same offence.**
+Round 110 said dropping the three abstaining labels would select on the
+evaluation set "just as surely" as keeping the four that gained. That is
+wrong, and round 111's distinction is correct: an abstention is decided
+entirely from weak-training support, before any human label is scored, so no
+evaluation information reaches it. It remains invalid for a different reason
+— it would change the pre-registered twelve-label macro after seeing the
+result, and that macro is the competition metric. The ledger now separates
+the two, and states that a hybrid falling back to the baseline for labels the
+reports cannot supply is a reasonable idea and would be a **new registered
+experiment** rather than a re-reading of this one. "Evaluation selection" is
+now reserved for choosing labels by their observed gains, as round 111 asked.
+
+**Finding 3 — accepted.** "The only untested form of the weak-label idea"
+overclaimed: W1 tested one configuration — weak-only training, one regex
+extractor, 3000 studies at the baseline's feature settings. Strategy C is now
+the **remaining documented candidate in that file**, with combined
+human-plus-weak training, confidence weighting and other extractors named as
+untested. None is proposed, and the no-follow-up decision is unchanged.
+
+**Finding 4 — accepted; count verified independently rather than copied.**
+The badge read `443 passing` against an actual `509`, and the status badge
+still said "evaluated" after two submissions. Both corrected. On the
+alternatives count, round 111's "seven alternatives across nine comparisons"
+is **confirmed**, and the enumeration is recorded here so the number is
+checkable rather than asserted:
+
+- **Alternatives (7):** V1 plane concatenation, V2 per-plane heads, V3
+  patch-token pooling, E1 fifteen slices, E2 max over slices, E3 mean of the
+  top three, E4 mean-and-max concatenation.
+- **Comparisons (9):** V1/V0 and V2/V0 (round 95); V3/V0 (97); E1/V0 (99);
+  E2/E1 and E3/E1 (101); E4/E1 and E4/E2 (103); E2/V0 (105).
+
+**One qualification, since it affects how the corrected sentence should be
+read:** W1 is an eighth pre-registered alternative and a tenth comparison,
+but it is not an *aggregation* variant and the README develops it separately,
+so it is deliberately excluded from that sentence's count rather than
+overlooked.
+
+**A recurring-staleness note, not a request.** A hard-coded test-count badge
+has now been wrong at least twice, and will go stale on the next commit that
+adds a test. Nothing is proposed here — it is a documentation-maintenance
+question, not part of this task — but it is worth someone deciding whether
+that badge should be generated or dropped rather than corrected again.
+
+**Commit:** `<pending>`. Verification: **509 passed** (507 plus 2), Ruff
+clean. No notebook change, no kernel push, no rerun, no submission, and no
+experimental choice altered.
+
+**Not yet done / authorization boundary:** no experiment is proposed or
+pre-registered; two submissions have been made under explicit authorization,
+and no further submission is authorized.
