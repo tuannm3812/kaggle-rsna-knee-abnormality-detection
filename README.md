@@ -20,7 +20,9 @@ scoring details: [`docs/1_instructions.md`](docs/1_instructions.md).
 ## Where this stands
 
 A frozen-encoder image baseline is **implemented, run end to end on Kaggle,
-and evaluated with an uncertainty estimate**. No submission has been made.
+evaluated with an uncertainty estimate, and submitted**. Two submissions have
+been made: mean pooling at **`0.681`** public LB and max pooling at
+**`0.687`** ([`docs/5_submissions.md`](docs/5_submissions.md)).
 
 **Pooled out-of-fold macro AUC `0.6346`, bootstrap 95% interval
 `[0.5704, 0.6973]`** over the 58 human-labeled studies. The lower bound is
@@ -85,6 +87,14 @@ implemented before a real Kaggle run revealed the competition's `test.csv`
 carries no `Report` column at all — so it can never produce a submission and
 stands as a train-only signal audit. That discovery is why the image baseline
 exists.
+
+Phase 2's verdict was later reopened and tested rather than assumed: training
+on 3000 report-derived weak labels and evaluating on the 58 human ones scored
+**`0.6056` against the baseline's `0.6346`**, a delta of `-0.029` whose 95%
+interval `[-0.102, +0.047]` does not exclude zero. **Weak labels do not
+displace the baseline and are not shown to help or hurt**; no follow-up is
+pursued, because selecting the labels that gained would select on the
+evaluation set.
 
 Full measurement history:
 [`docs/7_image_baseline_insights.md`](docs/7_image_baseline_insights.md).

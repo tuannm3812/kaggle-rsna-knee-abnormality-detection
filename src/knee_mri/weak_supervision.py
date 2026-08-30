@@ -149,6 +149,20 @@ def _validate_inputs(
         if frame.empty or not np.isfinite(frame.to_numpy(dtype=np.float64)).all():
             raise ValueError(f"{name} must be non-empty and finite")
 
+    # Checked before the coercion below, and not merely for tidiness. The
+    # fitting loop reads `column.to_numpy()` *without* a dtype, so a
+    # string-valued frame that survives `astype(float)` here would compare
+    # `"1" == 1` as False downstream, count zero positives, and abstain every
+    # label into a macro of exactly 0.5 -- a clean-looking null result
+    # produced by a type error. Reproduced before this guard was added.
+    non_numeric = [
+        label
+        for label in labels
+        if not pd.api.types.is_numeric_dtype(weak_labels[label])
+    ]
+    if non_numeric:
+        raise ValueError(f"weak_labels columns must be numeric; got object dtype in {non_numeric}")
+
     values = weak_labels.to_numpy(dtype=np.float64)
     if not np.isin(values[~np.isnan(values)], (0.0, 1.0)).all():
         raise ValueError("weak_labels values must be 1, 0, or NaN for abstain")

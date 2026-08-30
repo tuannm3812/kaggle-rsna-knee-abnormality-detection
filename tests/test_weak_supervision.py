@@ -186,6 +186,36 @@ def test_non_finite_evaluation_features_are_rejected():
         fit_weak_label_heads(_features(120), _weak(120, 60, 30), evaluation)
 
 
+def test_string_valued_weak_labels_are_rejected_rather_than_coerced():
+    """`astype(float)` would accept "1", but the fitting loop reads the
+    column without a dtype and compares `"1" == 1` as False -- so every label
+    would count zero positives and abstain, producing a macro of exactly 0.5
+    that looks like a clean null result. Round 109's API note, which
+    reproduced as silent wrongness rather than a cosmetic gap.
+    """
+    weak = _weak(120, 60, 30).astype(object)
+    for label in LABEL_COLUMNS:
+        weak[label] = weak[label].map(lambda v: v if pd.isna(v) else str(int(v)))
+
+    with pytest.raises(ValueError, match="must be numeric"):
+        fit_weak_label_heads(_features(120), weak, _features(5))
+
+
+def test_boolean_weak_labels_remain_acceptable():
+    """A bool column is numeric, compares correctly against 1, and casts to
+    int cleanly. The guard above must not reject it.
+    """
+    weak = _weak(120, 60, 30)
+    booleans = weak.copy()
+    for label in LABEL_COLUMNS:
+        booleans[label] = weak[label].fillna(0.0).astype(bool)
+
+    fit = fit_weak_label_heads(_features(120), booleans, _features(5))
+
+    assert fit.support[LABEL_COLUMNS[0]] == 120
+    assert fit.positives[LABEL_COLUMNS[0]] == 30
+
+
 def test_a_weak_label_outside_one_zero_or_abstain_is_rejected():
     """0.5 is this module's abstain *probability*, not a label. Accepting it
     here would train a head on a target that means nothing.

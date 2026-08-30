@@ -293,7 +293,13 @@ reproducible; only the clock is noisy.
 
 ## 2026-08-29 — W1: do report-derived weak labels beat 58 human ones?
 
-Pre-registered in full before the run (collaboration round 106). Reopens the
+The comparison, sample, metric and decision rule were pre-registered before
+the run (collaboration round 106); the `20/5` label-viability floors were
+frozen in code before the first run but not stated in that prose, and are
+disclosed here and in the notebook's frozen contract instead. They were
+non-binding on this result — every abstained label had zero resolved
+negatives, which no threshold rescues — but the pre-registration was not
+complete, and round 108's "in full" overstated it. Reopens the
 Phase 2 weak-label fork on the grounds that its No-go answered a different
 question: Phase 2 asked whether the labels are precise enough to trust and
 rejected them on Wilson lower bounds driven by `n ~ 10-20`; it never asked
@@ -312,12 +318,18 @@ missing `Report` column in `test.csv` does not apply.
 **Predicted: positive and possibly resolved. Both halves wrong.** This was
 the first experiment to predict resolution, on the reasoning that a
 fifty-two-fold increase in training data could move the score by more than
-the interval can see. The score moved the other way, and the interval did
-not narrow: at `0.149` wide it is *worse* than the `+/-0.024` the fixed-58
-comparisons achieve. **The interval is a property of the 58 evaluation
-studies, not of the training set** — the same ceiling the version-4
-uncertainty run identified, reached from the one direction expected to
-escape it.
+the interval can see. The score moved the other way, and the effect was not
+large enough to overcome the uncertainty that 58 evaluation studies impose.
+This pairing also produced a *wider* interval than the fixed-58 comparisons:
+half-width `0.074` against their `+/-0.024`, about **3.1 times wider**.
+
+That width is not purely a property of the evaluation set. A paired
+bootstrap resamples the 58 studies, so their number bounds what it can
+resolve, but the width also depends on the two prediction vectors, their
+correlation, and how the per-study and per-label differences are
+distributed. Enlarging the training set was expected to change the *effect*,
+not to narrow an evaluation-only interval mechanically — and here it did
+neither favourably.
 
 **The label supports are more informative than the headline.** Three labels
 abstained, and not from low support in the ordinary sense — they have **zero
@@ -327,18 +339,34 @@ against 12. A report that omits osteoarthritis is an abstention, not a
 negative, and radiologists do not appear to write "no osteoarthritis" the way
 they write "no meniscal tear". No threshold rescues a single-class column.
 
-**The per-label pattern reads as a different target, not a noisier one** —
-the failure mode round 106 named in advance. Degradation is not uniform:
-gains on Baker's `+0.118`, Fracture `+0.101`, Medial Meniscus `+0.100`,
-Contusion `+0.096`; losses on ACL `-0.127`, Synovitis `-0.076`, and the three
-abstaining OA labels. Uniform label noise would push every label the same
-way. Weak positives encode "mentioned without qualification", which is a
-different event from the finding being present.
+**What the macro delta is actually made of.** Macro AUC is the mean of the
+twelve per-label AUCs, so the delta decomposes exactly. The three
+single-class OA labels are forced to chance and contribute **`-0.0379`** on
+their own; the nine fitted heads contribute **`+0.0089`** between them. Those
+sum to the observed `-0.0290`. **The headline is negative chiefly because a
+quarter of the panel could not be fitted at all**, not because the fitted
+heads were harmed.
+
+**A different target is a plausible reading, not an established one.** Round
+106 named in advance the mechanism that would matter — weak positives encode
+"mentioned without qualification", which is a different event from the
+finding being present — and the zero-negative OA supports are consistent with
+it. But the registered trigger for that reading was a *clearly* negative
+result, and this interval crosses zero widely. Mixed per-label signs (gains
+on Baker's `+0.118`, Fracture `+0.101`, Medial Meniscus `+0.100`, Contusion
+`+0.096`; losses on ACL `-0.127`, Synovitis `-0.076`) do not establish it:
+with 58 studies and uneven per-label support, sign splits are equally
+consistent with label-dependent noise and with sampling variation. Round 108
+claimed uniform noise would move every label the same way; that does not hold
+for a finite, heterogeneous twelve-label panel, and the claim is withdrawn.
 
 **No follow-up is proposed, deliberately.** Selecting the four labels that
-gained would select on the evaluation set — the same leakage round 106
-refused when it declined to choose labels by measured precision. That
-refusal binds equally after seeing the numbers.
+gained — or dropping the three that abstained — would select on the
+evaluation set, the same leakage round 106 refused when it declined to
+choose labels by measured precision. That refusal binds equally after seeing
+the numbers, and the decomposition above explains the result without
+authorizing anything of the sort. **The conclusion stands as measured: W1
+does not displace the baseline, and is not shown to help or hurt.**
 
 **Cost, now measured:** `6958.6 s` for 3000 studies, `2.32 s/study`, within
 4% of the budgeted `2.4`. The full 4349 report-only studies would cost about

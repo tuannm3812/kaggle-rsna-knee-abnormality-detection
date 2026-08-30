@@ -63,6 +63,11 @@ indefinitely.
   not that the extractor is wrong. If more human-labeled studies become
   available before Phase 3 starts, re-run this evaluation rather than
   assume the verdict is stable at a different sample size.
+  **Superseded in part (2026-08-29):** the "no weak-label expansion" fork was
+  reopened and tested directly as W1 — see *Weak supervision — revisited
+  once* below. Training on weak labels was measured rather than assumed
+  against, and did not displace the baseline, so the fork's practical
+  conclusion is unchanged but is now a measurement rather than a deferral.
 - **Next candidate approach, if weak labels are revisited** (per the
   design spec section 7 — named now as a future strategy fork, not
   implemented in this pass): either a multilingual assertion-extraction
@@ -129,17 +134,46 @@ only; pooled out-of-fold macro-AUC as the primary internal score.
   blended into a real submission the way Phase 3C originally assumed (round
   38, finding 1).
 
-### Phase 3B — Frozen Image-Embedding Baseline — design proposed, not yet approved
+### Phase 3B — Frozen Image-Embedding Baseline — implemented, run, submitted
 
-Since Phase 3A cannot be submitted, this phase is being pulled forward to
-be the actual first submittable baseline: a frozen pretrained image
-encoder evaluated on the exact same Phase 3A folds. **Not yet designed or
-approved** — a proposal exists (round 37) and a project-owned DICOM/series
-preflight audit has run twice to inform it (rounds 39–41,
-`docs/7_image_baseline_insights.md`), but the formal design spec, plan, and
-implementation have not started. No dataset publication, kernel run, or
-submission beyond this preflight work is authorized until that design is
-written and independently reviewed.
+Since Phase 3A cannot be submitted, this phase was pulled forward to be the
+actual first submittable baseline: a frozen pretrained image encoder
+evaluated on the exact same Phase 3A folds. It is now **designed, reviewed,
+implemented and run end to end on Kaggle**, superseding this section's
+earlier "not yet designed or approved" status.
+
+- Design: `docs/superpowers/specs/2026-08-26-phase-3b-image-baseline-design.md`,
+  informed by a project-owned DICOM/series preflight audit (rounds 39–41,
+  `docs/7_image_baseline_insights.md`).
+- **Result: pooled out-of-fold macro AUC `0.6346`**, bootstrap 95%
+  `[0.5704, 0.6973]` over the 58 human-labelled studies. The lower bound is
+  above chance; the `±0.063` width is the cost of 58 studies.
+- **Two submissions have been made, each under explicit user authorization**
+  (`docs/5_submissions.md`): mean pooling / 5 slices scored **`0.681`**
+  public LB, and max pooling / 15 slices **`0.687`**. The leaderboard does
+  not separate them, exactly as pre-stated.
+- A series of pre-registered aggregation experiments (rounds 94–105) closed
+  the pooling question without displacing the reported baseline.
+- **No further submission is authorized.**
+
+### Weak supervision — revisited once, no displacement (W1, 2026-08-29)
+
+Phase 2's No-go was reopened on the grounds that it answered a different
+question: it asked whether report-derived labels are precise enough to
+trust, never whether *training* on them improves the score. W1 tested the
+second directly — heads fitted on 3000 report-only studies, evaluated on the
+58 human-labelled ones — and returned **macro AUC `0.6056` against the
+baseline's `0.6346`, delta `-0.029` with a 95% interval of
+`[-0.102, +0.047]` that does not exclude zero**.
+
+**Verdict: weak labels do not displace the baseline, and are not shown to
+help or hurt.** The headline is negative chiefly because three OA labels
+have zero resolved negatives and are forced to chance, contributing `-0.038`
+of the delta by themselves. No follow-up is proposed: selecting the labels
+that gained would select on the evaluation set. Full record:
+`docs/4_experiments.md`, collaboration rounds 106–110. **This supersedes the
+fork decision recorded under Phase 2 above** — that fork has now been tested
+rather than merely deferred, and the answer did not change the plan.
 
 ### Phase 3C — Late Fusion — not started, premise needs revisiting
 
@@ -149,16 +183,20 @@ has no test-time predictions to blend, a direct submission-time fusion of
 the two is not viable as originally described — any fusion role for Phase
 3A's signal (e.g. as a weak-label teacher feeding Phase 3B's training
 targets) would need its own design and reliability gate, not an assumed
-blend rule. Still not designed or scoped; revisit only after Phase 3B
-exists.
+blend rule. Still not designed or scoped. **Phase 3B now exists**, so the
+condition this section waited on is met; what remains missing is a design,
+not a prerequisite phase. Nothing here is authorized to start.
 
 ---
 
 Beyond this 3A/3B/3C sequence: strategy B (representation-first, using
 the 4349 unlabeled studies for self-supervised/contrastive learning) is
-recorded as a longer-term improvement path once Phase 3B exists; strategy
-C (reopening weak supervision with a multilingual/probabilistic approach
-before modeling) remains deferred, not ruled out.
+recorded as a longer-term improvement path, and Phase 3B now exists, so its
+stated precondition is met. Strategy C (reopening weak supervision with a
+multilingual/probabilistic approach) remains deferred and not ruled out —
+**and is now the only untested form of the weak-label idea**, since the
+single-extractor form was tested directly as W1 and did not displace the
+baseline.
 
 ## Phase 4 — Model Improvement & Ensemble — target ~2026-10-08
 

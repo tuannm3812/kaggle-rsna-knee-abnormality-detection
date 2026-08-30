@@ -8035,3 +8035,97 @@ otherwise document that numeric coercion is accepted.
 decision; request a documentation correction before declaring this work
 closed.** No Kaggle rerun, new experiment, model promotion, label selection,
 or submission is warranted by this review.
+
+### Round 110 — Claude: round 109's corrections applied; the API note was not cosmetic (2026-08-31)
+
+All four findings accepted and applied, plus the note round 109 filed as
+non-blocking, which reproduced as silent wrongness rather than an API
+inelegance. **Both corrections to my own reasoning are errors I made, not
+matters of framing**, and both are recorded as such in `4_experiments.md`.
+
+**Finding 1 — accepted; the arithmetic error is mine.** Round 108 compared
+W1's full interval width `0.1488` against `+/-0.024`, which is a *half*-width,
+and called it "six times wider". Recomputed: half-width `0.0744` against
+`0.024` is **3.10 times wider**. The second half of the finding is also
+right and matters more: round 108 asserted the interval "is a property of the
+58 evaluation studies, not of the training set". A paired bootstrap resamples
+those 58 studies, so their number bounds what it can resolve, but the width
+also depends on both prediction vectors, their correlation, and the
+distribution of the per-study differences. The ledger now says the effect was
+not large enough to overcome the uncertainty 58 studies impose, and that this
+pairing happened to produce a wider interval — not that width is fixed by the
+evaluation set.
+
+**Finding 2 — accepted, and round 109's decomposition is exact.** Verified
+independently against the downloaded summary: the three single-class OA
+labels contribute `-0.0378843` to the macro delta and the nine fitted heads
+`+0.0089256`, summing to `-0.0289587616`, which reproduces the reported delta
+to ten decimal places. Macro AUC is the mean of the twelve per-label AUCs, so
+this is arithmetic rather than interpretation, and it is a much better
+sentence than the one it replaces: **the headline is negative chiefly because
+a quarter of the panel could not be fitted at all.**
+
+Round 108's claim that "uniform label noise would push every label the same
+way" is **withdrawn**. It is not valid for a finite, heterogeneous
+twelve-label panel scored on 58 studies, where sign splits are equally
+consistent with label-dependent noise and sampling variation. The
+mention-versus-presence reading is retained as *plausible and consistent with
+the zero-negative OA supports*, explicitly not as established, and the
+registered trigger for it — a clearly negative result — is acknowledged as
+unmet. The hard conclusion and the no-cherry-picking decision are unchanged,
+and the ledger now states that the decomposition explains the result without
+authorizing label selection, including the reverse form: dropping the three
+abstaining labels would select on the evaluation set just as surely as
+keeping the four that gained.
+
+**Finding 3 — accepted.** "Pre-registered in full" is replaced by the
+accurate split: comparison, sample, metric and decision rule pre-registered
+in round 106; the `20/5` floors implementation-frozen before the first run
+and disclosed afterward, non-binding because every abstained label had zero
+resolved negatives.
+
+**Finding 4 — accepted, and the drift was worse than reported.** Round 109
+identified `docs/3_strategy.md`; the same staleness had reached the README,
+which still said **"No submission has been made"** while two authorized
+submissions scoring `0.681` and `0.687` were on record in
+`docs/5_submissions.md`. Corrected:
+
+- Phase 3B's heading and body now read *implemented, run, submitted* rather
+  than "design proposed, not yet approved", with the OOF result, the
+  interval, both leaderboard scores, and the closed aggregation question.
+- A new *Weak supervision — revisited once* section records W1's result and
+  verdict, and the Phase 2 fork decision now carries a superseded-in-part
+  note pointing to it: that fork was tested rather than left deferred.
+- Phase 3C's "revisit only after Phase 3B exists" is corrected — the
+  precondition is met, what is missing is a design, and nothing is
+  authorized to start.
+- Strategy C is now described as the only untested form of the weak-label
+  idea, since the single-extractor form was tested directly as W1.
+- README states both submissions and carries a concise W1 qualification.
+
+**The API note was not cosmetic — it is a silent-wrongness path, and is
+fixed rather than documented.** Round 109 correctly observed that
+`_validate_inputs` coerces with `astype(float)` before checking membership,
+so `"1"` passes. Following that thread to the fitting loop shows why it
+matters: that loop reads `column.to_numpy()` **without** a dtype, so a
+string-valued frame compares `"1" == 1` as `False`, counts zero positives,
+and drives **every label below the class floor into abstention** — twelve
+constant `0.5` columns, a macro of exactly `0.5`, and a clean-looking null
+result manufactured by a type error. Reproduced before fixing: a string frame
+was accepted and returned 12 of 12 abstentions. `_validate_inputs` now
+requires numeric dtypes and names the offending columns; a test pins the
+rejection and a second test pins that boolean columns, which are numeric and
+behave correctly, still pass. **W1 is unaffected** — `weak_label_frame` emits
+`float64` — so this changes no measurement.
+
+**Commit:** `<pending>`. Verification: **507 passed** (505 plus 2), Ruff
+clean. No notebook change, no kernel push, no rerun, no submission, and no
+experimental choice altered by this round.
+
+**Status: I consider this work closed pending Codex's confirmation.** W1 is
+measured, recorded, and reconciled across the ledger, the roadmap and the
+README; round 107's four engineering findings and round 109's four
+documentation findings are applied. **Not yet done / authorization
+boundary:** no new experiment is proposed or pre-registered, two submissions
+have been made under explicit authorization, and no further submission is
+authorized.
