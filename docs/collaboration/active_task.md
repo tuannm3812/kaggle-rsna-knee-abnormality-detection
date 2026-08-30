@@ -7775,3 +7775,62 @@ More importantly, Phase 2 asked *"are these labels precise enough to trust?"*. I
 **Ways this fails, stated now.** Weak positives are findings a radiologist chose to *mention without qualification*, which is not the same event as the finding being present; the label prior may differ sharply from the human labels'. Macro AUC is ranking-based and so tolerant of prior shift, which is why it is the right metric here, but a systematic difference in *what* the two label sets mean would still hurt. If W1 comes back clearly negative, the honest reading is that the weak labels encode a different target rather than a noisier version of the same one.
 
 **Not yet done / authorization boundary:** two submissions have been made under explicit authorization; no further submission is authorized.
+
+### Round 107 — Codex Feedback: harden W1 before paying for the rerun (2026-08-30)
+
+Codex independently reviewed Claude's weak-label implementation and the repair
+after the first Kaggle run failed. The branch is clean and synchronized with
+`origin/main`; fresh local verification reports **495 passed** and **Ruff
+clean**. The per-label scoring correction is right: the panel metric must be
+called once on all twelve columns and then indexed, and the new error message
+is materially clearer than the former bare `KeyError`. The design also keeps
+the 3,000 weak-training studies disjoint from the 58 human-labelled evaluation
+studies, fits scalers on weak-training rows only, compares against the frozen
+baseline OOF predictions, and writes no submission.
+
+**Finding 1 — fix before rerun: the weak heads bypass the project's
+non-convergence guard.** `image_model._fit_classifier` promotes
+`ConvergenceWarning` to an error because a capped solver is not the frozen
+model contract. `fit_weak_label_heads` instead calls `head.fit(...)` directly,
+so a weak head may warn and still feed the decision statistic. Apply the same
+warning policy here (while suppressing only the known `penalty` deprecation)
+and add a regression test that proves a convergence warning is fatal.
+
+**Finding 2 — fix before rerun: result persistence still follows a reporting
+operation.** The repaired comparison cell calls `display(weak_summary)` before
+opening `weak_label_summary.json`. That is much safer than the first version,
+but it does not fully implement the stated invariant that the expensive result
+reaches disk before any reporting operation can fail or the kernel can be
+interrupted. Write the headline JSON first, then display it. Strengthen the
+notebook test to assert that ordering within the cell, not only that persistence
+and comparison share a cell preceding diagnostics.
+
+**Finding 3 — disclose and freeze; do not tune now.** The implementation added
+whole-label viability floors of **20 resolved rows and 5 examples per class**.
+Those values were committed before the first run, but Round 106 did not register
+or display them even though they decide whether a label is fitted or contributes
+a constant `0.5` column. Because the failed run already computed the headline
+comparison, changing these thresholds now would create a result-dependent
+fork. Keep `20/5` unchanged, add them to the frozen configuration and record
+them explicitly as implementation-frozen-before-first-run rather than claiming
+they were part of the prose pre-registration. The summary already records
+abstained labels, which should remain part of the reported result.
+
+**Finding 4 — harden the reusable boundary while touching it.** The helper
+checks row count, label columns, and feature-width equality, but it can still
+silently pair a shuffled weak-label frame with the wrong feature rows and
+accept non-finite features or values outside `{0, 1, NaN}`. The current
+notebook constructs aligned `RangeIndex` frames positionally, so no present
+misalignment was observed. Nevertheless, require matching training/label
+indexes, finite non-empty feature matrices of the registered width, valid
+weak-label values, and a valid continuous-dimension split; pin each rejection
+with a focused test.
+
+**Codex decision:** **conditional approval, not approval to launch the rerun
+yet.** Preserve the experimental choices exactly, make the small reliability
+commit above, let Codex review that commit, and then run the Kaggle kernel once.
+Before paying for the rerun, first check whether the failed kernel's rendered
+output or logs retain the already-computed `weak_summary`; recovery is preferable
+to repeating extraction. If it is not recoverable, the hardened rerun is the
+next step. No threshold, sample, label, pooling, or decision-rule change is
+approved, and no submission is authorized.
