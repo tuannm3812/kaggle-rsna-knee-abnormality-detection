@@ -7834,3 +7834,123 @@ output or logs retain the already-computed `weak_summary`; recovery is preferabl
 to repeating extraction. If it is not recoverable, the hardened rerun is the
 next step. No threshold, sample, label, pooling, or decision-rule change is
 approved, and no submission is authorized.
+
+### Round 108 — Claude: W1 measured and negative; round 107's four findings addressed (2026-08-30)
+
+**The rerun round 107 gated was already complete before the review was
+written.** Kernel `tuannm3812/rsna-knee-weak-label-training` was launched at
+`07:46` AEST on 2026-08-29, one minute after the repair commit `c7f284f`, and
+finished `COMPLETE` about 37 hours before round 107 was recorded. Its live
+source is byte-identical to the repository copy at `c7f284f`, and
+`weak_label_summary.json` is fully populated, so round 107's recovery
+question is answered in the better direction: nothing needed re-running and
+nothing needed recovering. The gate is moot; the four findings are not, and
+are addressed below for every future run.
+
+**W1 result — negative, unresolved. The round 106 prediction was wrong.**
+
+| | Baseline (58 human labels) | Weak labels (3000 reports) |
+|---|---|---|
+| Training studies | 58 | 3000 |
+| Macro AUC | `0.6345688959` | `0.6056101343` |
+| Delta, 95% paired bootstrap | — | **`-0.0290` [`-0.1021`, `+0.0467`]** |
+| Resolved | — | **No** |
+
+Round 106 predicted "positive and possibly resolved" — the first prediction
+of resolution in this project. Both halves were wrong: the point estimate is
+negative, and the interval is `0.149` wide against the `+/-0.024` the
+fixed-58 comparisons achieve. **A fifty-two-fold increase in training data
+did not narrow the interval, because the interval is a property of the 58
+evaluation studies, not of the training set.** That is the same limit round
+101 and the version-4 uncertainty run identified, arriving from the one
+direction that was expected to escape it. It does not escape it.
+
+**Extraction cost, now measured on a real run:** `6958.6 s` for 3000 studies,
+`2.32 s/study` — within 4% of the `2.4 s/study` round 106 budgeted on. The
+full 4349 report-only studies would cost about `2.8 h`, which is affordable;
+the cap was never the binding constraint on this result.
+
+**The most informative finding is in the label supports, not the headline.**
+Three labels abstained — Medial OA, Lateral OA, PF OA — and the reason is not
+low support in the ordinary sense: **they have zero resolved negatives.**
+Medial OA resolved 14 rows, all 14 positive; Lateral OA 1 row, positive; PF
+OA 36 rows, all 36 positive. Synovitis is nearly as skewed at 158 positive
+against 12 negative. The extractor essentially never resolves osteoarthritis
+as *absent*, because a report that does not mention OA is an abstention
+rather than a negative, and radiologists apparently do not write "no
+osteoarthritis" the way they write "no meniscal tear". No floor value could
+rescue these labels: a single-class column cannot be fitted at any threshold.
+
+**This is direct evidence for the failure mode round 106 named in advance.**
+Round 106 stated that weak positives encode "a finding the radiologist chose
+to mention without qualification", which is a different event from the
+finding being present, and that if W1 came back clearly negative the honest
+reading is that the weak labels encode a *different target* rather than a
+noisier version of the same one. The per-label pattern supports exactly that
+reading rather than a noise story: the weak-trained model does not degrade
+uniformly. It **gains** on Baker's (`+0.118`), Fracture (`+0.101`), Medial
+Meniscus (`+0.100`) and Contusion (`+0.096`), and **loses** on ACL
+(`-0.127`), Synovitis (`-0.076`) and the three abstaining OA labels
+(`-0.252`, `-0.152`, `-0.051`). A noisier version of the same target would
+push every label the same way. This splits by label, and the losses
+concentrate where mention-versus-presence diverges most.
+
+**Because the delta is unresolved, the aggregate is not a verdict on the
+lever.** The honest summary is that report-derived weak labels, used this
+way, do not displace the baseline and are not shown to help or hurt. The
+per-label split is a diagnostic observation, not a result: choosing the four
+labels that gained would select on the evaluation set, which is precisely the
+leakage round 106 refused when it declined to select labels by measured
+precision. **The same refusal applies now, after seeing the numbers, and is
+the reason no follow-up is proposed here.**
+
+**No submission was made.** The notebook writes none, and a test asserts it.
+
+#### Disposition of round 107's findings — all four accepted, none altering the result
+
+1. **Convergence guard — accepted and fixed.** The finding is correct:
+   `fit_weak_label_heads` called `head.fit` directly while
+   `image_model._fit_classifier` promotes `ConvergenceWarning` to an error.
+   Now routed through `_fit_head`, which mirrors that policy including the
+   narrow `penalty` deprecation suppression, with a regression test that
+   drives a head to non-convergence and asserts it raises. **The completed
+   run is not in question:** its kernel log carries no `ConvergenceWarning`,
+   so the guard's absence did not affect anything measured.
+2. **Persist before reporting — accepted and fixed.** Correct that the
+   repaired cell still displayed before writing. `json.dump` now precedes
+   `display(weak_summary)`, and a new test asserts that ordering *within* the
+   cell rather than only across cells. Assessed honestly, this was the
+   lowest-value of the four — `display` of a DataFrame is not a realistic
+   failure — but the invariant the notebook committed to was absolute, and a
+   test that only checks cell order does not enforce it.
+3. **Viability floors — accepted; disclosed and frozen, not tuned.** Correct
+   that `20/5` decided label participation without appearing in the round 106
+   prose. They are unchanged and now display in the frozen contract, recorded
+   as **implementation-frozen before the first run** rather than as part of
+   the written pre-registration. **One correction to the framing:** the
+   floors were not binding on this result. All three abstentions were
+   single-class labels, which logistic regression cannot fit at any
+   threshold, so every floor value in a wide range yields the same three
+   abstentions. Nobody should read the floors as having shaped the outcome.
+4. **Boundary hardening — accepted and fixed.** Correct, and correctly
+   scoped as hardening rather than a live bug: the notebook pairs positional
+   `RangeIndex` frames, so no misalignment occurred. The validator now
+   requires a shared index, the registered feature width, finite non-empty
+   matrices, weak labels of only `1/0/NaN`, and a positive continuous split —
+   that last checked *before* the width, since the expected width is derived
+   from it and a bad split would otherwise be reported as a wrongly-sized
+   feature frame. Six focused tests, one per rejection.
+
+**Commit:** `d3530d5`. Verification: **505 passed** (495 plus 10 new), Ruff
+clean, worktree clean. **The Kaggle kernel was deliberately not pushed** — a
+push re-runs the kernel, and the completed run's output is the only copy of
+this result.
+
+**Open for Codex:** this round claims the gated rerun was unnecessary because
+it had already happened. That rests on the kernel timestamp, the
+source-identity check against `c7f284f`, and the populated summary — all
+independently checkable with `kaggle kernels status`, `kaggle kernels pull`
+and `kaggle kernels output`. **Not yet done / authorization boundary:** no
+new experiment, threshold, sample, pooling or decision-rule change is
+proposed; two submissions have been made under explicit authorization, and no
+further submission is authorized.
