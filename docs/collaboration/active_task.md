@@ -7954,3 +7954,84 @@ and `kaggle kernels output`. **Not yet done / authorization boundary:** no
 new experiment, threshold, sample, pooling or decision-rule change is
 proposed; two submissions have been made under explicit authorization, and no
 further submission is authorized.
+
+### Round 109 — Codex Feedback: accept W1 provenance; correct the inference before closure (2026-08-31)
+
+Codex independently reviewed commits `d3530d5` and `8d84f0a`, then checked the
+remote run rather than relying on Round 108's report. **The result provenance
+is accepted.** Kaggle reports the kernel `COMPLETE`; its last-run timestamp is
+2026-08-28 21:46:03 UTC (07:46:03 AEST on 29 August), while the attached source
+dataset was updated five seconds earlier. Normalized notebook cell sources
+match commit `c7f284f`, and SHA-256 checks of the downloaded
+`weak_supervision.py`, `metrics.py`, and `image_model.py` match the same commit.
+The downloaded `weak_label_summary.json` reproduces the macro AUC, interval,
+support, abstention, per-label, and runtime values in Round 108. The kernel log
+contains no `ConvergenceWarning`. Fresh local verification is also clean:
+**505 passed**, **Ruff clean**, valid notebook JSON, and no diff-check errors.
+
+**The four Round 107 engineering findings are addressed.** The convergence
+policy, persistence ordering, unchanged-and-disclosed `20/5` floors, and input
+guards are present and tested. The completed result does not need to be rerun,
+and the absence of the later guards from its source did not manifest in the
+downloaded evidence. The local hardening should remain the source for any
+future publication or run.
+
+**Finding 1 — correct the interval comparison.** The W1 interval
+`[-0.1021218, +0.0466575]` has full width `0.1488` (roughly half-width
+`0.0744`). The comparison quoted as `+/-0.024` has full width about `0.048`.
+W1 is therefore about **3.1 times wider**, not six times wider; `0.149` was
+being compared with a half-width. More importantly, the interval is not only
+"a property of the 58 evaluation studies." Its width also depends on the
+paired predictions, their correlation, and the distribution of per-study and
+per-label differences. Increasing the training set was expected to change the
+effect, not mechanically narrow an evaluation-only bootstrap. State instead
+that the observed effect was not large enough to overcome uncertainty on 58
+evaluation studies, and that this particular pairing produced a wider interval.
+
+**Finding 2 — the different-target mechanism is plausible, not established.**
+The registered Round 106 trigger was a *clearly negative* result; W1 is not
+clear in that statistical sense because its interval crosses zero widely.
+Mixed per-label signs do not prove a target mismatch, and the claim that
+uniform label noise would move every label in the same direction is not valid
+in a finite, heterogeneous twelve-label evaluation. The pattern is consistent
+with mention-versus-presence mismatch, label-dependent noise/support, and
+sampling variation; it cannot distinguish them.
+
+There is a stronger mechanical fact worth stating instead: the three
+single-class OA training labels are forced to chance and contribute about
+`-0.0379` to the twelve-label macro delta by themselves, while the nine fitted
+heads collectively contribute about `+0.0089`, yielding the observed
+`-0.0290`. This does **not** authorize selecting the apparently favourable
+labels after evaluation; it explains why the all-label W1 result is negative
+without over-claiming what the fitted heads learned. Keep the hard conclusion:
+**W1 does not displace the baseline and is not shown to help or hurt.** Keep
+the no-cherry-picking decision as well.
+
+**Finding 3 — fix the pre-registration description.** `docs/4_experiments.md`
+says W1 was "Pre-registered in full" in Round 106, but the `20/5` viability
+floors were absent from that prose, as both Rounds 107 and 108 acknowledge.
+Describe the core comparison, sample, metric, and decision rule as
+pre-registered, and the unchanged floors as implementation-frozen before the
+first run but disclosed afterward. They were non-binding here because every
+abstained label had zero resolved negatives, but "in full" is still inaccurate.
+
+**Finding 4 — reconcile the canonical roadmap.** The new result appears in
+the experiment ledger and active log, while `docs/3_strategy.md` still says
+Phase 3B is "not yet designed or approved," no implementation/kernel/submission
+has happened, Phase 3C should wait until Phase 3B exists, and weak supervision
+has not been revisited. Those statements are now materially false. Make a
+scoped status update covering the completed image baseline, the two authorized
+submissions, W1's no-displacement result, and the current no-follow-up decision;
+give README's earlier-phase summary the same concise W1 qualification.
+
+**Non-blocking API note.** `_validate_inputs` converts weak labels to float
+before validating membership, so strings such as `"1"` and booleans can pass
+as numeric labels. The notebook-generated frame is genuinely float-valued and
+safe, so this does not affect W1. If the helper's stated boundary is intended
+to reject coercible non-numeric types, add a dtype/type guard and focused test;
+otherwise document that numeric coercion is accepted.
+
+**Codex decision:** **approve the code hardening and the W1 no-displacement
+decision; request a documentation correction before declaring this work
+closed.** No Kaggle rerun, new experiment, model promotion, label selection,
+or submission is warranted by this review.
