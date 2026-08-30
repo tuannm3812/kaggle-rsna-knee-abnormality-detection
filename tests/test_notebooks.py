@@ -816,6 +816,16 @@ def test_weak_label_notebook_writes_no_submission() -> None:
     assert "submission.csv" not in code
 
 
+def _weak_label_comparison_cell() -> str:
+    notebook = _load_json("notebooks/07_weak_label_training.ipynb")
+    sources = [
+        "".join(cell.get("source", []))
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    ]
+    return sources[next(i for i, s in enumerate(sources) if "paired_bootstrap_delta(" in s)]
+
+
 def test_weak_label_notebook_persists_its_result_before_diagnostics() -> None:
     """A failure in a reporting cell destroyed a two-hour extraction once.
     The comparison must reach disk as soon as it exists, before any later
@@ -832,6 +842,33 @@ def test_weak_label_notebook_persists_its_result_before_diagnostics() -> None:
 
     assert "json.dump(run_summary" in sources[comparison]
     assert comparison < per_label
+
+
+def test_weak_label_notebook_persists_its_result_before_reporting_it() -> None:
+    """Cell ordering is not enough: within the comparison cell itself, the
+    headline must reach disk before any reporting operation that could raise
+    or be interrupted, `display` included. Round 107, finding 2.
+    """
+    cell = _weak_label_comparison_cell()
+
+    assert "json.dump(run_summary" in cell
+    assert "display(weak_summary)" in cell
+    assert cell.index("json.dump(run_summary") < cell.index("display(weak_summary)")
+
+
+def test_weak_label_notebook_displays_the_viability_floors() -> None:
+    """The support and per-class floors decide whether a label is fitted at
+    all or contributes a constant 0.5. They were frozen in code before the
+    first run but not stated in the pre-registration, so the frozen contract
+    must show them rather than leaving them to be inferred. Round 107,
+    finding 3.
+    """
+    code = _code_source(_load_json("notebooks/07_weak_label_training.ipynb"))
+
+    assert "WEAK_MIN_SUPPORT" in code
+    assert "WEAK_MIN_CLASS_COUNT" in code
+    assert '"Weak-label minimum support": WEAK_MIN_SUPPORT' in code
+    assert '"Weak-label minimum per class": WEAK_MIN_CLASS_COUNT' in code
 
 
 def test_weak_label_notebook_scores_per_label_with_the_panel_metric() -> None:

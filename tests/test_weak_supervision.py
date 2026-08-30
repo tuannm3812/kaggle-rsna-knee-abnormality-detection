@@ -150,6 +150,90 @@ def test_mismatched_feature_widths_are_rejected():
         fit_weak_label_heads(_features(120), _weak(120, 60, 30), _features(4).iloc[:, :10])
 
 
+def test_a_shuffled_label_frame_is_rejected_rather_than_paired_positionally():
+    """Equal row counts do not establish correspondence. A frame reordered on
+    the way in keeps its length and loses which study each row describes,
+    which would silently train every head on the wrong targets.
+    """
+    weak = _weak(120, 60, 30)
+    shuffled = weak.sample(frac=1.0, random_state=0)
+
+    with pytest.raises(ValueError, match="same index"):
+        fit_weak_label_heads(_features(120), shuffled, _features(5))
+
+
+def test_features_of_the_wrong_registered_width_are_rejected():
+    narrow = _features(120).iloc[:, :-1]
+
+    with pytest.raises(ValueError, match="dimensional"):
+        fit_weak_label_heads(narrow, _weak(120, 60, 30), narrow.iloc[:5])
+
+
+@pytest.mark.parametrize("bad", [np.nan, np.inf])
+def test_non_finite_features_are_rejected(bad: float):
+    train = _features(120)
+    train.iloc[0, 0] = bad
+
+    with pytest.raises(ValueError, match="non-empty and finite"):
+        fit_weak_label_heads(train, _weak(120, 60, 30), _features(5))
+
+
+def test_non_finite_evaluation_features_are_rejected():
+    evaluation = _features(5)
+    evaluation.iloc[0, 0] = np.inf
+
+    with pytest.raises(ValueError, match="non-empty and finite"):
+        fit_weak_label_heads(_features(120), _weak(120, 60, 30), evaluation)
+
+
+def test_a_weak_label_outside_one_zero_or_abstain_is_rejected():
+    """0.5 is this module's abstain *probability*, not a label. Accepting it
+    here would train a head on a target that means nothing.
+    """
+    weak = _weak(120, 60, 30)
+    weak.iloc[0, 0] = 0.5
+
+    with pytest.raises(ValueError, match="1, 0, or NaN"):
+        fit_weak_label_heads(_features(120), weak, _features(5))
+
+
+def test_a_non_positive_continuous_split_is_rejected():
+    """Reported as the split it is, not as the derived feature width it
+    would otherwise masquerade as.
+    """
+    with pytest.raises(ValueError, match="continuous_dimensions must be positive"):
+        fit_weak_label_heads(
+            _features(120), _weak(120, 60, 30), _features(5), continuous_dimensions=0
+        )
+
+
+# -- non-convergence is fatal, as it is for the image head --
+
+
+def test_a_non_converging_head_raises_rather_than_scoring():
+    """An unconverged head reports whatever the solver reached when it ran
+    out of iterations. Round 107 found this path fitted directly, so a
+    warning could have fed the decision statistic instead of stopping it.
+    """
+    from sklearn.exceptions import ConvergenceWarning
+
+    import knee_mri.weak_supervision as weak_supervision
+
+    original = weak_supervision._binary_head
+
+    def _one_iteration_head():
+        head = original()
+        head.set_params(max_iter=1, solver="saga")
+        return head
+
+    weak_supervision._binary_head = _one_iteration_head
+    try:
+        with pytest.raises(ConvergenceWarning):
+            fit_weak_label_heads(_features(120), _weak(120, 60, 30), _features(5))
+    finally:
+        weak_supervision._binary_head = original
+
+
 # -- report resolution --
 
 

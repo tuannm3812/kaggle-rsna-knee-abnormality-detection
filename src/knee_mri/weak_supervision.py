@@ -22,15 +22,18 @@ never a study identifier.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LogisticRegression
 
 from knee_mri.image_model import (
     CONTINUOUS_DIMENSIONS,
+    FLAG_DIMENSIONS,
     IMAGE_CLASSIFIER_C,
     PartialStandardScaler,
 )
@@ -83,6 +86,74 @@ def _binary_head() -> LogisticRegression:
     )
 
 
+def _fit_head(head: LogisticRegression, matrix: np.ndarray, targets: np.ndarray) -> None:
+    """Fit, treating non-convergence as fatal.
+
+    Mirrors `image_model._fit_classifier`, and for the same reason: a
+    `ConvergenceWarning` means the coefficients are wherever the solver
+    stopped, so a score computed from them is not the score of the frozen
+    contract. Round 107 found this path called `fit` directly and so could
+    have fed an unconverged head into the decision statistic. The `penalty`
+    deprecation is separately silenced as a known-benign notice about a
+    keyword this contract pins.
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="'penalty' was deprecated in version 1.8.*",
+            category=FutureWarning,
+        )
+        warnings.simplefilter("error", ConvergenceWarning)
+        head.fit(matrix, targets)
+
+
+def _validate_inputs(
+    train_features: pd.DataFrame,
+    weak_labels: pd.DataFrame,
+    evaluation_features: pd.DataFrame,
+    continuous_dimensions: int,
+    labels: Sequence[str],
+) -> None:
+    """Reject the pairings a caller can silently get wrong.
+
+    Equal row counts do not establish that row *i* of the features is the
+    study that produced row *i* of the labels; a frame sorted or filtered on
+    the way in keeps its length and loses its correspondence. Requiring equal
+    indexes makes that misalignment loud. The notebook builds both frames
+    positionally with a `RangeIndex`, so no misalignment was ever observed --
+    this is the guard that keeps it that way.
+    """
+    if len(train_features) != len(weak_labels):
+        raise ValueError("train_features and weak_labels must have the same row count")
+    if not train_features.index.equals(weak_labels.index):
+        raise ValueError("train_features and weak_labels must share the same index")
+    if list(weak_labels.columns) != list(labels):
+        raise ValueError("weak_labels columns must match labels in order")
+
+    # Checked before the width, because the expected width is *derived* from
+    # this value: a non-positive split would otherwise be reported as a
+    # feature frame of the wrong size, which sends the reader to the wrong
+    # place entirely.
+    if continuous_dimensions <= 0:
+        raise ValueError("continuous_dimensions must be positive")
+    expected_width = continuous_dimensions + FLAG_DIMENSIONS
+    if train_features.shape[1] != expected_width:
+        raise ValueError(f"train_features must be {expected_width}-dimensional")
+    if train_features.shape[1] != evaluation_features.shape[1]:
+        raise ValueError("training and evaluation features must have the same width")
+
+    for name, frame in (
+        ("train_features", train_features),
+        ("evaluation_features", evaluation_features),
+    ):
+        if frame.empty or not np.isfinite(frame.to_numpy(dtype=np.float64)).all():
+            raise ValueError(f"{name} must be non-empty and finite")
+
+    values = weak_labels.to_numpy(dtype=np.float64)
+    if not np.isin(values[~np.isnan(values)], (0.0, 1.0)).all():
+        raise ValueError("weak_labels values must be 1, 0, or NaN for abstain")
+
+
 def fit_weak_label_heads(
     train_features: pd.DataFrame,
     weak_labels: pd.DataFrame,
@@ -107,14 +178,16 @@ def fit_weak_label_heads(
         The predictions and the per-label support behind them.
 
     Raises:
-        ValueError: If the frames disagree on shape or columns.
+        ValueError: If the frames disagree on shape, index, or columns, if a
+            feature matrix is empty or non-finite, if a weak label is
+            anything but 1, 0 or NaN, or if `continuous_dimensions` is not
+            positive.
+        ConvergenceWarning: If any head fails to converge, promoted to an
+            error because an unconverged head is not the frozen contract.
     """
-    if len(train_features) != len(weak_labels):
-        raise ValueError("train_features and weak_labels must have the same row count")
-    if list(weak_labels.columns) != list(labels):
-        raise ValueError("weak_labels columns must match labels in order")
-    if train_features.shape[1] != evaluation_features.shape[1]:
-        raise ValueError("training and evaluation features must have the same width")
+    _validate_inputs(
+        train_features, weak_labels, evaluation_features, continuous_dimensions, labels
+    )
 
     train_matrix = train_features.to_numpy(dtype=np.float64)
     evaluation_matrix = evaluation_features.to_numpy(dtype=np.float64)
@@ -149,7 +222,7 @@ def fit_weak_label_heads(
             continuous_dimensions=continuous_dimensions
         ).fit(train_matrix[resolved])
         head = _binary_head()
-        head.fit(scaler.transform(train_matrix[resolved]), targets.astype(int))
+        _fit_head(head, scaler.transform(train_matrix[resolved]), targets.astype(int))
         probabilities[label] = head.predict_proba(
             scaler.transform(evaluation_matrix)
         )[:, 1]
