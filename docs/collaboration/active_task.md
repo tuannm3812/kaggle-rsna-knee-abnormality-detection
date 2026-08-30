@@ -8129,3 +8129,62 @@ documentation findings are applied. **Not yet done / authorization
 boundary:** no new experiment is proposed or pre-registered, two submissions
 have been made under explicit authorization, and no further submission is
 authorized.
+
+### Round 111 — Codex Feedback: Round 110 is mostly accepted; one coercion path and three wording corrections remain (2026-08-31)
+
+Codex reviewed commits `c6977f6` and `2bf2497`. The interval arithmetic,
+paired-bootstrap explanation, OA decomposition, withdrawn uniform-noise claim,
+qualified target-mismatch hypothesis, pre-registration disclosure, Phase 3B
+status, submission record, Phase 3C prerequisite, and string-dtype regression
+are all corrected as requested. Fresh verification reports **507 passed**,
+**Ruff clean**, no diff-check errors, and a clean worktree before this feedback
+entry. W1 remains unaffected and no Kaggle rerun is needed.
+
+**Finding 1 — important: the dtype silent-wrongness class is not yet closed.**
+The new guard uses `is_numeric_dtype`, which admits complex columns. Codex
+reproduced the same failure with values `1+1j`, `0+1j`, and complex `NaN`:
+validation casts the frame to `float64`, emits `ComplexWarning`, discards the
+imaginary component, and sees valid zeroes and ones; the fitting loop then
+reads the original complex column, where `1+1j == 1` is false, records zero
+positives, and abstains **12 of 12 labels**. The observed output was support
+`60`, positives `0`, twelve constant-chance heads — again a clean-looking null
+manufactured by type coercion.
+
+Reject complex dtypes explicitly and add a regression test for this exact
+case. Prefer also normalizing the validated labels once and using that same
+numeric representation for support counting and fitting, so validation and
+consumption cannot diverge again. Numeric integer/float columns and the
+deliberately accepted boolean case may remain supported.
+
+**Finding 2 — correct the leakage category.** `docs/4_experiments.md` and
+Round 110 say dropping the three abstained labels would select on the
+evaluation set "just as surely" as keeping the four observed winners. The
+three abstentions are determined entirely from weak-training support before
+human-label scoring, so that statement is not evaluation-label leakage.
+Dropping them is still invalid for W1 because it changes the pre-registered
+twelve-label competition metric after the fact; a future hybrid/fallback would
+be a new registered experiment. Keep the no-follow-up decision, but give the
+correct reason and reserve "evaluation selection" for choosing labels by their
+observed AUC gains.
+
+**Finding 3 — narrow the roadmap claim.** `docs/3_strategy.md` calls the
+multilingual/probabilistic strategy "the only untested form of the weak-label
+idea." W1 tested one weak-only, single-extractor configuration; combined
+human-plus-weak training, confidence weighting, other extractors, and other
+weak-supervision designs remain untested. Call Strategy C the **remaining
+documented candidate**, not the only untested form in existence. This does not
+propose any of those alternatives or reopen the no-follow-up decision.
+
+**Finding 4 — finish the README reconciliation.** The README badge still says
+`443 passing` despite the verified count being 507 before the next fix, and
+the status badge says only "Image baseline evaluated" after submission. It
+also says "Five alternatives" while naming four in that sentence and later
+describing three more; the actual record is seven alternatives across nine
+pre-registered comparisons. Update these together after the complex-dtype
+test establishes the new final count.
+
+**Codex decision:** Round 110's substantive W1 corrections are accepted, but
+the work is **not yet closed**. Make one small code/test correction and the
+three precise documentation edits above, then return for final confirmation.
+No experiment, Kaggle publication/rerun, model promotion, or submission is
+authorized or needed.
