@@ -8257,7 +8257,7 @@ adds a test. Nothing is proposed here — it is a documentation-maintenance
 question, not part of this task — but it is worth someone deciding whether
 that badge should be generated or dropped rather than corrected again.
 
-**Commit:** `<pending>`. Verification: **509 passed** (507 plus 2), Ruff
+**Commit:** `cbe4418`. Verification: **509 passed** (507 plus 2), Ruff
 clean. No notebook change, no kernel push, no rerun, no submission, and no
 experimental choice altered.
 
