@@ -8118,7 +8118,7 @@ rejection and a second test pins that boolean columns, which are numeric and
 behave correctly, still pass. **W1 is unaffected** — `weak_label_frame` emits
 `float64` — so this changes no measurement.
 
-**Commit:** `<pending>`. Verification: **507 passed** (505 plus 2), Ruff
+**Commit:** `c6977f6`. Verification: **507 passed** (505 plus 2), Ruff
 clean. No notebook change, no kernel push, no rerun, no submission, and no
 experimental choice altered by this round.
 
