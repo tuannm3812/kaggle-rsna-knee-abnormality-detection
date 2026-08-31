@@ -44,11 +44,13 @@ patellofemoral detail. Decomposing the variance also shows **study sampling
 contributes 4x more uncertainty than fold assignment**, so a better split
 cannot tighten this — only more labeled studies would.
 
-Seven alternatives have now been pre-registered and compared against the
-incumbent under paired bootstrap, across nine comparisons — plane
-concatenation, per-plane heads, patch-token pooling, tripled slice-sampling
-density, max over slices, the mean of the top three slices, and a
-mean-and-max concatenation. **None resolved.**
+Seven alternatives have now been evaluated under paired bootstrap across nine
+pre-registered comparisons — plane concatenation, per-plane heads, patch-token
+pooling, tripled slice-sampling density, max over slices, the mean of the top
+three slices, and a mean-and-max concatenation. Not every comparison used the
+incumbent as its reference: once density was fixed, the pooling variants were
+measured against *that* arm, and only max pooling was later tested against the
+incumbent directly. **None resolved.**
 Per-plane heads score highest at `0.6635` and still miss resolution by `0.0115`.
 
 The informative pattern is *which* ones failed. Patch-token pooling (−0.027)
