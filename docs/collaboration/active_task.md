@@ -197,7 +197,7 @@ the moment it is given, not summarized afterwards.
 for. Codex recommended ratifying rather than reverting, and nothing here
 reverts the archive.
 
-**Commit:** `<pending>`, pushed to `origin/main` at the user's explicit
+**Commit:** `e35ab11`, pushed to `origin/main` at the user's explicit
 request — the first push of this task. Verification: **509 passed**, Ruff
 clean. No code, notebook, kernel, rerun or submission; no experimental choice
 altered.
