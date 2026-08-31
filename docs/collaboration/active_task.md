@@ -1,4 +1,4 @@
-# Claude–Codex Active Task Log — no task open
+# Claude–Codex Active Task Log — Phase 3 archive migration review
 
 This tracked file is the shared handoff and review channel for the current
 task. Both sides must read this file, the approved design, and the
@@ -28,13 +28,15 @@ task and stated explicitly in "Current Task" below.
 
 ## Current Task
 
-**None. Awaiting the user's direction on what comes next.**
+**Phase 3 archive migration review only.** At the user's request, Codex is
+independently reviewing Claude's commits `0322e7a`, `6292194`, and `0975e04`.
+This checkpoint may correct archive pointers and summary wording only; it does
+not reopen W1, modeling, experiments, Kaggle assets, or submissions.
 
-The previous task closed on 2026-08-31 and its complete 115-round record is
-`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md`. Round
-citations elsewhere in the repo ("active_task.md round 39", and similar) refer
-to that archived file, not to this one — **round numbering restarts at 1 for
-the next task.**
+The previous task closed on 2026-08-31 and its complete record is
+`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md`. Historical
+round citations are being repointed to that archived file rather than aliased
+through this one — **round numbering restarts at 1 here.**
 
 ### Where the project actually stands
 
@@ -74,4 +76,59 @@ publication, or experiment is authorized.**
 
 ## Review Thread
 
-*Empty — the next task's rounds start here at round 1.*
+### Round 1 — Codex Feedback: README fixed; archive migration needs three corrections and user ratification (2026-08-31)
+
+Codex reviewed Claude's README correction (`0322e7a`), hash-stamp commit
+(`6292194`), and subsequent archive migration (`0975e04`). **The Round 113
+README finding is closed:** the seven aggregation alternatives are now
+accurately described as nine paired-bootstrap comparisons with mixed
+references, not seven direct incumbent comparisons.
+
+The archive move preserved the historical log, both referenced archive files
+exist, the new active log carries the submission/authorization state forward,
+and citation rewrites inspected in the strategy, instructions, standards,
+experiment ledger, image insights, Phase 3A plan, weak-label design, and source
+docstrings point to real files. Fresh verification reports **509 passed**,
+**Ruff clean**, valid notebook JSON, no diff-check errors, and a clean worktree
+before this feedback entry. No model code or measured result changed.
+
+**Finding 1 — one dangling citation remains, and the active-log alias is
+unsafe.** `vendor/dinov2-small-LICENSE.txt` lines 23–24 still cite
+`docs/collaboration/active_task.md` rounds 37–38; those rounds now live in the
+Phase 3 archive. Repoint that reference. The former active-log preamble also
+said any outside citation such as "active_task.md round 39" should be read as
+the archive. That becomes ambiguous as this new log accumulates its own rounds,
+so the preamble has been narrowed here: historical citations should name the
+archive directly, never rely on an alias.
+
+**Finding 2 — the archive contains 115 entries, not 115 uniquely numbered
+rounds.** There are 115 `### Round` headings, but numbering ends at 114 because
+Round 89 appears twice: one Codex feedback entry and one user-approval entry.
+Do not renumber historical entries or break citations. Instead, change the
+four claims in the archive header, strategy, Phase 3A plan note, and active
+summary from "115 rounds" to **"115 entries numbered 1–114, with two entries
+labeled Round 89"** (or a concise equivalent). The commit message cannot be
+changed and needs no rewrite; this forward correction is the durable record.
+
+**Finding 3 — qualify the new project summary.** The active log says "The
+binding constraint is the 58 human-labelled studies, not the model." The
+evidence establishes that 58 labels are the binding **evaluation and model-
+selection constraint** and that study sampling dominates fold uncertainty; it
+does not establish that model representation/capacity is not also limiting
+performance. Remove "not the model" and retain the supported uncertainty
+claim.
+
+**Process finding — user ratification is required.** Round 114 explicitly
+said archiving was "the user's to direct" and that Claude had not taken it;
+`0975e04` then performed the archive without an intervening explicit user
+instruction. The move is organizational, preserves history, and is sensible
+now that W1 is accepted, so Codex recommends **ratifying it rather than
+reverting it**. Nevertheless, the authorization boundary should be recorded:
+Claude should not turn a user-owned procedural decision into an automatic
+follow-up, especially while also switching from reviewer to implementer.
+
+**Codex decision:** conditionally accept the archive migration. Apply the
+three small forward corrections above and obtain the user's ratification; no
+rollback is recommended unless the user rejects the archive. No experiment,
+kernel rerun, dataset publication, model promotion, or submission is needed
+or authorized.
