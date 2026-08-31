@@ -155,7 +155,7 @@ explicitly and run with internet disabled — this is a Code Competition.
 heading (e.g. "RSNA Knee Abnormality Detection — Report Baseline") where
 that fits. **Kaggle rejects any kernel title over 50 characters**
 (`"The title cannot exceed 50 characters"`, confirmed against a real push —
-see `docs/collaboration/active_task.md` round 39) — when the full heading
+see `docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md` round 39) — when the full heading
 doesn't fit, shorten the *kernel* title to a semantically aligned form
 (e.g. "RSNA Knee — Image Baseline Preflight Audit" for a notebook headed
 "RSNA Knee Abnormality Detection — Image Baseline Preflight Audit") rather

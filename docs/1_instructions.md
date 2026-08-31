@@ -37,7 +37,7 @@ original free-text radiology report.
 - **`test.csv`** — **not** the same schema as `train.csv`: real Kaggle
   execution confirms it has only `StudyInstanceUID`, no `Report` column at
   all (verified directly against the live mounted competition data, not
-  assumed — see `docs/collaboration/active_task.md` round 37). A model that
+  assumed — see `docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md` round 37). A model that
   needs report text at inference time cannot be built against this file.
 - **`test_series.csv` / `test_series/`** — same schema as
   `train_series.csv`/`train_series/` (also verified against real data, round

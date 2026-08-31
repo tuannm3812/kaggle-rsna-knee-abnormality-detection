@@ -7,9 +7,11 @@ each phase's real findings change what the next phase should be. Written
 2026-08-09 once real EDA findings (`docs/2_eda_insights.md`) existed to
 plan against; before that, this file was an empty placeholder.
 
-Status and detailed review history for whichever phase is currently in
-progress: `docs/collaboration/active_task.md`. This file is the roadmap;
-that one is the moment-to-moment work log.
+This file is the roadmap; the collaboration log is the moment-to-moment
+work log. Phase 3's complete 115-round record (3A, 3B, the aggregation
+comparisons and W1) is closed and archived at
+`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md`;
+`docs/collaboration/active_task.md` is the live channel for whatever is opened next.
 
 ## Phase 0 — Setup — done 2026-08-09
 
@@ -43,7 +45,7 @@ indefinitely.
 - Design: `docs/superpowers/specs/2026-08-09-weak-label-calibration-design.md`
   (filename kept for history; content is titled "Weak-Label Evaluation").
   Full review history (11 design rounds + 2 post-merge Codex rounds):
-  `docs/collaboration/active_task.md`. Real numbers:
+  `docs/collaboration/archive/2026-08-09-weak-label-evaluation.md`. Real numbers:
   `docs/4_experiments.md`.
 - **Verdict: No-go.** 0/12 labels clear the allowlist gate
   (`MIN_SUPPORT=5`, `MIN_PRECISION_LOWER_BOUND=0.55`, Wilson lower
@@ -117,7 +119,7 @@ only; pooled out-of-fold macro-AUC as the primary internal score.
 - Plan: `docs/superpowers/plans/2026-08-10-phase-3a-report-baseline.md`
   — 12 tasks, approved for execution. Full review history (33+ Codex/
   Claude rounds across design, plan, and implementation):
-  `docs/collaboration/active_task.md`.
+  `docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md`.
 - **Status:** all 9 local implementation tasks were completed and
   independently accepted, and Task 10 (private Kaggle execution) ran the
   EDA and weak-label kernels successfully. The baseline kernel's first real

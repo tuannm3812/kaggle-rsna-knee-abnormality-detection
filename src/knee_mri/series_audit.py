@@ -2,7 +2,8 @@
 
 Computes geometry-derived slice order and laterality, decode reliability,
 and series-metadata agreement statistics used to inform the Phase 3B image
-pipeline design before it is frozen (see `docs/collaboration/active_task.md`
+pipeline design before it is frozen (see
+`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md`
 round 38, finding 3). Every function here is aggregate/per-series -- callers
 are responsible for not logging raw pixel data, report text, or study
 identifiers alongside the results.
@@ -501,7 +502,8 @@ def _validated_geometry_order(
         column_direction = np.asarray(orientation[3:], dtype=float)
         row_norm = float(np.linalg.norm(row_direction))
         column_norm = float(np.linalg.norm(column_direction))
-        # The approved contract (docs/collaboration/active_task.md round 50)
+        # The approved contract (round 50 of
+        # docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md)
         # requires every slice's full orientation to agree, not just its
         # derived normal -- comparing normals alone would accept a 90-degree
         # in-plane rotation between slices, since that preserves the normal
@@ -681,10 +683,11 @@ def validate_and_order_series(
     duplicates. If neither route validates, the series is reported unusable
     rather than silently falling back to filename order -- an ordering this
     project never labels anatomical without validation
-    (`docs/collaboration/active_task.md` rounds 45, 49, and 52).
+    (`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md` rounds 45, 49, and 52).
 
     The reviewed, production-grade contract is the four defaults below,
-    frozen in `docs/collaboration/active_task.md` rounds 53 and 57 -- no
+    frozen in rounds 53 and 57 of
+    `docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md` -- no
     repository caller overrides them. The four tolerance arguments are
     keyword-only and exist for tests/diagnostics that need to probe the
     validation boundary directly; each argument's stated numeric range only
@@ -766,10 +769,11 @@ def series_transfer_syntax(series_dir: Path) -> str | None:
 
     Header-only and single-file by design: this is the cheap corpus-wide
     census that answers which transfer syntaxes actually occur
-    (`docs/collaboration/active_task.md` round 60, finding 8), not a decode
-    reliability measurement -- `audit_series`'s `decode_results` already
-    covers that for a sampled subset. Scanning one header per series is what
-    makes a full-corpus census affordable.
+    (`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md`
+    round 60, finding 8), not a decode reliability measurement --
+    `audit_series`'s `decode_results` already covers that for a sampled
+    subset. Scanning one header per series is what makes a full-corpus
+    census affordable.
 
     Slices are tried in filename order until one yields a syntax, so a
     single corrupt file does not make an otherwise-readable series

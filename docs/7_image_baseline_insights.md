@@ -1,7 +1,7 @@
 # Image Baseline Insights
 
 Append-only log of real measurements informing the Phase 3B image-baseline
-pipeline design (see `docs/3_strategy.md` Phase 3, `docs/collaboration/active_task.md`
+pipeline design (see `docs/3_strategy.md` Phase 3, `docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md`
 round 38's finding 3, and the Phase 3B design proposal in round 37). One
 section per notebook version/run; never edit a past entry once a later one
 supersedes it — append a correction instead.
@@ -120,7 +120,7 @@ rejected server-side (`"The title cannot exceed 50 characters"` — a Kaggle
 kernel title hard limit not documented anywhere in this project, now
 recorded), and version 2 crashed with the GPU-compute-capability error above
 before the resilience fix was added. Both fixes are in
-`docs/collaboration/active_task.md` round 39. Every result above comes from
+`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md` round 39. Every result above comes from
 version 3's persisted `/kaggle/working/preflight_audit_summary.json` — the
 Kaggle kernel-output API does not expose rendered `display()` output for
 notebook-type kernels, only files written to `/kaggle/working` and a plain
@@ -146,7 +146,7 @@ laterality was only checked on each series' first slice (contradicting
 probe used two module names that don't exist, the GPU timing projection
 targeted all 4,407 train studies instead of the actual workload, and
 several documentation/prose issues (detailed in
-`docs/collaboration/active_task.md` round 40). All five are fixed in
+`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md` round 40). All five are fixed in
 `src/knee_mri/series_audit.py` and the notebook (round 41). Two of the
 "fixes" turned out to change the substantive conclusion, not just its
 precision — flagged explicitly below.
@@ -284,7 +284,7 @@ yet delivered in v2), an overstated "end to end" runtime claim, and several
 stale/broad public claims (wrong round citation, "the approved design" for
 an unapproved proposal, an Phase 4 lever assuming test-time report access,
 an unscoped "every study has all three planes" claim). Full findings:
-`docs/collaboration/active_task.md` round 42; user approval to implement
+`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md` round 42; user approval to implement
 and rerun: round 43.
 
 **Kernel:** `tuannm3812/rsna-knee-image-baseline-preflight-audit`, version
@@ -405,7 +405,7 @@ overstated its status as "the call a real pipeline would use" — reworded to
 make clear its tag-over-geometry precedence is an audit/reporting
 convenience only, not an approved modeling-pipeline policy (the actual
 policy is part of the still-unwritten Phase 3B design). Full detail:
-`docs/collaboration/active_task.md` round 48.
+`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md` round 48.
 
 ## 2026-08-12 — Preflight audit v4 (`04_image_baseline_preflight.ipynb`)
 
@@ -505,7 +505,7 @@ produced); and the geometry validity check compared only derived slice
 normals, which a 90-degree in-plane rotation between slices leaves
 unchanged, accepting a case the approved contract should reject. Round 53
 independently reproduced all three with the actual project code, fixed
-them, and added regression tests (`docs/collaboration/active_task.md`
+them, and added regression tests (`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md`
 round 53). This round reruns the corrected code against real data — per
 the user's explicit workflow change ("test with kaggle running to find any
 issue earlier") — before another review round, not after.
@@ -560,7 +560,7 @@ non-normalized direction-cosine dot products against a cosine-similarity
 threshold, producing an asymmetric false rejection within the accepted
 unit-norm tolerance — plus a non-blocking gap where tolerance validation
 still accepted infinite/degenerate values. Round 56 independently reproduced
-and fixed all three (`docs/collaboration/active_task.md` round 56) and wired
+and fixed all three (`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md` round 56) and wired
 a new aggregate-only `header_read_failures` stat into this notebook's
 persisted summary. Per Codex's own round-55 guidance, this rerun is not
 claimed to exercise the fixed failure paths themselves — the fixed 150-study

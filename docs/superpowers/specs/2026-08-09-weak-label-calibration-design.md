@@ -3,8 +3,9 @@
 Date: 2026-08-09
 Status: **Approved by user (2026-08-09)** after 11 rounds of Codex
 review. Next step: `superpowers:writing-plans` (see
-`docs/collaboration/active_task.md` for the full review/discussion
-history)
+`docs/collaboration/archive/2026-08-09-weak-label-evaluation.md` for the
+full review/discussion history — archived when this task closed, matching
+the pointer its sibling plan file already carries)
 
 ## Problem
 

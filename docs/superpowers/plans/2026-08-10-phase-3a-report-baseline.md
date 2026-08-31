@@ -1,5 +1,20 @@
 # Phase 3A Report Baseline Implementation Plan
 
+> **Historical artifact — do not execute.** Phase 3A was implemented in full,
+> then stopped at Kaggle Task 10: the real competition `test.csv` carries no
+> `Report` column, so a report-only model can never produce a submission. It
+> stands as a train-only signal audit (`docs/3_strategy.md` Phase 3A).
+>
+> **This plan's closing steps name an archive file that was never created
+> under that name.** The collaboration log was not archived at the end of
+> Phase 3A — it stayed open through Phase 3B, the aggregation comparisons and
+> W1, and was archived on 2026-08-31 after 115 rounds as
+> `docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md`, whose
+> name reflects that wider scope. Read `2026-08-10-phase-3a-report-baseline.md`
+> in the steps below as that file. The in-plan instructions to append rounds to
+> `docs/collaboration/active_task.md` were correct while this plan was live and
+> are left as written.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build, validate, run, and submit the frozen report-only Phase 3A baseline while turning all three notebooks into professional, aggregate-only Kaggle kernels.
@@ -1035,7 +1050,7 @@ Do not submit. Claude must record no unresolved implementation finding, then the
 **Files:**
 - Modify: `docs/5_submissions.md`
 - Modify: `docs/3_strategy.md`
-- Move after acceptance: `docs/collaboration/active_task.md` to `docs/collaboration/archive/2026-08-10-phase-3a-report-baseline.md`
+- Move after acceptance: `docs/collaboration/active_task.md` to `docs/collaboration/archive/2026-08-10-phase-3a-report-baseline.md` *(Not what happened — see the header note: archived 2026-08-31 as `2026-08-10-phase-3-baseline-modeling.md`.)*
 - Create after acceptance: `docs/collaboration/active_task.md`
 
 **Interfaces:**
@@ -1088,4 +1103,4 @@ git commit -m "docs(submission): record Phase 3A kernel submission"
 
 - [ ] **Step 6: Archive only after Claude acceptance**
 
-After Claude records a clean final review and the user accepts Phase 3A, move the entire collaboration log to `docs/collaboration/archive/2026-08-10-phase-3a-report-baseline.md`. Create a fresh active log naming Phase 3B as unapproved design work, commit both, and leave all Kaggle assets private.
+After Claude records a clean final review and the user accepts Phase 3A, move the entire collaboration log to `docs/collaboration/archive/2026-08-10-phase-3a-report-baseline.md`. Create a fresh active log naming Phase 3B as unapproved design work, commit both, and leave all Kaggle assets private. *(Not what happened — see the header note: archived 2026-08-31 as `2026-08-10-phase-3-baseline-modeling.md`.)*

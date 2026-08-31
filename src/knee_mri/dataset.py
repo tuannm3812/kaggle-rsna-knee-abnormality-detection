@@ -166,9 +166,9 @@ def select_validated_series(
     first usable one. If no candidate validates (or none exist), returns a
     `PlaneSelection` with `series_instance_uid=None` -- the missing-plane
     case, to be excluded from the study embedding with its presence flag
-    set to 0 (`docs/collaboration/active_task.md` rounds 46-47). A series
-    that fails validation is never used and never falls back to an
-    unvalidated (e.g. filename) order.
+    set to 0 (`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md`
+    rounds 46-47). A series that fails validation is never used and never
+    falls back to an unvalidated (e.g. filename) order.
 
     Args:
         series_df: A `train_series.csv`/`test_series.csv`-shaped frame.

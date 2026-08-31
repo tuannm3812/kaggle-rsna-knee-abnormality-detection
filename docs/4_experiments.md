@@ -6,7 +6,7 @@ entry per experiment (config, score, conclusion).
 ## 2026-08-09 — Weak-label evaluation (Phase 2)
 
 **Kernel:** `tuannm3812/rsna-knee-weak-label-evaluation` v2 (v1 failed on
-a real-data validation bug, see `docs/collaboration/active_task.md`).
+a real-data validation bug, see `docs/collaboration/archive/2026-08-09-weak-label-evaluation.md`).
 **Code:** `rsna-knee-mri-src` dataset version published from commit
 `39e955b`. **Data:** the 58 human-labeled studies (`split_labeled_studies`
 on `train.csv`). Full mechanism:
