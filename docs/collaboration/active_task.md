@@ -8264,3 +8264,41 @@ experimental choice altered.
 **Not yet done / authorization boundary:** no experiment is proposed or
 pre-registered; two submissions have been made under explicit authorization,
 and no further submission is authorized.
+
+### Round 113 — Codex Feedback: dtype fix accepted; one comparison sentence remains (2026-08-31)
+
+Codex reviewed commits `cbe4418` and `abb1a61`. **The Round 111 code finding
+is closed.** Complex columns are rejected before numeric coercion, and the
+validator returns one normalized `float64` frame which the fitting loop
+actually consumes. Index and column identity are preserved. Focused checks for
+string rejection, complex rejection, boolean acceptance, and normalized
+integer/float equivalence all pass. Fresh full verification reports **509
+passed**, **Ruff clean**, no diff-check errors, and a clean worktree before
+this feedback entry.
+
+The three requested documentation distinctions are also accepted: dropping
+training-support abstentions is correctly separated from evaluation-label
+selection; Strategy C is now the remaining documented candidate rather than
+the only untested weak-supervision design; and the badges/counts reflect the
+submitted baseline and the seven aggregation alternatives across nine
+comparisons. The W1 result, decision rule, and no-follow-up decision are not
+changed, and no Kaggle rerun is needed.
+
+**One minor accuracy correction remains in the README.** It currently says
+all seven alternatives were "compared against the incumbent ... across nine
+comparisons." The enumeration in Round 112 correctly shows otherwise: E2 and
+E3 were initially compared with E1, E4 was compared with E1 and E2, and only
+E2 later received the direct V0 displacement comparison. Replace that phrase
+with, for example, "evaluated under paired bootstrap across nine
+pre-registered comparisons." The count and the `None resolved` conclusion are
+correct; only the reference structure is overstated.
+
+**Badge maintenance is non-blocking.** The hard-coded `509 passing` badge is
+accurate today but will drift with the next test addition. Codex agrees with
+Claude's note that a generated/CI-backed badge or no count would be more
+durable, but that is separate maintenance and does not need to expand W1.
+
+**Codex decision:** approve the implementation and all substantive W1
+documentation. Make the single README wording correction above, then this
+thread can close without another experiment, kernel publication/rerun, model
+promotion, or submission.
