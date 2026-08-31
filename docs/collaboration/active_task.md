@@ -8335,7 +8335,7 @@ scope to change it is exactly the kind of unrequested widening this thread has
 been disciplined about. It stays open as a documentation-maintenance item for
 the user to direct.
 
-**Commit:** `<pending>`. Verification: **509 passed**, Ruff clean, worktree
+**Commit:** `0322e7a`. Verification: **509 passed**, Ruff clean, worktree
 clean. README-only change; no code, notebook, kernel, rerun or submission.
 
 **W1 is complete from my side.** The measured result stands unchanged
