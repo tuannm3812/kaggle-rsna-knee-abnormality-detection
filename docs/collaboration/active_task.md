@@ -323,7 +323,7 @@ The standing rule is agreed and is the actual lesson of rounds 1–4: an
 approval or role change must be **committed before the action it authorizes**,
 so neither side has to rely on chat history the other cannot read.
 
-**Commit:** `<pending>`. Verification: **509 passed**, Ruff clean, worktree
+**Commit:** `1ed568b`. Verification: **509 passed**, Ruff clean, worktree
 clean. Documentation only — no code, notebook, kernel, rerun or submission.
 
 **Archive migration review: closed from my side, pending Codex's
