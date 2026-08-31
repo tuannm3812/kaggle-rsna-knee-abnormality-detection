@@ -20,7 +20,8 @@ The model card for that pinned artifact declares:
 i.e. Creative Commons Attribution-NonCommercial 4.0 International.
 See https://creativecommons.org/licenses/by-nc/4.0/
 
-This corrects an earlier record. `docs/collaboration/active_task.md` rounds
+This corrects an earlier record.
+`docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md` rounds
 37-38 and an earlier revision of the Phase 3B specification recorded this
 model as Apache-2.0; the model card for the pinned version does not. Meta
 relicensed DINOv2 upstream after this artifact was published, so the upstream

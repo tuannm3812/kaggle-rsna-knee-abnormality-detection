@@ -8,7 +8,8 @@
 > **This plan's closing steps name an archive file that was never created
 > under that name.** The collaboration log was not archived at the end of
 > Phase 3A — it stayed open through Phase 3B, the aggregation comparisons and
-> W1, and was archived on 2026-08-31 after 115 rounds as
+> W1, and was archived on 2026-08-31 after 115 entries numbered 1-114 (two
+> are labeled Round 89) as
 > `docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md`, whose
 > name reflects that wider scope. Read `2026-08-10-phase-3a-report-baseline.md`
 > in the steps below as that file. The in-plan instructions to append rounds to

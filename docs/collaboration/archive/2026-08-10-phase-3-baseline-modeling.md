@@ -1,8 +1,10 @@
 # Claude–Codex Task Log (CLOSED) — Phase 3 Baseline Modeling
 
 > **Archived 2026-08-31 under workflow rule 7**, after Codex's round-113
-> approval and round 114's closing correction. **115 rounds, 2026-08-10 to
-> 2026-08-31**, covering Phase 3A (report baseline, stopped when `test.csv`
+> approval and round 114's closing correction. **115 entries numbered 1-114,
+> 2026-08-10 to 2026-08-31** — two entries are labeled Round 89 (a Codex
+> feedback entry and a user approval), so the heading count exceeds the highest
+> number. Covering Phase 3A (report baseline, stopped when `test.csv`
 > proved to have no `Report` column), Phase 3B (frozen image baseline —
 > implemented, run, and submitted twice at `0.681` and `0.687` public LB), the
 > nine pre-registered aggregation comparisons, and W1 (report-derived weak

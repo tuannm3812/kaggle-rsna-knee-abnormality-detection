@@ -8,8 +8,9 @@ each phase's real findings change what the next phase should be. Written
 plan against; before that, this file was an empty placeholder.
 
 This file is the roadmap; the collaboration log is the moment-to-moment
-work log. Phase 3's complete 115-round record (3A, 3B, the aggregation
-comparisons and W1) is closed and archived at
+work log. Phase 3's complete record — **115 entries numbered 1-114**, two of
+them labeled Round 89 (a Codex feedback entry and a user approval), covering
+3A, 3B, the aggregation comparisons and W1 — is closed and archived at
 `docs/collaboration/archive/2026-08-10-phase-3-baseline-modeling.md`;
 `docs/collaboration/active_task.md` is the live channel for whatever is opened next.
 

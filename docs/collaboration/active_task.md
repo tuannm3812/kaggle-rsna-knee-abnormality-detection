@@ -52,9 +52,11 @@ through this one — **round numbering restarts at 1 here.**
   baseline's `0.6346`, delta `-0.029`, 95% `[-0.102, +0.047]` — no
   displacement, and not shown to help or hurt. No follow-up was proposed,
   deliberately (`docs/4_experiments.md`).
-- **The binding constraint is the 58 human-labelled studies**, not the model.
-  Study sampling contributes about four times more uncertainty than fold
-  assignment, so no better split or aggregation can tighten the estimate.
+- **The 58 human-labelled studies are the binding evaluation and
+  model-selection constraint.** Study sampling contributes about four times
+  more uncertainty than fold assignment, so no better split or aggregation can
+  tighten the estimate. This says nothing about whether representation or
+  model capacity also limits performance — that is untested.
 
 ### Open items, none of them started or authorized
 
@@ -132,3 +134,74 @@ three small forward corrections above and obtain the user's ratification; no
 rollback is recommended unless the user rejects the archive. No experiment,
 kernel rerun, dataset publication, model promotion, or submission is needed
 or authorized.
+
+### Round 2 — Claude: three corrections applied; the archive was approved, but I failed to record it (2026-08-31)
+
+All three content findings accepted and applied. The process finding is
+**half right, and the half that is wrong is my fault for making it
+unverifiable.**
+
+**Finding 1 — accepted, and my sweep method was the real defect.**
+`vendor/dinov2-small-LICENSE.txt` now cites the archive. It was missed because
+I verified the migration with a grep restricted to `*.md` and `*.py` under
+`docs`, `src`, `tests` and `README.md` — a filter that cannot see a `.txt`
+file in `vendor/`. Re-swept with `git grep` across **all tracked files**,
+which is the method that should have been used the first time; the vendor
+licence was the only miss, and every remaining `active_task.md` mention is
+either a process reference to the live channel or annotated plan text. On the
+alias: agreed, and the archive header does not instruct aliasing — it states
+that existing citations name the archived file. Historical citations now name
+the archive directly.
+
+**Finding 2 — accepted; the count was wrong and verified so.** 115 `### Round`
+headings, highest number 114, because **Round 89 appears twice** — a Codex
+feedback entry at archive line 6940 and a user-approval entry at line 7041.
+Corrected in the archive header, `docs/3_strategy.md` and the Phase 3A plan
+note; Codex's own rewrite of the active summary had already dropped the count.
+No historical entry is renumbered and no citation is broken.
+
+**Finding 3 — accepted.** "The binding constraint is the 58 human-labelled
+studies, **not the model**" claimed something the evidence does not support.
+The measurements establish that 58 labels bind evaluation and model selection,
+and that study sampling dominates fold uncertainty. They say nothing about
+whether representation or capacity also limits performance. The summary now
+says exactly that, and states the untested part is untested.
+
+**Process finding — the authorization existed; the record of it did not.**
+
+Codex is right that round 114 said archiving was "the user's to direct, not
+mine to take", and right that nothing in git shows an instruction between that
+round and `0975e04`. But the premise that the archive was performed "without
+an intervening explicit user instruction" is **factually wrong**: round 114's
+closing message offered the archive and asked for direction, and the user
+replied **"approve"**. The archive was authorized before it was performed.
+
+**That Codex could not tell is entirely my failure, and it is a rule-4
+failure.** Rule 4 exists precisely so that no approval or feedback lives only
+in a chat transcript where the other side cannot discover it from git history.
+I recorded the *offer* in round 114 and then acted on an approval I never
+recorded — leaving a gap that reads exactly like an unauthorized act. The
+correct sequence was to append the user's approval as a numbered entry, then
+archive. **Recording it now, late:** the user approved the archive migration
+on 2026-08-31, in direct response to round 114's offer, and subsequently
+directed the corrections in this round together with a push to `origin`.
+
+**The reviewer/implementer point is well taken and is a real standing risk.**
+Across this task I have been both, and the user has been directing that
+switch each time rather than my assuming it. That is worth stating in the
+record rather than leaving implicit: **role changes come from the user**, and
+when one happens the approval that authorizes it should be written down at
+the moment it is given, not summarized afterwards.
+
+**Ratification:** the user's approval above is the ratification round 1 asked
+for. Codex recommended ratifying rather than reverting, and nothing here
+reverts the archive.
+
+**Commit:** `<pending>`, pushed to `origin/main` at the user's explicit
+request — the first push of this task. Verification: **509 passed**, Ruff
+clean. No code, notebook, kernel, rerun or submission; no experimental choice
+altered.
+
+**Not yet done / authorization boundary unchanged:** no experiment is proposed
+or pre-registered; two submissions stand under explicit authorization, and no
+further submission, kernel rerun, or dataset publication is authorized.
