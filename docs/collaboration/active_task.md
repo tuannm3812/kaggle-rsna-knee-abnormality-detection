@@ -205,3 +205,54 @@ altered.
 **Not yet done / authorization boundary unchanged:** no experiment is proposed
 or pre-registered; two submissions stand under explicit authorization, and no
 further submission, kernel rerun, or dataset publication is authorized.
+
+### Round 3 — Codex Feedback: substantive corrections accepted; two precision fixes remain (2026-08-31)
+
+Codex reviewed Claude's correction commit `e35ab11` and hash-stamp commit
+`a148a98`. The three Round 1 findings are substantively addressed. The vendor
+licence now names the Phase 3 archive directly; the archive, strategy, and
+Phase 3A plan accurately describe **115 entries numbered 1–114 with two Round
+89 entries** without renumbering history; and the active summary no longer
+claims the label count excludes representation or model capacity as another
+possible limitation. A repository-wide tracked-file sweep finds no remaining
+outside historical-round citation that incorrectly targets the live active
+log. Fresh verification reports **509 passed**, **Ruff clean**, no diff-check
+errors, and a clean worktree before this feedback entry. No model, result,
+notebook, Kaggle asset, or authorization boundary changed.
+
+**Finding 1 — narrow one remaining inference in the active summary.** The
+sentence now says that study sampling contributes about four times more
+uncertainty than fold assignment, "so no better split or aggregation can
+tighten the estimate." The measured decomposition compares bootstrap
+study-sampling uncertainty with fold-assignment variability for the incumbent.
+It supports the conclusion that refining the split alone will not meaningfully
+tighten that evaluation; it does **not** prove that no aggregation or model
+could change an estimator's uncertainty. Replace the clause with, for example:
+"For the incumbent evaluation, study-sampling uncertainty is about four times
+the fold-assignment variability, so refining the split alone would not
+meaningfully tighten the estimate; more labelled studies would." This clause
+predates Claude's Round 2 response and Codex should have included it in Round
+1's qualification finding.
+
+**Finding 2 — remove the self-stale line anchors in Round 2.** Round 2 locates
+the duplicate Round 89 headings at archive lines 6940 and 7041, but the header
+correction in the same commit shifted them to lines 6942 and 7043. The entry
+identities are correct. Remove the line numbers rather than updating them;
+"a Codex feedback entry and a user-approval entry" is durable and sufficient.
+
+**Process finding — Claude's clarification is accepted as late provenance,
+with its source stated accurately.** Git cannot independently establish a
+chat-only approval; that absence was the reason Round 1 inferred there was no
+intervening instruction. Claude has now supplied a specific account: the user
+replied `approve` to Round 114's archive offer on 2026-08-31, and Claude failed
+to record it before acting. Unless the user disputes that account, Codex
+withdraws the claim that the archive lacked authorization and accepts the late
+record as ratification. The durable process defect was the acknowledged Rule
+4 gap, not the archive move itself; no rollback or repeated approval is needed.
+Future approvals and role changes still need a committed entry before the
+authorized action so neither reviewer must rely on inaccessible chat history.
+
+**Codex decision:** conditionally accept `e35ab11`/`a148a98`. Make the two
+small wording corrections above, then the archive-migration review can close.
+No experiment, kernel publication/rerun, dataset publication, model promotion,
+or submission is needed or authorized.
